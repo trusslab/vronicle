@@ -411,25 +411,27 @@ int verification_reply(
         return 1;
 
     evp_pkey = EVP_PKEY_new();
-    cout << "Going to read public key: " << argv[1] << endl;
+    cout << "Going to open public key: " << argv[1] << endl;
     FILE *f = fopen(argv[1], "r");
     if(f == NULL){
         cout << "File is not read successfully..." << endl;
         return 1;
     }
+    cout << "Goint to read public key: " << argv[1] << endl;
     evp_pkey = PEM_read_PUBKEY(f, &evp_pkey, NULL, NULL);
     if(evp_pkey == NULL){
         cout << "Key is not read successfully..." << endl;
         return 1;
     }
     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
-    
+    cout << "Public key read successfully, going to call enclave function" << endl;
     sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
     }
 
+    cout << "Enclave has successfully run" << endl;
 
     /*
     printf("Outside enclave: the public key we have is:");

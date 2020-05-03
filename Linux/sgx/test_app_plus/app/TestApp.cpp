@@ -412,7 +412,9 @@ int verification_reply(
 
     evp_pkey = EVP_PKEY_new();
     cout << "Going to open public key: " << argv[1] << endl;
+    cout << "Going to open public key: " << argv[1] << endl;
     FILE *f = fopen(argv[1], "r");
+    cout << "Going to open public key(f): " << argv[1] << endl;
     if(f == NULL){
         cout << "File is not read successfully..." << endl;
         return 1;

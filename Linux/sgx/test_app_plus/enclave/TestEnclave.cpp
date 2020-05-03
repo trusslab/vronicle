@@ -232,16 +232,16 @@ void t_sgxver_call_apis(void *hash_of_contract, size_t len_of_hash, void *signat
 	// In: hash_of_contract, len_of_hash, len_of_pubkey
 	// Out: signature, public_key
 
-	rsa_key_gen();
-	sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
+	// rsa_key_gen();
+	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
 
 	/* call the API for verification here */
 	/* FIXME */
 
 	// Assign publicKey
-	int len = i2d_PublicKey(evp_pkey, NULL);
-	*(int*)size_of_actual_pukey = len;
-	i2d_PublicKey(evp_pkey, (unsigned char**)&public_key);
+	// int len = i2d_PublicKey(evp_pkey, NULL);
+	// *(int*)size_of_actual_pukey = len;
+	// i2d_PublicKey(evp_pkey, (unsigned char**)&public_key);
 
 	freeEverthing();
 }

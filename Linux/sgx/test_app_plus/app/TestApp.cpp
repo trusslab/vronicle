@@ -333,7 +333,8 @@ int verification_reply(
 	struct sockaddr *saddr_p,
 	socklen_t saddrlen,
 	unsigned char recv_buf[],
-	uint32_t recv_time[])
+	uint32_t recv_time[],
+    char** argv)
 {
 	printf("The contractID should be: %s", recv_buf);
 	fflush(stdout);
@@ -342,10 +343,10 @@ int verification_reply(
 	uint32_t *u32p;
 
     //printf("Here is the recv_buf: %s, %s\n", recv_buf, (char*)recv_buf);
-    // recv_buf is the contract #
+    // recv_buf is the base path of raw image
 
 	/* start the verification in enclave in here */
-	printf("start enclave verification in the app\n");
+	// printf("start enclave verification in the app\n");
 
 	if(!evp_pkey)
 		printf("is nulll\n");
@@ -369,6 +370,7 @@ int verification_reply(
     size_of_actual_pukey = (int*)malloc(sizeof(int));
     size_of_actual_signature = (int*)malloc(sizeof(int));
 
+    /*
     // Assign proper values to data
     const int max_buffer = 1000;
     char buffer[max_buffer];
@@ -398,12 +400,36 @@ int verification_reply(
     printf("Lalala\n");
     printf("(1)The system result is: %s\n", exec_result.c_str());
     strcpy(hash_of_contract, exec_result.c_str());
+    */
+
+    char absolutePath[MAX_PATH];
+    char *ptr = NULL;
+
+    ptr = realpath(dirname(argv[0]), absolutePath);
+
+    if (ptr == NULL || chdir(absolutePath) != 0)
+        return 1;
+
+    evp_pkey = EVP_PKEY_new();
+    FILE *f = fopen(argv[1], "r");
+    if(f == NULL){
+        cout << "File is not read successfully..." << endl;
+        return 1;
+    }
+    evp_pkey = PEM_read_PUBKEY(f, &evp_pkey, NULL, NULL);
+    if(evp_pkey == NULL){
+        cout << "Key is not read successfully..." << endl;
+        return 1;
+    }
+    cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     
     sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
     }
+
+    
 
     printf("Outside enclave: the public key we have is:");
 	printf ("{\"public\":\"");
@@ -413,14 +439,17 @@ int verification_reply(
 	}
 	printf("\"}\n");
 
+    /*
 	printf("The size of signature is: %d\n", *size_of_actual_signature);
     printf("Outside enclave, the signature is: {Signature: ");
 	for(i = 0; i < *size_of_actual_pukey; ++i){
 	    printf("%02x", (unsigned char)((unsigned char*)signature)[i]);
 	}
 	printf("\"}\n");
+    */
 
     // Write pubKey and signature to files
+    /*
     string pubKeyOutName = "../../../../submitted_files/";
     pubKeyOutName.append((const char*)recv_buf);
     pubKeyOutName.append("/enclave_pubKey");
@@ -444,6 +473,7 @@ int verification_reply(
 
     signOut.write((char*)signature, sizeof(signature));
     signOut.close();
+    */
 
     // Free everything
     free(hash_of_contract);
@@ -470,7 +500,7 @@ int verification_reply(
 }
 
 
-void request_process_loop(int fd)
+void request_process_loop(int fd, char** argv)
 {
 	struct sockaddr src_addr;
 	socklen_t src_addrlen = sizeof(src_addr);
@@ -487,13 +517,13 @@ void request_process_loop(int fd)
 
 		gettime64(recv_time);
 
-		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time);
+		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
 		break;
 	}
 }
 
 
-void sgx_server()
+void sgx_server(char** argv)
 {
 	int s;
 	struct sockaddr_in sinaddr;
@@ -518,7 +548,7 @@ void sgx_server()
 			"= Server started, waiting for requests =\n"
 			"========================================\n");
 
-	request_process_loop(s);
+	request_process_loop(s, argv);
 	close(s);
 }
 
@@ -571,7 +601,7 @@ int main(int argc, char *argv[], char **env)
 	/* create the server waiting for the verification request from the client */
 	int s;
 	signal(SIGCHLD,wait_wrapper);
-	sgx_server();
+	sgx_server(argv);
 
 	/* after verification we destroy the enclave */
     sgx_destroy_enclave(global_eid);

@@ -40,6 +40,11 @@
 #include "sgx_error.h"       /* sgx_status_t */
 #include "sgx_eid.h"     /* sgx_enclave_id_t */
 
+#include "TestEnclave_u.h"
+
+#include <fstream>
+#include <iostream>
+
 #ifndef TRUE
 # define TRUE 1
 #endif

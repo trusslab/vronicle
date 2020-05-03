@@ -270,11 +270,30 @@ void priv_free(void* addr, const char *file, int line)
 */
 
 
-void t_sgxssl_call_apis()
+void t_sgxssl_call_apis(void* evp_pkey_v)
 {
     int ret = 0;
+	EVP_PKEY* evp_pkey = (EVP_PKEY*)evp_pkey_v;
     
     printf("Start tests\n");
+
+	// public key - string
+	int len = i2d_PublicKey(evp_pkey, NULL);
+	unsigned char *buf = (unsigned char *) malloc (len + 1);
+	unsigned char *tbuf = buf;
+	i2d_PublicKey(evp_pkey, &tbuf);
+
+	// print public key
+	printf ("{\"public\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) buf[i]);
+	}
+	printf("\"}\n");
+
+	free(buf);
+
+	/*
     
     SGXSSLSetPrintToStdoutStderrCB(vprintf_cb);
 
@@ -360,6 +379,8 @@ void t_sgxssl_call_apis()
     	exit(ret);
     }
 	printf("test threads_test completed\n");
+
+	*/
 	
 }
 

@@ -15,16 +15,6 @@
     <DebuggerFlavor>SGXDebugLauncher</DebuggerFlavor>
     <IntelSGXDebuggerWorkingDirectory>$(OutDir)</IntelSGXDebuggerWorkingDirectory>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CVE_2020_0551_CF_Release|Win32'">
-    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
-    <DebuggerFlavor>SGXDebugLauncher</DebuggerFlavor>
-    <IntelSGXDebuggerWorkingDirectory>$(OutDir)</IntelSGXDebuggerWorkingDirectory>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CVE_2020_0551_Load_Release|Win32'">
-    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
-    <DebuggerFlavor>SGXDebugLauncher</DebuggerFlavor>
-    <IntelSGXDebuggerWorkingDirectory>$(OutDir)</IntelSGXDebuggerWorkingDirectory>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Prerelease|x64'">
     <IntelSGXDebuggerWorkingDirectory>$(OutDir)</IntelSGXDebuggerWorkingDirectory>
     <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
@@ -36,16 +26,6 @@
     <DebuggerFlavor>SGXDebugLauncher</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IntelSGXDebuggerWorkingDirectory>$(OutDir)</IntelSGXDebuggerWorkingDirectory>
-    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
-    <DebuggerFlavor>SGXDebugLauncher</DebuggerFlavor>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CVE_2020_0551_CF_Release|x64'">
-    <IntelSGXDebuggerWorkingDirectory>$(OutDir)</IntelSGXDebuggerWorkingDirectory>
-    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
-    <DebuggerFlavor>SGXDebugLauncher</DebuggerFlavor>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='CVE_2020_0551_Load_Release|x64'">
     <IntelSGXDebuggerWorkingDirectory>$(OutDir)</IntelSGXDebuggerWorkingDirectory>
     <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>SGXDebugLauncher</DebuggerFlavor>

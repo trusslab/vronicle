@@ -42,14 +42,14 @@
 
 # define MAX_PATH FILENAME_MAX
 
-
 #include <sgx_urts.h>
 
 #include "TestApp.h"
 
-#include "TestEnclave_u.h"
+#include <evp.h>
+#include <pem.h>
 
-
+using namespace std;
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -265,8 +265,8 @@ int ucreate_thread()
 /* Application entry */
 int main(int argc, char *argv[])
 {
-    (void)(argc);
-    (void)(argv);
+    //(void)(argc);
+    //(void)(argv);
 
     /* Changing dir to where the executable is.*/
     char absolutePath[MAX_PATH];
@@ -277,11 +277,23 @@ int main(int argc, char *argv[])
     if (ptr == NULL || chdir(absolutePath) != 0)
     	return 1;
 
+    EVP_PKEY *evp_pkey = EVP_PKEY_new();
+    FILE *f = fopen(argv[1], "rb");
+    if(f == NULL){
+        cout << "File is not read successfully..." << endl;
+        return -1;
+    }
+    evp_pkey = PEM_read_PUBKEY(f, NULL, NULL, NULL);
+    if(evp_pkey == NULL){
+        cout << "Key is not read successfully..." << endl;
+        return -2;
+    }
+
     /* Initialize the enclave */
     if (initialize_enclave() < 0)
         return 1; 
  
-    sgx_status_t status = t_sgxssl_call_apis(global_eid);
+    sgx_status_t status = t_sgxssl_call_apis(global_eid, evp_pkey);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxssl_call_apis has failed.\n");
         return 1;    //Test failed

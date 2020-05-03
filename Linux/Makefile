@@ -28,32 +28,19 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 #
-include buildenv.mk
 include sgx/buildenv.mk
 LINUX_SGX_BUILD ?= 0
 
-.PHONY: sgxssl sgxssl_no_mitigation clean install uninstall
+.PHONY: clean install uninstall
 
 
-all: sgxssl
 
-sgxssl:
-	$(MAKE) -C sgx/ clean
-	$(MAKE) -C sgx/ MITIGATION-CVE-2020-0551=LOAD
-	$(MAKE) -C sgx/ clean
-	$(MAKE) -C sgx/ MITIGATION-CVE-2020-0551=CF
-	$(MAKE) -C sgx/ clean
-	$(MAKE) -C sgx/ 
-
-sgxssl_no_mitigation:
+all:
 	$(MAKE) -C sgx/ all
 
 clean:
 	$(MAKE) -C sgx/ clean
 	rm -rf $(PACKAGE_LIB)/$(OPENSSL_LIB) $(PACKAGE_INC)/openssl/
-	rm -rf $(PACKAGE_LIB)/cve_2020_0551_load
-	rm -rf $(PACKAGE_LIB)/cve_2020_0551_cf
-
 test:
 	$(MAKE) -C sgx/ test
 
@@ -63,7 +50,9 @@ ifeq ($(DEBUG), 1)
 endif
 	mkdir -p $(DESTDIR)/lib64/
 	mkdir -p $(DESTDIR)/include/
-	cp -prf $(PACKAGE_LIB)/*  $(DESTDIR)/lib64/
+	cp $(PACKAGE_LIB)/$(OPENSSL_LIB) $(DESTDIR)/lib64/
+	cp $(PACKAGE_LIB)/$(TRUSTED_LIB) $(DESTDIR)/lib64/
+	cp $(PACKAGE_LIB)/$(UNTRUSTED_LIB) $(DESTDIR)/lib64/
 	cp -prf $(PACKAGE_INC)/* $(DESTDIR)/include/
 
 uninstall:

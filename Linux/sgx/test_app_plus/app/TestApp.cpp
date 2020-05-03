@@ -411,6 +411,7 @@ int verification_reply(
         return 1;
 
     evp_pkey = EVP_PKEY_new();
+    cout << "Going to read public key: " << argv[1] << endl;
     FILE *f = fopen(argv[1], "r");
     if(f == NULL){
         cout << "File is not read successfully..." << endl;

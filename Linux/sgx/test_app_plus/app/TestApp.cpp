@@ -421,7 +421,7 @@ int verification_reply(
         cout << "Key is not read successfully..." << endl;
         return 1;
     }
-    cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
+    // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     
     sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));
     if (status != SGX_SUCCESS) {
@@ -429,8 +429,8 @@ int verification_reply(
         return 1;    //Test failed
     }
 
-    
 
+    /*
     printf("Outside enclave: the public key we have is:");
 	printf ("{\"public\":\"");
 	int i;
@@ -439,7 +439,6 @@ int verification_reply(
 	}
 	printf("\"}\n");
 
-    /*
 	printf("The size of signature is: %d\n", *size_of_actual_signature);
     printf("Outside enclave, the signature is: {Signature: ");
 	for(i = 0; i < *size_of_actual_pukey; ++i){

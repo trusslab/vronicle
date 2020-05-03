@@ -234,6 +234,7 @@ void t_sgxver_call_apis(void *hash_of_contract, size_t len_of_hash, void *signat
 
 	// rsa_key_gen();
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
+    printf("Hello from enclave!\n");
 
 	/* call the API for verification here */
 	/* FIXME */
@@ -243,7 +244,7 @@ void t_sgxver_call_apis(void *hash_of_contract, size_t len_of_hash, void *signat
 	// *(int*)size_of_actual_pukey = len;
 	// i2d_PublicKey(evp_pkey, (unsigned char**)&public_key);
 
-	freeEverthing();
+	// freeEverthing();
 }
 
 void t_sgxssl_call_apis(void* evp_pkey_v)

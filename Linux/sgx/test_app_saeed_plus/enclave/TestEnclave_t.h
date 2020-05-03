@@ -17,7 +17,7 @@ extern "C" {
 
 void t_sgxssl_call_apis(void* evp_pkey_v);
 void new_thread_func(void);
-void t_sgxver_call_apis(void* evp_pkey_v);
+void t_sgxver_call_apis(void* hash_of_contract, size_t len_of_hash, void* signature, void* size_of_actual_signature, int size_of_soas, void* public_key, size_t len_of_pukey, void* size_of_actual_pukey, size_t size_of_soap);
 
 sgx_status_t SGX_CDECL uprint(const char* str);
 sgx_status_t SGX_CDECL usgx_exit(int reason);

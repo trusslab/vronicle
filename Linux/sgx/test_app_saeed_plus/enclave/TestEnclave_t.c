@@ -32,7 +32,15 @@ typedef struct ms_t_sgxssl_call_apis_t {
 } ms_t_sgxssl_call_apis_t;
 
 typedef struct ms_t_sgxver_call_apis_t {
-	void* ms_evp_pkey_v;
+	void* ms_hash_of_contract;
+	size_t ms_len_of_hash;
+	void* ms_signature;
+	void* ms_size_of_actual_signature;
+	int ms_size_of_soas;
+	void* ms_public_key;
+	size_t ms_len_of_pukey;
+	void* ms_size_of_actual_pukey;
+	size_t ms_size_of_soap;
 } ms_t_sgxver_call_apis_t;
 
 typedef struct ms_uprint_t {
@@ -116,13 +124,115 @@ static sgx_status_t SGX_CDECL sgx_t_sgxver_call_apis(void* pms)
 	sgx_lfence();
 	ms_t_sgxver_call_apis_t* ms = SGX_CAST(ms_t_sgxver_call_apis_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
-	void* _tmp_evp_pkey_v = ms->ms_evp_pkey_v;
+	void* _tmp_hash_of_contract = ms->ms_hash_of_contract;
+	size_t _tmp_len_of_hash = ms->ms_len_of_hash;
+	size_t _len_hash_of_contract = _tmp_len_of_hash;
+	void* _in_hash_of_contract = NULL;
+	void* _tmp_signature = ms->ms_signature;
+	size_t _len_signature = 512;
+	void* _in_signature = NULL;
+	void* _tmp_size_of_actual_signature = ms->ms_size_of_actual_signature;
+	int _tmp_size_of_soas = ms->ms_size_of_soas;
+	size_t _len_size_of_actual_signature = _tmp_size_of_soas;
+	void* _in_size_of_actual_signature = NULL;
+	void* _tmp_public_key = ms->ms_public_key;
+	size_t _tmp_len_of_pukey = ms->ms_len_of_pukey;
+	size_t _len_public_key = _tmp_len_of_pukey;
+	void* _in_public_key = NULL;
+	void* _tmp_size_of_actual_pukey = ms->ms_size_of_actual_pukey;
+	size_t _tmp_size_of_soap = ms->ms_size_of_soap;
+	size_t _len_size_of_actual_pukey = _tmp_size_of_soap;
+	void* _in_size_of_actual_pukey = NULL;
 
+	CHECK_UNIQUE_POINTER(_tmp_hash_of_contract, _len_hash_of_contract);
+	CHECK_UNIQUE_POINTER(_tmp_signature, _len_signature);
+	CHECK_UNIQUE_POINTER(_tmp_size_of_actual_signature, _len_size_of_actual_signature);
+	CHECK_UNIQUE_POINTER(_tmp_public_key, _len_public_key);
+	CHECK_UNIQUE_POINTER(_tmp_size_of_actual_pukey, _len_size_of_actual_pukey);
 
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
 
-	t_sgxver_call_apis(_tmp_evp_pkey_v);
+	if (_tmp_hash_of_contract != NULL && _len_hash_of_contract != 0) {
+		_in_hash_of_contract = (void*)malloc(_len_hash_of_contract);
+		if (_in_hash_of_contract == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
 
+		if (memcpy_s(_in_hash_of_contract, _len_hash_of_contract, _tmp_hash_of_contract, _len_hash_of_contract)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
 
+	}
+	if (_tmp_signature != NULL && _len_signature != 0) {
+		if ((_in_signature = (void*)malloc(_len_signature)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_signature, 0, _len_signature);
+	}
+	if (_tmp_size_of_actual_signature != NULL && _len_size_of_actual_signature != 0) {
+		if ((_in_size_of_actual_signature = (void*)malloc(_len_size_of_actual_signature)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_size_of_actual_signature, 0, _len_size_of_actual_signature);
+	}
+	if (_tmp_public_key != NULL && _len_public_key != 0) {
+		if ((_in_public_key = (void*)malloc(_len_public_key)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_public_key, 0, _len_public_key);
+	}
+	if (_tmp_size_of_actual_pukey != NULL && _len_size_of_actual_pukey != 0) {
+		if ((_in_size_of_actual_pukey = (void*)malloc(_len_size_of_actual_pukey)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_size_of_actual_pukey, 0, _len_size_of_actual_pukey);
+	}
+
+	t_sgxver_call_apis(_in_hash_of_contract, _tmp_len_of_hash, _in_signature, _in_size_of_actual_signature, _tmp_size_of_soas, _in_public_key, _tmp_len_of_pukey, _in_size_of_actual_pukey, _tmp_size_of_soap);
+	if (_in_signature) {
+		if (memcpy_s(_tmp_signature, _len_signature, _in_signature, _len_signature)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_size_of_actual_signature) {
+		if (memcpy_s(_tmp_size_of_actual_signature, _len_size_of_actual_signature, _in_size_of_actual_signature, _len_size_of_actual_signature)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_public_key) {
+		if (memcpy_s(_tmp_public_key, _len_public_key, _in_public_key, _len_public_key)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+	if (_in_size_of_actual_pukey) {
+		if (memcpy_s(_tmp_size_of_actual_pukey, _len_size_of_actual_pukey, _in_size_of_actual_pukey, _len_size_of_actual_pukey)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_hash_of_contract) free(_in_hash_of_contract);
+	if (_in_signature) free(_in_signature);
+	if (_in_size_of_actual_signature) free(_in_size_of_actual_signature);
+	if (_in_public_key) free(_in_public_key);
+	if (_in_size_of_actual_pukey) free(_in_size_of_actual_pukey);
 	return status;
 }
 

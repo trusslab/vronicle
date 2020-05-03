@@ -335,6 +335,8 @@ int verification_reply(
 	unsigned char recv_buf[],
 	uint32_t recv_time[])
 {
+	printf("The contractID should be: %s", recv_buf);
+	fflush(stdout);
 	/* Assume that recv_time is in local endian ! */
 	unsigned char send_buf[48];
 	uint32_t *u32p;
@@ -381,6 +383,7 @@ int verification_reply(
     string exec_result;
 
     printf("Going to exec cmd: %s\n", cmd.c_str());
+    fflush(stdout);
 
     stream = popen(cmd.c_str(), "r");
     if(stream){
@@ -392,7 +395,8 @@ int verification_reply(
         pclose(stream);
     }
 
-    printf("The system result is: %s\n", exec_result.c_str());
+    printf("Lalala\n");
+    printf("(1)The system result is: %s\n", exec_result.c_str());
     strcpy(hash_of_contract, exec_result.c_str());
     
     sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));

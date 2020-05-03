@@ -55,7 +55,7 @@ int SGX_UBRIDGE(SGX_CDECL, sgx_thread_set_multiple_untrusted_events_ocall, (cons
 
 sgx_status_t t_sgxssl_call_apis(sgx_enclave_id_t eid, void* evp_pkey_v);
 sgx_status_t new_thread_func(sgx_enclave_id_t eid);
-sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, void* evp_pkey_v);
+sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, void* hash_of_contract, size_t len_of_hash, void* signature, void* size_of_actual_signature, int size_of_soas, void* public_key, size_t len_of_pukey, void* size_of_actual_pukey, size_t size_of_soap);
 
 #ifdef __cplusplus
 }

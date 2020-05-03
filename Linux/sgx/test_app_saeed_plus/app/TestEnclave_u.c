@@ -6,7 +6,15 @@ typedef struct ms_t_sgxssl_call_apis_t {
 } ms_t_sgxssl_call_apis_t;
 
 typedef struct ms_t_sgxver_call_apis_t {
-	void* ms_evp_pkey_v;
+	void* ms_hash_of_contract;
+	size_t ms_len_of_hash;
+	void* ms_signature;
+	void* ms_size_of_actual_signature;
+	int ms_size_of_soas;
+	void* ms_public_key;
+	size_t ms_len_of_pukey;
+	void* ms_size_of_actual_pukey;
+	size_t ms_size_of_soap;
 } ms_t_sgxver_call_apis_t;
 
 typedef struct ms_uprint_t {
@@ -159,11 +167,19 @@ sgx_status_t new_thread_func(sgx_enclave_id_t eid)
 	return status;
 }
 
-sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, void* evp_pkey_v)
+sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, void* hash_of_contract, size_t len_of_hash, void* signature, void* size_of_actual_signature, int size_of_soas, void* public_key, size_t len_of_pukey, void* size_of_actual_pukey, size_t size_of_soap)
 {
 	sgx_status_t status;
-	ms_t_sgxssl_call_apis_t ms;
-	ms.ms_evp_pkey_v = evp_pkey_v;
+	ms_t_sgxver_call_apis_t ms;
+	ms.ms_hash_of_contract = hash_of_contract;
+	ms.ms_len_of_hash = len_of_hash;
+	ms.ms_signature = signature;
+	ms.ms_size_of_actual_signature = size_of_actual_signature;
+	ms.ms_size_of_soas = size_of_soas;
+	ms.ms_public_key = public_key;
+	ms.ms_len_of_pukey = len_of_pukey;
+	ms.ms_size_of_actual_pukey = size_of_actual_pukey;
+	ms.ms_size_of_soap = size_of_soap;
 	status = sgx_ecall(eid, 2, &ocall_table_TestEnclave, &ms);
 	return status;
 }

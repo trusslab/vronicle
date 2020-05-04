@@ -484,7 +484,7 @@ int verification_reply(
     int result_of_reading_raw_file = read_raw_file(raw_file_name);
     cout << "Raw file read result: " << result_of_reading_raw_file << endl;
 
-    sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));
+    sgx_status_t status = t_sgxver_call_apis(global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

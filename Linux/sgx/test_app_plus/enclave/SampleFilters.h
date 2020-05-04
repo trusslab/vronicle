@@ -1,5 +1,5 @@
 
-pixel* blur(pixel* image_buffer, int row_length, int total_num_of_pixels, int v){
+pixel* blur(pixel* image_buffer, pixel* output_buffer int row_length, int total_num_of_pixels, int v){
     // Inspired by https://processing.org/examples/blur.html
     float avg_weight = 1.0 / (v * v);
     int pad = v / 2;
@@ -33,16 +33,16 @@ pixel* blur(pixel* image_buffer, int row_length, int total_num_of_pixels, int v)
             temp_g *= 1.0 / 16.0;
             temp_b *= 1.0 / 16.0;
             */
-            image_buffer[y * row_length + x].r = truncate(temp_r);
-            image_buffer[y * row_length + x].g = truncate(temp_g);
-            image_buffer[y * row_length + x].b = truncate(temp_b);
+            output_buffer[y * row_length + x].r = truncate(temp_r);
+            output_buffer[y * row_length + x].g = truncate(temp_g);
+            output_buffer[y * row_length + x].b = truncate(temp_b);
         }
     }
     for(int i = 0; i < v; ++i){
         free(kernel[i]);
     }
     free(kernel);
-    return image_buffer;
+    return output_buffer;
 }
 
 pixel* sharpen(pixel* image_buffer, int row_length, int total_num_of_pixels, int v){

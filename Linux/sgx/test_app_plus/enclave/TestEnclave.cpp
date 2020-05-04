@@ -229,7 +229,7 @@ int sign_hash(void *hash_of_contract, size_t len_of_hash, void *signature, void 
 	return 0;
 }
 
-void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void *signature, void *size_of_actual_signature, int size_of_soas, void *public_key, size_t len_of_pukey, void *size_of_actual_pukey, size_t size_of_soap)
+void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void *signature, void *size_of_actual_signature, int size_of_soas, void *public_key, size_t len_of_pukey, void *size_of_actual_pukey, size_t size_of_soap, void* processed_pixels)
 {
 	// In: hash_of_contract, len_of_hash, len_of_pubkey
 	// Out: signature, public_key
@@ -239,7 +239,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
     printf("Hello from enclave!\n");
 	pixel* img_pixels = (pixel*) image_pixels;
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
-	blur(img_pixels, image_width, image_width * image_height, 9);
+	blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 9);
 	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
 
 	/* call the API for verification here */

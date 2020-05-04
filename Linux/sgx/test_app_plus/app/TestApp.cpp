@@ -191,6 +191,7 @@ void print_error_message(sgx_status_t ret)
 
 int read_raw_file(const char* file_name){
     // Return 0 on success, return 1 on failure
+    cout << "Going to read raw file: " << file_name << endl;
     FILE* input_raw_file = fopen(file_name, "r");
     char buff[257]; // Plus one for eof
     int counter_for_image_info = 0; // First two are width and height

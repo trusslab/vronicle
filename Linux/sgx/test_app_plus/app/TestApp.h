@@ -41,6 +41,7 @@
 #include "sgx_eid.h"     /* sgx_enclave_id_t */
 
 #include "TestEnclave_u.h"
+#include "RawBase.h"    // For processing raw image
 
 #include <fstream>
 #include <iostream>

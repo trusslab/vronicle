@@ -50,7 +50,6 @@
 #include <sgx_urts.h>
 
 #include "TestApp.h"
-#include "RawBase.h"
 
 #include <evp.h>
 #include <pem.h>
@@ -478,7 +477,7 @@ int verification_reply(
     char raw_file_name[50];
     snprintf(raw_file_name, 50, "data/out_raw_jpg/out_%s.jpg", (char*)recv_buf);
 
-    read_raw_file(buf);
+    read_raw_file(raw_file_name);
     cout << "Raw file read successfully" << endl;
 
     sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));

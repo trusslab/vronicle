@@ -497,8 +497,8 @@ int verification_reply(
     }
 
     cout << "Enclave has successfully run" << endl;
-    printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d.", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
-    printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d.", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
+    printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
+    printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
     // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
     // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
 

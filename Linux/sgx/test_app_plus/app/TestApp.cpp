@@ -193,6 +193,9 @@ int read_raw_file(const char* file_name){
     // Return 0 on success, return 1 on failure
     cout << "Going to read raw file: " << file_name << endl;
     FILE* input_raw_file = fopen(file_name, "r");
+    if(input_raw_file == NULL){
+        return 1;
+    }
     char buff[257]; // Plus one for eof
     int counter_for_image_info = 0; // First two are width and height
     int counter_for_checking_if_all_rgb_values_read_properly = 0;
@@ -476,10 +479,10 @@ int verification_reply(
     // cout << "Public key read successfully, going to call enclave function" << endl;
 
     char raw_file_name[50];
-    snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s.jpg", (char*)recv_buf);
+    snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
 
-    read_raw_file(raw_file_name);
-    cout << "Raw file read successfully" << endl;
+    int result_of_reading_raw_file = read_raw_file(raw_file_name);
+    cout << "Raw file read result: " << result_of_reading_raw_file << endl;
 
     sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));
     if (status != SGX_SUCCESS) {

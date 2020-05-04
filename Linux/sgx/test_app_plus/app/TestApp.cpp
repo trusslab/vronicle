@@ -87,6 +87,11 @@ typedef struct _sgx_errlist_t {
     const char *sug; /* Suggestion */
 } sgx_errlist_t;
 
+unsigned char* image_buffer = NULL;	/* Points to large array of R,G,B-order data */
+pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
+int image_height = 0;	/* Number of rows in image */
+int image_width = 0;		/* Number of columns in image */
+
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
     {
@@ -183,6 +188,49 @@ void print_error_message(sgx_status_t ret)
     
     if (idx == ttl)
         printf("Error: Unexpected error occurred [0x%x].\n", ret);
+}
+
+int read_raw_file(const char* file_name){
+    // Return 0 on success, return 1 on failure
+    FILE* input_raw_file = fopen(file_name, "r");
+    char buff[257]; // Plus one for eof
+    int counter_for_image_info = 0; // First two are width and height
+    int counter_for_checking_if_all_rgb_values_read_properly = 0;
+    char* info;
+    while(fgets(buff, 257, input_raw_file) != NULL){
+        // printf("buff: %s\n", buff);
+        info = strtok(buff, ",");
+        while(info != NULL){
+            // printf("Info: %d\n", atoi(info));
+            if(counter_for_image_info == 0){
+                image_width = atoi(info);
+                ++counter_for_image_info;
+            } else if (counter_for_image_info == 1){
+                image_height = atoi(info);
+                ++counter_for_image_info;
+                printf("The image has width: %d, and height: %d.\n", image_width, image_height);
+                image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * image_width * image_height * 3);
+            } else {
+                if(counter_for_checking_if_all_rgb_values_read_properly + 10 >= image_width * image_height * 3){
+                    // printf("Current counter: %d, current limit: %d.\n", counter_for_checking_if_all_rgb_values_read_properly, image_width * image_height * 3);
+                    // printf("Current info: %d\n", atoi(info));
+                }
+                image_buffer[counter_for_checking_if_all_rgb_values_read_properly++] = atoi(info);
+            }
+            info = strtok(NULL, ",");
+        }
+        // printf("Current buff: %s\n", buff);
+    }
+    if(image_buffer == NULL || image_height == 0 || image_width == 0 || 
+        counter_for_checking_if_all_rgb_values_read_properly != image_width * image_height * 3){
+            return 1;
+        }
+    printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
+
+    int total_number_of_pixels = image_width * image_height;
+    image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
+
+    return 0;
 }
 
 /* Initialize the enclave:
@@ -344,7 +392,7 @@ int verification_reply(
 	uint32_t *u32p;
 
     //printf("Here is the recv_buf: %s, %s\n", recv_buf, (char*)recv_buf);
-    // recv_buf is the base path of raw image
+    // recv_buf is the id num of the frame
 
 	/* start the verification in enclave in here */
 	// printf("start enclave verification in the app\n");
@@ -426,6 +474,13 @@ int verification_reply(
     }
     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     // cout << "Public key read successfully, going to call enclave function" << endl;
+
+    char raw_file_name[50];
+    snprintf(buf, 50, "data/out_raw_jpg/out_%s.jpg", buf);
+
+    read_raw_file(buf);
+    cout << "Raw file read successfully" << endl;
+
     sgx_status_t status = t_sgxver_call_apis(global_eid, hash_of_contract, size_of_contract_hash, signature, size_of_actual_signature, sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int));
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");

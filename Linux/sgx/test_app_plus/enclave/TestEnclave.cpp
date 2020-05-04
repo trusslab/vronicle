@@ -38,6 +38,7 @@
 #include "TestEnclave_t.h"  /* print_string */
 #include "tSgxSSL_api.h"
 #include "RawBase.h"
+#include "SampleFilters.h"
 
 #include <openssl/ec.h>
 #include <openssl/bn.h>
@@ -238,6 +239,8 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
     printf("Hello from enclave!\n");
 	pixel* img_pixels = (pixel*) image_pixels;
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
+	blur(img_pixels, image_width, image_width * image_height, 9);
+	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
 
 	/* call the API for verification here */
 	/* FIXME */

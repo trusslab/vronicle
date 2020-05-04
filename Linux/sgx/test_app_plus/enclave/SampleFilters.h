@@ -1,5 +1,5 @@
 
-pixel* blur(pixel* image_buffer, pixel* output_buffer int row_length, int total_num_of_pixels, int v){
+pixel* blur(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, int v){
     // Inspired by https://processing.org/examples/blur.html
     float avg_weight = 1.0 / (v * v);
     int pad = v / 2;

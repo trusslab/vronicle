@@ -1,5 +1,5 @@
-#ifndef _RAWBASE_H_
-#define _RAWBASE_H_
+// #ifndef _RAWBASE_H_
+// #define _RAWBASE_H_
 
 typedef struct pixel {
     unsigned char r = 0;
@@ -45,4 +45,4 @@ unsigned char* pixels_to_unsigned_chars(pixel* pixels, int num_of_pixels){
     return results;
 }
 
-#endif /* !_RAWBASE_H_ */
+// #endif /* !_RAWBASE_H_ */

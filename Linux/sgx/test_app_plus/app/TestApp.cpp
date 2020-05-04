@@ -50,6 +50,7 @@
 #include <sgx_urts.h>
 
 #include "TestApp.h"
+#include "RawBase.h"
 
 #include <evp.h>
 #include <pem.h>

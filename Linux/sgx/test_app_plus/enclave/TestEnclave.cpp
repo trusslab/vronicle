@@ -37,6 +37,7 @@
 #include "TestEnclave.h"
 #include "TestEnclave_t.h"  /* print_string */
 #include "tSgxSSL_api.h"
+#include "RawBase.h"
 
 #include <openssl/ec.h>
 #include <openssl/bn.h>

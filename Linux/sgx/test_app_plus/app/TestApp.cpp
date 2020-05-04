@@ -476,7 +476,7 @@ int verification_reply(
     // cout << "Public key read successfully, going to call enclave function" << endl;
 
     char raw_file_name[50];
-    snprintf(raw_file_name, 50, "data/out_raw_jpg/out_%s.jpg", (char*)recv_buf);
+    snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s.jpg", (char*)recv_buf);
 
     read_raw_file(raw_file_name);
     cout << "Raw file read successfully" << endl;

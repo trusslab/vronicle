@@ -35,8 +35,8 @@
 #include <string.h>
 #include <assert.h>
 #include <fstream>
-#include <dir.h>
-#include <process.h>
+#include <bits/stdc++.h> 
+#include <sys/stat.h> 
 
 #include <unistd.h>
 #include <pwd.h>
@@ -386,7 +386,7 @@ int save_processed_frame(pixel* processed_pixels, char* frame_id){
 
     // First create the folder if not created
     char* dirname = "data/processed_raw";
-    mkdir(dirname);
+    mkdir(dirname, 0777);
     
     // Save data
     int total_number_of_rgb_values = image_width * image_height * 3;

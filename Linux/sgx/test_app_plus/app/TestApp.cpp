@@ -35,7 +35,6 @@
 #include <string.h>
 #include <assert.h>
 #include <fstream>
-#include <conio.h> 
 #include <dir.h>
 #include <process.h>
 

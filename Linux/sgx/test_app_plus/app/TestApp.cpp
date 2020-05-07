@@ -387,20 +387,24 @@ int save_processed_frame(pixel* processed_pixels, char* frame_id){
     // First create the folder if not created
     char* dirname = "data/processed_raw";
     mkdir(dirname, 0777);
+    printf("Hello!????\n");
     
     // Save data
     int total_number_of_rgb_values = image_width * image_height * 3;
 
     char processed_raw_file_name[50];
     snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
+    printf("Hello222????\n");
 
     FILE* output_file = fopen(processed_raw_file_name, "w+");
     if(output_file == NULL){
         return 1;
     }
+    printf("Hello?1212???\n");
 
     free(image_buffer);
     image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values);
+    printf("Hello????\n");
     
     fprintf(output_file, "%07d,%07d,", image_width, image_height);
     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){

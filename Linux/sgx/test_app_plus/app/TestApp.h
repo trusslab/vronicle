@@ -107,11 +107,8 @@ unsigned char* pixels_to_unsigned_chars(pixel* pixels, int num_of_pixels){
     if(pixels == NULL){
         return NULL;
     }
-    printf("aaaaa????\n");
     unsigned char* results = (unsigned char*)malloc(sizeof(unsigned char) * num_of_pixels * 3);
-    printf("bbbbbbb????\n");
-    memcpy(results, pixels, num_of_pixels * 3);
-    printf("ccccccc????\n");
+    memcpy(results, pixels, sizeof(unsigned char) * num_of_pixels * 3);
     return results;
 }
 

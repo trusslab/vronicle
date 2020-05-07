@@ -398,11 +398,9 @@ int save_processed_frame(pixel* processed_pixels, char* frame_id){
     if(output_file == NULL){
         return 1;
     }
-    printf("Hello?1212???\n");
 
     free(image_buffer);
-    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values);
-    printf("Hello????\n");
+    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
     
     fprintf(output_file, "%07d,%07d,", image_width, image_height);
     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){

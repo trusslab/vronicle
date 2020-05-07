@@ -35,6 +35,9 @@
 #include <string.h>
 #include <assert.h>
 #include <fstream>
+#include <conio.h> 
+#include <dir.h>
+#include <process.h>
 
 #include <unistd.h>
 #include <pwd.h>
@@ -379,6 +382,37 @@ void log_ntp_event(char *msg)
 	puts(msg);
 }
 
+int save_processed_frame(pixel* processed_pixels, char* frame_id){
+    // Return 0 on success; otherwise, return 1
+
+    // First create the folder if not created
+    char* dirname = "data/processed_raw";
+    mkdir(dirname);
+    
+    // Save data
+    int total_number_of_rgb_values = image_width * image_height * 3;
+
+    char processed_raw_file_name[50];
+    snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
+
+    FILE* output_file = fopen(processed_raw_file_name, "w+");
+    if(output_file == NULL){
+        return 1;
+    }
+
+    free(image_buffer);
+    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values);
+    
+    fprintf(output_file, "%07d,%07d,", image_width, image_height);
+    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+        fprintf(output_file, "%03d,", image_buffer[i]);
+    }
+    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+    fclose(output_file);
+
+    return 0;
+}
+
 EVP_PKEY *evp_pkey;
 int verification_reply(
 	int socket_fd,
@@ -502,6 +536,13 @@ int verification_reply(
     // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
     // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
 
+    int result = save_processed_frame(processed_pixels, (char*) recv_buf);
+    cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
+
+    // Free Everything (for video_provenance project)
+    free(image_pixels);
+    free(processed_pixels);
+    free(image_buffer);
 
     /*
     printf("Outside enclave: the public key we have is:");

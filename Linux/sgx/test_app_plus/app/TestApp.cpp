@@ -1069,6 +1069,33 @@ int read_rsa_pub_key(const char* publickey_file_name){
     return 0;
 }
 
+
+int read_file_as_hash_out(char* file_path){
+    // Return 0 on success, otherwise, return 1
+    FILE *file = fopen(file_path, "rb");
+    if(file == NULL){
+        return 1;
+    }
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    const int bufSize = 32768;
+    unsigned char* buffer = (unsigned char*)malloc(bufSize);
+    int bytesRead = 0;
+    if(!buffer) return ENOMEM;
+    while((bytesRead = fread(buffer, 1, bufSize, file)))
+    {
+        SHA256_Update(&sha256, buffer, bytesRead);
+    }
+    SHA256_Final(hash, &sha256);
+
+    sha256_hash_string(hash, hash_of_file);
+    fclose(file);
+    free(buffer);
+    return 0;
+}
+
 int verify_signature_out(){
     // Return 1 on success, otherwise, return 0
 
@@ -1127,7 +1154,7 @@ int main(int argc, char *argv[], char **env)
     // Test verification
     printf("Going to read hash...\n");
 
-    if(read_file_as_hash("data/out_raw/out_raw_0", hash_of_file) != 0){
+    if(read_file_as_hash_out("data/out_raw/out_raw_0") != 0){
         // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
         printf("File(as hash): %s cannot be read.\n", argv[1]);
         return 1;

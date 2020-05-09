@@ -94,7 +94,7 @@ typedef struct _sgx_errlist_t {
 // int image_height = 0;	/* Number of rows in image */
 // int image_width = 0;		/* Number of columns in image */
 
-// char* base64signature;  /* temp test */
+char* base64signature;  /* temp test */
 
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
@@ -1033,7 +1033,6 @@ int verify_signature_t(char* hash_of_file, EVP_PKEY* public_key){
 
 EVP_PKEY *evp_pkey = NULL;
 char hash_of_file[65];
-char* base64signature;
 
 int read_rsa_pub_key(const char* publickey_file_name){
     // Return 0 on success, otherwise, return 1

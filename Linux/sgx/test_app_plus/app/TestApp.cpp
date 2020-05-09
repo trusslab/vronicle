@@ -412,6 +412,57 @@ int save_processed_frame(pixel* processed_pixels, char* frame_id){
     return 0;
 }
 
+int read_signature(const char* sign_file_name, unsigned char* signature, size_t* signatureLength){
+    // Return 0 on success, otherwise, return 1
+    // Do not do dynamic allocaiton of signautre beforing calling this function
+    // Will allocate some memory, but not free
+    FILE* signature_file = fopen(sign_file_name, "r");
+    if(signature_file == NULL){
+        return 1;
+    }
+
+    fseek(signature_file, 0, SEEK_END);
+    long length = ftell(signature_file);
+    fseek(signature_file, 0, SEEK_SET);
+
+    char* base64signature = (char*)malloc(length);
+
+    fread(base64signature, 1, length, signature_file);
+
+    fclose(signature_file);
+
+    Base64Decode(base64signature, &signature, &signatureLength);
+
+    free(base64signature);
+
+    return 0;
+}
+
+void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
+{
+    int i = 0;
+
+    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    {
+        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
+    }
+
+    outputBuffer[64] = 0;
+}
+
+int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out){
+    // Return 0 on success, otherwise, return 1
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, data, size_of_data);
+    SHA256_Final(hash, &sha256);
+
+    sha256_hash_string(hash, hash_out);
+    return 0;
+}
+
 EVP_PKEY *evp_pkey;
 int verification_reply(
 	int socket_fd,
@@ -487,6 +538,7 @@ int verification_reply(
     strcpy(hash_of_contract, exec_result.c_str());
     */
 
+    // Read Public Key
     char absolutePath[MAX_PATH];
     char *ptr = NULL;
 
@@ -511,15 +563,34 @@ int verification_reply(
     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     // cout << "Public key read successfully, going to call enclave function" << endl;
 
+    // Read Signature
+    unsigned char* raw_signature;
+    int raw_signature_length;
+
+    char raw_file_signature_name[50];
+    snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
+
+    read_signature(raw_file_signature_name, raw_signature, &raw_signature_length);
+
+    // Read Raw Image
     char raw_file_name[50];
     snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
 
     int result_of_reading_raw_file = read_raw_file(raw_file_name);
     cout << "Raw file read result: " << result_of_reading_raw_file << endl;
 
+    // Read Raw Image Hash
+    char* hash_of_original_raw_file = (char*) malloc(65);
+    unsigned_chars_to_hash(image_buffer, image_height * image_width * 3, hash_of_original_raw_file);
+    cout << "Hash of image_buffer: " << hash_of_original_raw_file << endl;
+    unsigned_chars_to_hash(image_pixels, image_height * image_width * 3, hash_of_original_raw_file);
+    cout << "Hash of image_pixels: " << hash_of_original_raw_file << endl;
+
+    // Prepare processed Image
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
+    // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         signature, size_of_actual_signature, 
@@ -542,6 +613,7 @@ int verification_reply(
     free(image_pixels);
     free(processed_pixels);
     free(image_buffer);
+    free(hash_of_original_raw_file);
 
     /*
     printf("Outside enclave: the public key we have is:");

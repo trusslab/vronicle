@@ -229,10 +229,12 @@ int sign_hash(void *hash_of_contract, size_t len_of_hash, void *signature, void 
 	return 0;
 }
 
-void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void *signature, void *size_of_actual_signature, int size_of_soas, void *public_key, size_t len_of_pukey, void *size_of_actual_pukey, size_t size_of_soap, void* processed_pixels)
+void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
+						void *signature, void *size_of_actual_signature, int size_of_soas, 
+						void *public_key, size_t len_of_pukey, void *size_of_actual_pukey, size_t size_of_soap, void* processed_pixels)
 {
-	// In: hash_of_contract, len_of_hash, len_of_pubkey
-	// Out: signature, public_key
+	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, public_key
+	// Out: processed_pixels
 
 	// rsa_key_gen();
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);

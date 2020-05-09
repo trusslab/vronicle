@@ -384,7 +384,7 @@ void log_ntp_event(char *msg)
 
 int save_processed_frame(pixel* processed_pixels, char* frame_id){
     // Return 0 on success; otherwise, return 1
-
+    // Remember to free the return after finsihing using
     // First create the folder if not created
     char* dirname = "data/processed_raw";
     mkdir(dirname, 0777);
@@ -571,11 +571,13 @@ int verification_reply(
     size_of_pukey = SIZEOFPUKEY + 1;
 
     // Initialize the data
+    /*
     hash_of_contract = (char*)calloc(1, size_of_contract_hash);
     signature = (unsigned char*)calloc(1, SIZEOFSIGN + 1);
     public_key = (unsigned char*)calloc(1, size_of_pukey);
     size_of_actual_pukey = (int*)malloc(sizeof(int));
     size_of_actual_signature = (int*)malloc(sizeof(int));
+    */
 
     /*
     // Assign proper values to data
@@ -651,7 +653,8 @@ int verification_reply(
     cout << "Raw file read result: " << result_of_reading_raw_file << endl;
 
     // Read Raw Image Hash
-    char* hash_of_original_raw_file = (char*) malloc(65);
+    int size_of_hoorf = 65;
+    char* hash_of_original_raw_file = (char*) malloc(size_of_hoorf);
     read_file_as_hash(raw_file_name, hash_of_original_raw_file);
     cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
 
@@ -662,7 +665,7 @@ int verification_reply(
     // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-        raw_signature, (int)raw_signature_length, 
+        hash_of_original_raw_file, size_of_hoorf, raw_signature, (int)raw_signature_length, 
         evp_pkey, size_of_pukey, size_of_actual_pukey, sizeof(int), processed_pixels);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
@@ -729,11 +732,13 @@ int verification_reply(
     */
 
     // Free everything
+    /*
     free(hash_of_contract);
     free(signature);
     free(public_key);
     free(size_of_actual_pukey);
     free(size_of_actual_signature);
+    */
 	//printf("err:%x\n", status);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");

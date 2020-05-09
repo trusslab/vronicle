@@ -229,8 +229,52 @@ int sign_hash(void *hash_of_contract, size_t len_of_hash, void *signature, void 
 	return 0;
 }
 
+bool verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_KEY* public_key){
+	// Return true on success; otherwise, return false
+	EVP_MD_CTX *mdctx;
+	const EVP_MD *md;
+	unsigned char md_value[EVP_MAX_MD_SIZE];
+	unsigned int md_len, i;
+	int ret;
+
+	OpenSSL_add_all_digests();
+
+    md = EVP_get_digestbyname("SHA256");
+
+	if (md == NULL) {
+         printf("Unknown message digest %s\n", "SHA256");
+         exit(1);
+    }
+
+	mdctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(mdctx, md, NULL);
+
+	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+	if(ret != 1){
+		printf("EVP_VerifyInit_ex error. \n");
+        exit(1);
+	}
+
+    printf("hash_of_file to be verified: %s\n", hash_of_file);
+
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	if(ret != 1){
+		printf("EVP_VerifyUpdate error. \n");
+        exit(1);
+	}
+
+	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
+	printf("EVP_VerifyFinal result: %d\n", ret);
+
+	// Below part is for freeing data
+	// For freeing evp_md_ctx
+	EVP_MD_CTX_free(mdctx);
+
+    return ret;
+}
+
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
-						void *signature, int size_of_actual_signature,
+						void* hash_of_original_image, int size_of_hooi, void *signature, int size_of_actual_signature,
 						void *public_key, size_t len_of_pukey, void *size_of_actual_pukey, size_t size_of_soap, void* processed_pixels)
 {
 	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, public_key
@@ -239,6 +283,8 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// rsa_key_gen();
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
     printf("Hello from enclave!\n");
+	bool result_of_verification = verify_hash((char*)hash_of_original_image, (unsigned char*)signature, (size_t)size_of_actual_signature, (EVP_KEY*)public_key);
+	printf("result_of_verification: %d\n", result_of_verification);
 	pixel* img_pixels = (pixel*) image_pixels;
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
 	blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 9);

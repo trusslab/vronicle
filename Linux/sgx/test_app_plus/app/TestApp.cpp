@@ -221,52 +221,52 @@ void print_error_message(sgx_status_t ret)
         printf("Error: Unexpected error occurred [0x%x].\n", ret);
 }
 
-// int read_raw_file(const char* file_name){
-//     // Return 0 on success, return 1 on failure
-//     cout << "Going to read raw file: " << file_name << endl;
-//     FILE* input_raw_file = fopen(file_name, "r");
-//     if(input_raw_file == NULL){
-//         return 1;
-//     }
-//     char buff[257]; // Plus one for eof
-//     int counter_for_image_info = 0; // First two are width and height
-//     int counter_for_checking_if_all_rgb_values_read_properly = 0;
-//     char* info;
-//     while(fgets(buff, 257, input_raw_file) != NULL){
-//         // printf("buff: %s\n", buff);
-//         info = strtok(buff, ",");
-//         while(info != NULL){
-//             // printf("Info: %d\n", atoi(info));
-//             if(counter_for_image_info == 0){
-//                 image_width = atoi(info);
-//                 ++counter_for_image_info;
-//             } else if (counter_for_image_info == 1){
-//                 image_height = atoi(info);
-//                 ++counter_for_image_info;
-//                 printf("The image has width: %d, and height: %d.\n", image_width, image_height);
-//                 image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * image_width * image_height * 3);
-//             } else {
-//                 if(counter_for_checking_if_all_rgb_values_read_properly + 10 >= image_width * image_height * 3){
-//                     // printf("Current counter: %d, current limit: %d.\n", counter_for_checking_if_all_rgb_values_read_properly, image_width * image_height * 3);
-//                     // printf("Current info: %d\n", atoi(info));
-//                 }
-//                 image_buffer[counter_for_checking_if_all_rgb_values_read_properly++] = atoi(info);
-//             }
-//             info = strtok(NULL, ",");
-//         }
-//         // printf("Current buff: %s\n", buff);
-//     }
-//     if(image_buffer == NULL || image_height == 0 || image_width == 0 || 
-//         counter_for_checking_if_all_rgb_values_read_properly != image_width * image_height * 3){
-//             return 1;
-//         }
-//     printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
+int read_raw_file(const char* file_name){
+    // Return 0 on success, return 1 on failure
+    cout << "Going to read raw file: " << file_name << endl;
+    FILE* input_raw_file = fopen(file_name, "r");
+    if(input_raw_file == NULL){
+        return 1;
+    }
+    char buff[257]; // Plus one for eof
+    int counter_for_image_info = 0; // First two are width and height
+    int counter_for_checking_if_all_rgb_values_read_properly = 0;
+    char* info;
+    while(fgets(buff, 257, input_raw_file) != NULL){
+        // printf("buff: %s\n", buff);
+        info = strtok(buff, ",");
+        while(info != NULL){
+            // printf("Info: %d\n", atoi(info));
+            if(counter_for_image_info == 0){
+                image_width = atoi(info);
+                ++counter_for_image_info;
+            } else if (counter_for_image_info == 1){
+                image_height = atoi(info);
+                ++counter_for_image_info;
+                printf("The image has width: %d, and height: %d.\n", image_width, image_height);
+                image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * image_width * image_height * 3);
+            } else {
+                if(counter_for_checking_if_all_rgb_values_read_properly + 10 >= image_width * image_height * 3){
+                    // printf("Current counter: %d, current limit: %d.\n", counter_for_checking_if_all_rgb_values_read_properly, image_width * image_height * 3);
+                    // printf("Current info: %d\n", atoi(info));
+                }
+                image_buffer[counter_for_checking_if_all_rgb_values_read_properly++] = atoi(info);
+            }
+            info = strtok(NULL, ",");
+        }
+        // printf("Current buff: %s\n", buff);
+    }
+    if(image_buffer == NULL || image_height == 0 || image_width == 0 || 
+        counter_for_checking_if_all_rgb_values_read_properly != image_width * image_height * 3){
+            return 1;
+        }
+    printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
 
-//     int total_number_of_pixels = image_width * image_height;
-//     image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
+    int total_number_of_pixels = image_width * image_height;
+    image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
 
-//     return 0;
-// }
+    return 0;
+}
 
 /* Initialize the enclave:
  *   Step 1: retrive the launch token saved by last transaction
@@ -411,36 +411,36 @@ void log_ntp_event(char *msg)
 	puts(msg);
 }
 
-// int save_processed_frame(pixel* processed_pixels, char* frame_id){
-//     // Return 0 on success; otherwise, return 1
-//     // Remember to free the return after finsihing using
-//     // First create the folder if not created
-//     char* dirname = "data/processed_raw";
-//     mkdir(dirname, 0777);
+int save_processed_frame(pixel* processed_pixels, char* frame_id){
+    // Return 0 on success; otherwise, return 1
+    // Remember to free the return after finsihing using
+    // First create the folder if not created
+    char* dirname = "data/processed_raw";
+    mkdir(dirname, 0777);
     
-//     // Save data
-//     int total_number_of_rgb_values = image_width * image_height * 3;
+    // Save data
+    int total_number_of_rgb_values = image_width * image_height * 3;
 
-//     char processed_raw_file_name[50];
-//     snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
+    char processed_raw_file_name[50];
+    snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
 
-//     FILE* output_file = fopen(processed_raw_file_name, "w+");
-//     if(output_file == NULL){
-//         return 1;
-//     }
+    FILE* output_file = fopen(processed_raw_file_name, "w+");
+    if(output_file == NULL){
+        return 1;
+    }
 
-//     free(image_buffer);
-//     image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
+    free(image_buffer);
+    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
     
-//     fprintf(output_file, "%07d,%07d,", image_width, image_height);
-//     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-//         fprintf(output_file, "%03d,", image_buffer[i]);
-//     }
-//     fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
-//     fclose(output_file);
+    fprintf(output_file, "%07d,%07d,", image_width, image_height);
+    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+        fprintf(output_file, "%03d,", image_buffer[i]);
+    }
+    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+    fclose(output_file);
 
-//     return 0;
-// }
+    return 0;
+}
 
 size_t calcDecodeLength(const char* b64input) {
   size_t len = strlen(b64input), padding = 0;

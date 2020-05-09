@@ -3,9 +3,7 @@ pixel* blur(pixel* image_buffer, pixel* output_buffer, int row_length, int total
     // Inspired by https://processing.org/examples/blur.html
     float avg_weight = 1.0 / (v * v);
     int pad = v / 2;
-    printf("Going to do new...\n");
     float** kernel = new float*[v];
-    printf("Going to do new(Done)...\n");
     for(int i = 0; i < v; ++i){
         kernel[i] = new float[v];
         for(int i2 = 0; i2 < v; ++i2){

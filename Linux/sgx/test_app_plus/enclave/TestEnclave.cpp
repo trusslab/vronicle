@@ -47,6 +47,7 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/bio.h>
+#include <openssl/pem.h>
 
 #define ADD_ENTROPY_SIZE	32
 

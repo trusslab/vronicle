@@ -823,6 +823,7 @@ int verification_reply(
 
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
     read_signature_base64(raw_file_signature_name);
+    cout << "base64signature: " << base64signature << endl;
 
     // Read Raw Image
     char raw_file_name[50];

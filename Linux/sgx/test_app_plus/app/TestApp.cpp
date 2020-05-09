@@ -267,179 +267,179 @@ void print_error_message(sgx_status_t ret)
 //     return 0;
 // }
 
-// /* Initialize the enclave:
-//  *   Step 1: retrive the launch token saved by last transaction
-//  *   Step 2: call sgx_create_enclave to initialize an enclave instance
-//  *   Step 3: save the launch token if it is updated
-//  */
-// int initialize_enclave(void)
-// {
-//     char token_path[MAX_PATH] = {'\0'};
-//     sgx_launch_token_t token = {0};
-//     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-//     int updated = 0;
-//     /* Step 1: retrive the launch token saved by last transaction */
+/* Initialize the enclave:
+ *   Step 1: retrive the launch token saved by last transaction
+ *   Step 2: call sgx_create_enclave to initialize an enclave instance
+ *   Step 3: save the launch token if it is updated
+ */
+int initialize_enclave(void)
+{
+    char token_path[MAX_PATH] = {'\0'};
+    sgx_launch_token_t token = {0};
+    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
+    int updated = 0;
+    /* Step 1: retrive the launch token saved by last transaction */
 
-//     /* try to get the token saved in $HOME */
-//     const char *home_dir = getpwuid(getuid())->pw_dir;
-//     if (home_dir != NULL && 
-//         (strlen(home_dir)+strlen("/")+sizeof(TOKEN_FILENAME)+1) <= MAX_PATH) {
-//         /* compose the token path */
-//         strncpy(token_path, home_dir, strlen(home_dir));
-//         strncat(token_path, "/", strlen("/"));
-//         strncat(token_path, TOKEN_FILENAME, sizeof(TOKEN_FILENAME)+1);
-//     } else {
-//         /* if token path is too long or $HOME is NULL */
-//         strncpy(token_path, TOKEN_FILENAME, sizeof(TOKEN_FILENAME));
-//     }
+    /* try to get the token saved in $HOME */
+    const char *home_dir = getpwuid(getuid())->pw_dir;
+    if (home_dir != NULL && 
+        (strlen(home_dir)+strlen("/")+sizeof(TOKEN_FILENAME)+1) <= MAX_PATH) {
+        /* compose the token path */
+        strncpy(token_path, home_dir, strlen(home_dir));
+        strncat(token_path, "/", strlen("/"));
+        strncat(token_path, TOKEN_FILENAME, sizeof(TOKEN_FILENAME)+1);
+    } else {
+        /* if token path is too long or $HOME is NULL */
+        strncpy(token_path, TOKEN_FILENAME, sizeof(TOKEN_FILENAME));
+    }
 
-//     FILE *fp = fopen(token_path, "rb");
-//     if (fp == NULL && (fp = fopen(token_path, "wb")) == NULL) {
-//         printf("Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
-//     }
-//     printf("token_path: %s\n", token_path);
-//     if (fp != NULL) {
-//         /* read the token from saved file */
-//         size_t read_num = fread(token, 1, sizeof(sgx_launch_token_t), fp);
-//         if (read_num != 0 && read_num != sizeof(sgx_launch_token_t)) {
-//             /* if token is invalid, clear the buffer */
-//             memset(&token, 0x0, sizeof(sgx_launch_token_t));
-//             printf("Warning: Invalid launch token read from \"%s\".\n", token_path);
-//         }
-//     }
+    FILE *fp = fopen(token_path, "rb");
+    if (fp == NULL && (fp = fopen(token_path, "wb")) == NULL) {
+        printf("Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
+    }
+    printf("token_path: %s\n", token_path);
+    if (fp != NULL) {
+        /* read the token from saved file */
+        size_t read_num = fread(token, 1, sizeof(sgx_launch_token_t), fp);
+        if (read_num != 0 && read_num != sizeof(sgx_launch_token_t)) {
+            /* if token is invalid, clear the buffer */
+            memset(&token, 0x0, sizeof(sgx_launch_token_t));
+            printf("Warning: Invalid launch token read from \"%s\".\n", token_path);
+        }
+    }
 
-//     /* Step 2: call sgx_create_enclave to initialize an enclave instance */
-//     /* Debug Support: set 2nd parameter to 1 */
+    /* Step 2: call sgx_create_enclave to initialize an enclave instance */
+    /* Debug Support: set 2nd parameter to 1 */
 
-//     ret = sgx_create_enclave(TESTENCLAVE_FILENAME, SGX_DEBUG_FLAG, &token, &updated, &global_eid, NULL);
+    ret = sgx_create_enclave(TESTENCLAVE_FILENAME, SGX_DEBUG_FLAG, &token, &updated, &global_eid, NULL);
 
-//     if (ret != SGX_SUCCESS) {
-//         print_error_message(ret);
-//         if (fp != NULL) fclose(fp);
+    if (ret != SGX_SUCCESS) {
+        print_error_message(ret);
+        if (fp != NULL) fclose(fp);
 
-//         return -1;
-//     }
+        return -1;
+    }
 
-//     /* Step 3: save the launch token if it is updated */
+    /* Step 3: save the launch token if it is updated */
 
-//     if (updated == FALSE || fp == NULL) {
-//         /* if the token is not updated, or file handler is invalid, do not perform saving */
-//         if (fp != NULL) fclose(fp);
-//         return 0;
-//     }
+    if (updated == FALSE || fp == NULL) {
+        /* if the token is not updated, or file handler is invalid, do not perform saving */
+        if (fp != NULL) fclose(fp);
+        return 0;
+    }
 
-//     /* reopen the file with write capablity */
-//     fp = freopen(token_path, "wb", fp);
-//     if (fp == NULL) return 0;
-//     size_t write_num = fwrite(token, 1, sizeof(sgx_launch_token_t), fp);
-//     if (write_num != sizeof(sgx_launch_token_t))
-//         printf("Warning: Failed to save launch token to \"%s\".\n", token_path);
-//     fclose(fp);
+    /* reopen the file with write capablity */
+    fp = freopen(token_path, "wb", fp);
+    if (fp == NULL) return 0;
+    size_t write_num = fwrite(token, 1, sizeof(sgx_launch_token_t), fp);
+    if (write_num != sizeof(sgx_launch_token_t))
+        printf("Warning: Failed to save launch token to \"%s\".\n", token_path);
+    fclose(fp);
 
-//     return 0;
-// }
+    return 0;
+}
 
-// /* OCall functions */
-// void uprint(const char *str)
-// {
-//     /* Proxy/Bridge will check the length and null-terminate 
-//      * the input string to prevent buffer overflow. 
-//      */
-//     printf("%s", str);
-//     fflush(stdout);
-// }
-
-
-// void usgx_exit(int reason)
-// {
-// 	printf("usgx_exit: %d\n", reason);
-// 	exit(reason);
-// }
+/* OCall functions */
+void uprint(const char *str)
+{
+    /* Proxy/Bridge will check the length and null-terminate 
+     * the input string to prevent buffer overflow. 
+     */
+    printf("%s", str);
+    fflush(stdout);
+}
 
 
-// void* thread_test_func(void* p)
-// {
-// 	new_thread_func(global_eid);
-// 	return NULL;
-// }
-
-// int ucreate_thread()
-// {
-// 	pthread_t thread;
-// 	int res = pthread_create(&thread, NULL, thread_test_func, NULL);
-// 	return res;
-// }
-
-// #define UTC_NTP 2208988800U /* 1970 - 1900 */
-
-// /* get Timestamp for NTP in LOCAL ENDIAN */
-// void gettime64(uint32_t ts[])
-// {
-// 	struct timeval tv;
-// 	gettimeofday(&tv, NULL);
-
-// 	ts[0] = tv.tv_sec + UTC_NTP;
-// 	ts[1] = (4294*(tv.tv_usec)) + ((1981*(tv.tv_usec))>>11);
-// }
+void usgx_exit(int reason)
+{
+	printf("usgx_exit: %d\n", reason);
+	exit(reason);
+}
 
 
-// int die(const char *msg)
-// {
-// 	if (msg) {
-// 		fputs(msg, stderr);
-// 	}
-// 	exit(-1);
-// }
+void* thread_test_func(void* p)
+{
+	new_thread_func(global_eid);
+	return NULL;
+}
+
+int ucreate_thread()
+{
+	pthread_t thread;
+	int res = pthread_create(&thread, NULL, thread_test_func, NULL);
+	return res;
+}
+
+#define UTC_NTP 2208988800U /* 1970 - 1900 */
+
+/* get Timestamp for NTP in LOCAL ENDIAN */
+void gettime64(uint32_t ts[])
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	ts[0] = tv.tv_sec + UTC_NTP;
+	ts[1] = (4294*(tv.tv_usec)) + ((1981*(tv.tv_usec))>>11);
+}
 
 
-// void log_request_arrive(uint32_t *ntp_time)
-// {
-// 	time_t t; 
-
-// 	if (ntp_time) {
-// 		t = *ntp_time - UTC_NTP;
-// 	} else {
-// 		t = time(NULL);
-// 	}
-// 	printf("A request comes at: %s", ctime(&t));
-// }
+int die(const char *msg)
+{
+	if (msg) {
+		fputs(msg, stderr);
+	}
+	exit(-1);
+}
 
 
-// void log_ntp_event(char *msg)
-// {
-// 	puts(msg);
-// }
+void log_request_arrive(uint32_t *ntp_time)
+{
+	time_t t; 
 
-// int save_processed_frame(pixel* processed_pixels, char* frame_id){
-//     // Return 0 on success; otherwise, return 1
-//     // Remember to free the return after finsihing using
-//     // First create the folder if not created
-//     char* dirname = "data/processed_raw";
-//     mkdir(dirname, 0777);
+	if (ntp_time) {
+		t = *ntp_time - UTC_NTP;
+	} else {
+		t = time(NULL);
+	}
+	printf("A request comes at: %s", ctime(&t));
+}
+
+
+void log_ntp_event(char *msg)
+{
+	puts(msg);
+}
+
+int save_processed_frame(pixel* processed_pixels, char* frame_id){
+    // Return 0 on success; otherwise, return 1
+    // Remember to free the return after finsihing using
+    // First create the folder if not created
+    char* dirname = "data/processed_raw";
+    mkdir(dirname, 0777);
     
-//     // Save data
-//     int total_number_of_rgb_values = image_width * image_height * 3;
+    // Save data
+    int total_number_of_rgb_values = image_width * image_height * 3;
 
-//     char processed_raw_file_name[50];
-//     snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
+    char processed_raw_file_name[50];
+    snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
 
-//     FILE* output_file = fopen(processed_raw_file_name, "w+");
-//     if(output_file == NULL){
-//         return 1;
-//     }
+    FILE* output_file = fopen(processed_raw_file_name, "w+");
+    if(output_file == NULL){
+        return 1;
+    }
 
-//     free(image_buffer);
-//     image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
+    free(image_buffer);
+    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
     
-//     fprintf(output_file, "%07d,%07d,", image_width, image_height);
-//     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-//         fprintf(output_file, "%03d,", image_buffer[i]);
-//     }
-//     fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
-//     fclose(output_file);
+    fprintf(output_file, "%07d,%07d,", image_width, image_height);
+    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+        fprintf(output_file, "%03d,", image_buffer[i]);
+    }
+    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+    fclose(output_file);
 
-//     return 0;
-// }
+    return 0;
+}
 
 // size_t calcDecodeLength(const char* b64input) {
 //   size_t len = strlen(b64input), padding = 0;

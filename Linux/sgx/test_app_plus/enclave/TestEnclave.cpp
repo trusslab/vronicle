@@ -274,7 +274,7 @@ bool verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_si
 }
 
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
-						void* hash_of_original_image, int size_of_hooi, void *signature, int size_of_actual_signature,
+						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
 						void *public_key, size_t len_of_pukey, void *size_of_actual_pukey, size_t size_of_soap, void* processed_pixels)
 {
 	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, public_key
@@ -283,7 +283,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// rsa_key_gen();
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
     printf("Hello from enclave!\n");
-	bool result_of_verification = verify_hash((char*)hash_of_original_image, (unsigned char*)signature, (size_t)size_of_actual_signature, (EVP_KEY*)public_key);
+	bool result_of_verification = verify_hash((char*)hash_of_original_image, (unsigned char*)signature, size_of_actual_signature, (EVP_KEY*)public_key);
 	printf("result_of_verification: %d\n", result_of_verification);
 	pixel* img_pixels = (pixel*) image_pixels;
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);

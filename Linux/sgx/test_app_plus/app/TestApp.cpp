@@ -820,6 +820,7 @@ int verification_reply(
     snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
 
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
+    cout << "size of raw signature is: " << raw_signature_length << endl;
     read_signature_base64(raw_file_signature_name);
 
     // Read Raw Image

@@ -89,6 +89,7 @@ typedef struct _sgx_errlist_t {
 } sgx_errlist_t;
 
 unsigned char* image_buffer = NULL;	/* Points to large array of R,G,B-order data */
+unsigned char* pure_input_image_str = NULL; /* for signature verification purpose */
 pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
 int image_height = 0;	/* Number of rows in image */
 int image_width = 0;		/* Number of columns in image */
@@ -456,10 +457,9 @@ void Base64Encode( const unsigned char* buffer,
   *base64Text=(*bufferPtr).data;
 }
 
-int read_signature(const char* sign_file_name, unsigned char* signature, size_t* signatureLength){
-    // Return 0 on success, otherwise, return 1
-    // Do not do dynamic allocaiton of signautre beforing calling this function
-    // Will allocate some memory, but not free
+unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
+    // Return signature on success, otherwise, return NULL
+    // Need to free the return after finishing using
     FILE* signature_file = fopen(sign_file_name, "r");
     if(signature_file == NULL){
         return 1;
@@ -474,12 +474,13 @@ int read_signature(const char* sign_file_name, unsigned char* signature, size_t*
     fread(base64signature, 1, length, signature_file);
 
     fclose(signature_file);
-
+    
+    unsigned char* signature;
     Base64Decode(base64signature, &signature, signatureLength);
 
     free(base64signature);
 
-    return 0;
+    return signature;
 }
 
 void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
@@ -504,6 +505,32 @@ int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out
     SHA256_Final(hash, &sha256);
 
     sha256_hash_string(hash, hash_out);
+    return 0;
+}
+
+int read_file_as_hash(char* file_path, char* hash_out){
+    // Return 0 on success, otherwise, return 1
+    FILE *file = fopen(file_path, "rb");
+    if(file == NULL){
+        return 1;
+    }
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    const int bufSize = 32768;
+    unsigned char* buffer = (unsigned char*)malloc(bufSize);
+    int bytesRead = 0;
+    if(!buffer) return ENOMEM;
+    while((bytesRead = fread(buffer, 1, bufSize, file)))
+    {
+        SHA256_Update(&sha256, buffer, bytesRead);
+    }
+    SHA256_Final(hash, &sha256);
+
+    sha256_hash_string(hash, hash_out);
+    fclose(file);
+    free(buffer);
     return 0;
 }
 
@@ -614,7 +641,7 @@ int verification_reply(
     char raw_file_signature_name[50];
     snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
 
-    read_signature(raw_file_signature_name, raw_signature, &raw_signature_length);
+    raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
 
     // Read Raw Image
     char raw_file_name[50];
@@ -625,10 +652,8 @@ int verification_reply(
 
     // Read Raw Image Hash
     char* hash_of_original_raw_file = (char*) malloc(65);
-    unsigned_chars_to_hash((unsigned char*)image_buffer, image_height * image_width * 3, hash_of_original_raw_file);
-    cout << "Hash of image_buffer: " << hash_of_original_raw_file << endl;
-    unsigned_chars_to_hash((unsigned char*)image_pixels, image_height * image_width * 3, hash_of_original_raw_file);
-    cout << "Hash of image_pixels: " << hash_of_original_raw_file << endl;
+    read_file_as_hash(raw_file_name, hash_of_original_raw_file);
+    cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
 
     // Prepare processed Image
     pixel* processed_pixels;

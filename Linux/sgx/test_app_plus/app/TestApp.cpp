@@ -410,36 +410,36 @@ void log_ntp_event(char *msg)
 	puts(msg);
 }
 
-int save_processed_frame(pixel* processed_pixels, char* frame_id){
-    // Return 0 on success; otherwise, return 1
-    // Remember to free the return after finsihing using
-    // First create the folder if not created
-    char* dirname = "data/processed_raw";
-    mkdir(dirname, 0777);
+// int save_processed_frame(pixel* processed_pixels, char* frame_id){
+//     // Return 0 on success; otherwise, return 1
+//     // Remember to free the return after finsihing using
+//     // First create the folder if not created
+//     char* dirname = "data/processed_raw";
+//     mkdir(dirname, 0777);
     
-    // Save data
-    int total_number_of_rgb_values = image_width * image_height * 3;
+//     // Save data
+//     int total_number_of_rgb_values = image_width * image_height * 3;
 
-    char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
+//     char processed_raw_file_name[50];
+//     snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
 
-    FILE* output_file = fopen(processed_raw_file_name, "w+");
-    if(output_file == NULL){
-        return 1;
-    }
+//     FILE* output_file = fopen(processed_raw_file_name, "w+");
+//     if(output_file == NULL){
+//         return 1;
+//     }
 
-    free(image_buffer);
-    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
+//     free(image_buffer);
+//     image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
     
-    fprintf(output_file, "%07d,%07d,", image_width, image_height);
-    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        fprintf(output_file, "%03d,", image_buffer[i]);
-    }
-    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
-    fclose(output_file);
+//     fprintf(output_file, "%07d,%07d,", image_width, image_height);
+//     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+//         fprintf(output_file, "%03d,", image_buffer[i]);
+//     }
+//     fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+//     fclose(output_file);
 
-    return 0;
-}
+//     return 0;
+// }
 
 // size_t calcDecodeLength(const char* b64input) {
 //   size_t len = strlen(b64input), padding = 0;

@@ -307,9 +307,9 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	BIO_write( bo, mKey,strlen(mKey));
 
 	EVP_PKEY* pukey = 0;
-	PEM_read_bio_PublicKey( bo, &pukey, 0, 0 );
-
+	PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
 	BIO_free(bo);
+	
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
     printf("Hello from enclave!\n");
 	print_public_key((EVP_PKEY*)public_key);

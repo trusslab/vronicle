@@ -1142,7 +1142,7 @@ int main(int argc, char *argv[], char **env)
 
     printf("Going to read signature...\n");
 
-    if(read_signature("../data/out_raw_sign/camera_sign_0") != 0){
+    if(read_signature_base64("../data/out_raw_sign/camera_sign_0") != 0){
         printf("signature file: %s cannot be read.\n", argv[2]);
 	    EVP_PKEY_free(evp_pkey);
         return 1;

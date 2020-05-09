@@ -346,7 +346,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 9);
 	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
 
-	EVP_PKEY_free(public_key_from_str);
+	// EVP_PKEY_free(public_key_from_str);
 	printf("The new key has been cleared, enclave finished running...\n");
 
 	/* call the API for verification here */

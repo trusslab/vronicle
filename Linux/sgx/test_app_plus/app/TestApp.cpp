@@ -512,42 +512,6 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     return signature;
 }
 
-int read_signature_base64(const char* sign_file_name){
-    // Return 0 on success, otherwise, return 1
-    FILE* signature_file = fopen(sign_file_name, "r");
-    if(signature_file == NULL){
-        return 1;
-    }
-
-    /*
-    ifstream signature_file;
-    signature_file.open(sign_file_name);
-
-    if(!signature_file.is_open()){
-        return 1;
-    }
-    */
-
-    /*
-    while(!signature_file.eof()){
-        signature_file >> base64signature;
-    }
-    */
-    
-    //fgets(base64signature, 2048, signature_file);
-
-    fseek(signature_file, 0, SEEK_END);
-    long length = ftell(signature_file);
-    fseek(signature_file, 0, SEEK_SET);
-
-    base64signature = (char*)malloc(length);
-
-    fread(base64signature, 1, length, signature_file);
-
-    fclose(signature_file);
-    return 0;
-}
-
 void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
 {
     int i = 0;
@@ -653,56 +617,6 @@ int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_sig
 	}
 
 	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
-	printf("EVP_VerifyFinal result: %d\n", ret);
-
-	// Below part is for freeing data
-	// For freeing evp_md_ctx
-	EVP_MD_CTX_free(mdctx);
-
-    return ret;
-}
-
-int verify_signature_t(char* hash_to_be_verified, EVP_PKEY* public_key){
-    // Return 1 on success, otherwise, return 0
-
-    EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
-	unsigned char md_value[EVP_MAX_MD_SIZE];
-	unsigned int md_len, i;
-	int ret;
-
-	OpenSSL_add_all_digests();
-
-    md = EVP_get_digestbyname("SHA256");
-
-	if (md == NULL) {
-         printf("Unknown message digest %s\n", "SHA256");
-         exit(1);
-    }
-
-	mdctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(mdctx, md, NULL);
-
-	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-	if(ret != 1){
-		printf("EVP_VerifyInit_ex error. \n");
-        exit(1);
-	}
-
-    printf("hash_to_be_verified to be verified: %s\n", hash_to_be_verified);
-
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_to_be_verified, sizeof(hash_to_be_verified));
-	if(ret != 1){
-		printf("EVP_VerifyUpdate error. \n");
-        exit(1);
-	}
-
-    printf("base64signature: %s\n", base64signature);
-    unsigned char* encMessage;
-    size_t encMessageLength;
-    Base64Decode(base64signature, &encMessage, &encMessageLength);
-
-	ret = EVP_VerifyFinal(mdctx, encMessage, encMessageLength, public_key);
 	printf("EVP_VerifyFinal result: %d\n", ret);
 
 	// Below part is for freeing data
@@ -820,8 +734,8 @@ int verification_reply(
     snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
 
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
-    cout << "size of raw signature is: " << raw_signature_length << endl;
-    read_signature_base64(raw_file_signature_name);
+    cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
+    cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
     // Read Raw Image
     char raw_file_name[50];

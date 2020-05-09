@@ -1031,22 +1031,146 @@ void wait_wrapper(int s)
 	wait(&s);
 }
 
+EVP_PKEY *evp_pkey_1 = NULL;
+char hash_of_file[65];
+
+int read_rsa_pub_key(const char* publickey_file_name){
+    // Return 0 on success, otherwise, return 1
+    FILE* publickey_file = fopen(publickey_file_name, "r");
+    if(publickey_file == NULL){
+        printf("what? No file?\n");
+        return 1;
+    }
+
+    evp_pkey_1 = PEM_read_PUBKEY(publickey_file, &evp_pkey_1, NULL, NULL);
+    if(evp_pkey_1 == NULL){
+        printf("A NULL key\n");
+        return 1;
+    }
+
+
+    // public key - string
+	int len = i2d_PublicKey(evp_pkey_1, NULL);
+	unsigned char *buf = (unsigned char *) malloc (len + 1);
+	unsigned char *tbuf = buf;
+	i2d_PublicKey(evp_pkey_1, &tbuf);
+
+    printf ("{\"public\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) buf[i]);
+	}
+	printf("\"}\n");
+
+	free(buf);
+
+    fclose(publickey_file);
+
+    return 0;
+}
+
+int verify_signature_out(){
+    // Return 1 on success, otherwise, return 0
+
+    EVP_MD_CTX *mdctx;
+	const EVP_MD *md;
+	unsigned char md_value[EVP_MAX_MD_SIZE];
+	unsigned int md_len, i;
+	int ret;
+
+	OpenSSL_add_all_digests();
+
+    md = EVP_get_digestbyname("SHA256");
+
+	if (md == NULL) {
+         printf("Unknown message digest %s\n", "SHA256");
+         exit(1);
+    }
+
+	mdctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(mdctx, md, NULL);
+
+	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+	if(ret != 1){
+		printf("EVP_VerifyInit_ex error. \n");
+        exit(1);
+	}
+
+    printf("hash_of_file to be verified: %s\n", hash_of_file);
+
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	if(ret != 1){
+		printf("EVP_VerifyUpdate error. \n");
+        exit(1);
+	}
+
+    // printf("base64signature: %s\n", base64signature);
+    unsigned char* encMessage;
+    size_t encMessageLength;
+    Base64Decode(base64signature, &encMessage, &encMessageLength);
+
+	ret = EVP_VerifyFinal(mdctx, encMessage, encMessageLength, evp_pkey);
+	printf("EVP_VerifyFinal result: %d\n", ret);
+
+	// Below part is for freeing data
+	// For freeing evp_md_ctx
+	EVP_MD_CTX_free(mdctx);
+
+    return ret;
+}
+
 
 /* Application entry */
 int main(int argc, char *argv[], char **env)
 {
 
-	/* initialize and start the enclave in here */
-	start_enclave(argc, argv);
+    // Test verification
+    printf("Going to read hash...\n");
 
-	/* create the server waiting for the verification request from the client */
-	int s;
-	signal(SIGCHLD,wait_wrapper);
-	sgx_server(argv);
+    if(read_file_as_hash("../data/out_raw/out_raw_0", hash_of_file) != 0){
+        // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
+        printf("File(as hash): %s cannot be read.\n", argv[1]);
+        return 1;
+    }
 
-	/* after verification we destroy the enclave */
-    sgx_destroy_enclave(global_eid);
+    printf("Going to read public key...\n");
+
+    if(read_rsa_pub_key("../data/camera_pub") != 0){
+        printf("Publickey file: %s cannot be read.\n", argv[3]);
+        return 1;
+    }
+
+    printf("Going to read signature...\n");
+
+    if(read_signature("../data/out_raw_sign/camera_sign_0") != 0){
+        printf("signature file: %s cannot be read.\n", argv[2]);
+	    EVP_PKEY_free(evp_pkey);
+        return 1;
+    }
+
+    cout << "base64signature: " << base64signature << endl;
+
+    printf("Going to verify signature...\n");
+
+    if(verify_signature_out() != 1){
+        printf("signautre verfied failed.\n");
+        free(base64signature);
+        EVP_PKEY_free(evp_pkey);
+        return 1;
+    }
 	return 0;
+
+	// /* initialize and start the enclave in here */
+	// start_enclave(argc, argv);
+
+	// /* create the server waiting for the verification request from the client */
+	// int s;
+	// signal(SIGCHLD,wait_wrapper);
+	// sgx_server(argv);
+
+	// /* after verification we destroy the enclave */
+    // sgx_destroy_enclave(global_eid);
+	// return 0;
 }
 
 

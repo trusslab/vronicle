@@ -841,8 +841,8 @@ int verification_reply(
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
     // Test Verification
-    // bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
-    // printf("(outside enclave1)verification_result: %d\n", verification_result1);
+    bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
+    printf("(outside enclave1)verification_result: %d\n", verification_result1);
     // int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
     // printf("(outside enclave2)verification_result: %d\n", verification_result2);
 

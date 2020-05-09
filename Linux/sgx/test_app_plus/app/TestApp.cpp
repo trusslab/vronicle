@@ -1226,7 +1226,7 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
-    int result = verify_signature_t(hash_of_file, evp_pkey);
+    int result = verify_signature_t(evp_pkey);
     cout << "result: " << result << endl;
 
 	return 0;

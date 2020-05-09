@@ -302,7 +302,7 @@ void print_unsigned_chars(unsigned char* chars_to_print, int len){
 	printf("\"}\n");
 }
 
-EVP_PKEY* unsigned_chars_to_pub_key(unsigned char* pub_key_str, int len_of_key){
+EVP_PKEY* unsigned_chars_to_pub_key(const unsigned char* pub_key_str, int len_of_key){
     EVP_PKEY* result_evp_key;
     result_evp_key = d2i_PublicKey(EVP_PKEY_RSA, &result_evp_key, &pub_key_str, len_of_key);
     return result_evp_key;

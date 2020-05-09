@@ -46,6 +46,7 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#include <openssl/bio.h>
 
 #define ADD_ENTROPY_SIZE	32
 
@@ -301,6 +302,28 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	rsa_key_gen();
 	printf("Size of passed_in pubKey: %d, size of new rsa key: %d\n", len_of_pukey, EVP_PKEY_size(evp_pkey));
+	char* mKey = "-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t
+8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI
+v1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO
+AMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn
+1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD
+TBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07
+Lj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc
+3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b
+yG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV
+SLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c
+HUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto
+0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==
+-----END PUBLIC KEY-----
+";
+	BIO* bo = BIO_new( BIO_s_mem() );
+	BIO_write( bo, mKey,strlen(mKey));
+
+	EVP_PKEY* pukey = 0;
+	PEM_read_bio_PublicKey( bo, &pukey, 0, 0 );
+
+	BIO_free(bo);
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
     printf("Hello from enclave!\n");
 	print_public_key((EVP_PKEY*)public_key);
@@ -308,7 +331,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	printf("(inside enclave)size of raw signature is: %d\n", size_of_actual_signature);
 	printf("(inside enclave)signature: %s\n", (char*)signature);
 
-	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)public_key);
+	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
 	printf("result_of_verification: %d\n", result_of_verification);
 	pixel* img_pixels = (pixel*) image_pixels;
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);

@@ -647,6 +647,27 @@ void print_unsigned_chars(unsigned char* chars_to_print, int len){
 	printf("\"}\n");
 }
 
+char* read_file_as_str(const char* file_name, long* str_len){
+    // Return str_to_return on success, otherwise, return NULL
+    // Need to free the return after finishing using
+    FILE* file = fopen(file_name, "r");
+    if(file == NULL){
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    *str_len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char* str_to_return = (char*)malloc(*str_len);
+
+    fread(str_to_return, 1, *str_len, file);
+
+    fclose(file);
+
+    return str_to_return;
+}
+
 EVP_PKEY *evp_pkey;
 int verification_reply(
 	int socket_fd,
@@ -749,6 +770,8 @@ int verification_reply(
     // print_public_key(evp_pkey);
     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     // cout << "Public key read successfully, going to call enclave function" << endl;
+    long original_pub_key_str_len;
+    char* original_pub_key_str = read_file_as_str(argv[1], &original_pub_key_str_len);
 
     // Read Signature
     unsigned char* raw_signature;
@@ -795,7 +818,7 @@ int verification_reply(
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, NULL, 0, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        evp_pkey, EVP_PKEY_bits(evp_pkey), pub_key_str, len_of_pub_key, NULL);
+        evp_pkey, EVP_PKEY_bits(evp_pkey), pub_key_str, len_of_pub_key, original_pub_key_str, original_pub_key_str_len NULL);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
@@ -817,6 +840,7 @@ int verification_reply(
     free(hash_of_original_raw_file);
     free(raw_signature);
     free(pub_key_str);
+    free(original_pub_key_str);
 
     /*
     printf("Outside enclave: the public key we have is:");

@@ -311,7 +311,8 @@ EVP_PKEY* unsigned_chars_to_pub_key(const unsigned char* pub_key_str, int len_of
 
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
-						void *public_key, int len_of_pukey, void *public_key_str, int len_of_pukey_str, void* processed_pixels)
+						void *public_key, int len_of_pukey, void *public_key_str, int len_of_pukey_str, void *original_pub_key_str, long original_pub_key_str_len, 
+						void* processed_pixels)
 {
 	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, public_key
 	// Out: processed_pixels
@@ -320,7 +321,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// printf("Size of passed_in pubKey: %d, size of new rsa key: %d\n", len_of_pukey, sizeof(evp_pkey));
 	char* mKey = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t\n8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI\nv1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO\nAMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn\n1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD\nTBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07\nLj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc\n3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b\nyG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV\nSLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c\nHUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto\n0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==\n-----END PUBLIC KEY-----\n";
 	BIO* bo = BIO_new( BIO_s_mem() );
-	BIO_write( bo, mKey,strlen(mKey));
+	BIO_write( bo, (char*)original_pub_key_str, original_pub_key_str_len);
 
 	EVP_PKEY* pukey = 0;
 	PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);

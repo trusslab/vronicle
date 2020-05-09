@@ -95,6 +95,7 @@ typedef struct _sgx_errlist_t {
 // int image_width = 0;		/* Number of columns in image */
 
 char* base64signature;  /* temp test */
+char hash_of_file[65];  /* temp test */
 
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
@@ -661,7 +662,7 @@ void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBu
 //     return ret;
 // }
 
-int verify_signature_t(char* hash_of_file, EVP_PKEY* public_key){
+int verify_signature_t(EVP_PKEY* public_key){
     // Return 1 on success, otherwise, return 0
 
     EVP_MD_CTX *mdctx;
@@ -1032,7 +1033,6 @@ int verify_signature_t(char* hash_of_file, EVP_PKEY* public_key){
 // }
 
 EVP_PKEY *evp_pkey = NULL;
-char hash_of_file[65];
 
 int read_rsa_pub_key(const char* publickey_file_name){
     // Return 0 on success, otherwise, return 1
@@ -1225,11 +1225,6 @@ int main(int argc, char *argv[], char **env)
         EVP_PKEY_free(evp_pkey);
         return 1;
     }
-
-
-    unsigned char* encMessage;
-    size_t encMessageLength;
-    Base64Decode(base64signature, &encMessage, &encMessageLength);
 
     int result = verify_signature_t(hash_of_file, evp_pkey);
     cout << "result: " << result << endl;

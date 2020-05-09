@@ -462,7 +462,7 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     // Need to free the return after finishing using
     FILE* signature_file = fopen(sign_file_name, "r");
     if(signature_file == NULL){
-        return 1;
+        return NULL;
     }
 
     fseek(signature_file, 0, SEEK_END);

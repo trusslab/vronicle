@@ -300,6 +300,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// Out: processed_pixels
 
 	rsa_key_gen();
+	printf("Size of passed_in pubKey: %d, size of new rsa key: %d\n", len_of_pukey, EVP_PKEY_size(evp_pkey));
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
     printf("Hello from enclave!\n");
 	print_public_key((EVP_PKEY*)public_key);

@@ -759,6 +759,7 @@ int verification_reply(
     printf("(outside enclave1)verification_result: %d\n", verification_result1);
     // int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
     // printf("(outside enclave2)verification_result: %d\n", verification_result2);
+	printf("Size of pubKey(struct): %d, size of pubkey(EVP_PKEY_size): %d\n", sizeof(struct evp_pkey_st), EVP_PKEY_size(evp_pkey));
 
     // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(

@@ -173,6 +173,32 @@ static sgx_errlist_t sgx_errlist[] = {
     },
 };
 
+struct evp_pkey_st {
+    int type;
+    int save_type;
+    int references;
+    const EVP_PKEY_ASN1_METHOD *ameth;
+    ENGINE *engine;
+    union {
+        char *ptr;
+# ifndef OPENSSL_NO_RSA
+        struct rsa_st *rsa;     /* RSA */
+# endif
+# ifndef OPENSSL_NO_DSA
+        struct dsa_st *dsa;     /* DSA */
+# endif
+# ifndef OPENSSL_NO_DH
+        struct dh_st *dh;       /* DH */
+# endif
+# ifndef OPENSSL_NO_EC
+        struct ec_key_st *ec;   /* ECC */
+# endif
+    } pkey;
+    int save_parameters;
+    STACK_OF(X509_ATTRIBUTE) *attributes; /* [ 0 ] */
+    CRYPTO_RWLOCK *lock;
+} /* EVP_PKEY */ ;
+
 /* Check error conditions for loading enclave */
 void print_error_message(sgx_status_t ret)
 {
@@ -666,7 +692,7 @@ int verification_reply(
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        evp_pkey, sizeof(EVP_PKEY), size_of_actual_pukey, sizeof(int), processed_pixels);
+        evp_pkey, sizeof(struct evp_pkey_st), size_of_actual_pukey, sizeof(int), processed_pixels);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

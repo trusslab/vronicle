@@ -1127,7 +1127,7 @@ int main(int argc, char *argv[], char **env)
     // Test verification
     printf("Going to read hash...\n");
 
-    if(read_file_as_hash("../data/out_raw/out_raw_0", hash_of_file) != 0){
+    if(read_file_as_hash("data/out_raw/out_raw_0", hash_of_file) != 0){
         // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
         printf("File(as hash): %s cannot be read.\n", argv[1]);
         return 1;
@@ -1135,15 +1135,15 @@ int main(int argc, char *argv[], char **env)
 
     printf("Going to read public key...\n");
 
-    if(read_rsa_pub_key("../data/camera_pub") != 0){
-        printf("Publickey file: %s cannot be read.\n", argv[3]);
+    if(read_rsa_pub_key("data/camera_pub") != 0){
+        printf("Publickey file: %s cannot be read.\n", argv[1]);
         return 1;
     }
 
     printf("Going to read signature...\n");
 
-    if(read_signature_base64("../data/out_raw_sign/camera_sign_0") != 0){
-        printf("signature file: %s cannot be read.\n", argv[2]);
+    if(read_signature_base64("data/out_raw_sign/camera_sign_0") != 0){
+        printf("signature file: %s cannot be read.\n", argv[1]);
 	    EVP_PKEY_free(evp_pkey);
         return 1;
     }

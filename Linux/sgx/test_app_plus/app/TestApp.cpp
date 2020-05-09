@@ -1194,7 +1194,7 @@ int main(int argc, char *argv[], char **env)
     // Test verification
     printf("Going to read hash...\n");
 
-    hash_of_file = (char*)malloc(65);
+    hash_of_file = (char*)malloc(66);
 
     if(read_file_as_hash("data/out_raw/out_raw_0") != 0){
         // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c

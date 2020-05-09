@@ -635,7 +635,16 @@ unsigned char* public_key_to_str(EVP_PKEY* evp_pkey, int* len_of_publickey){
 	unsigned char *tbuf = buf;
 	i2d_PublicKey(evp_pkey, &tbuf);
 
-	return tbuf;
+	return buf;
+}
+
+void print_unsigned_chars(unsigned char* chars_to_print, int len){
+	printf ("{\"(Outside enclave)unsigned_chars\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) chars_to_print[i]);
+	}
+	printf("\"}\n");
 }
 
 EVP_PKEY *evp_pkey;
@@ -774,6 +783,7 @@ int verification_reply(
 	// printf("Size of pubKey(struct): %d, size of pubkey(EVP_PKEY_size): %d\n", sizeof(struct evp_pkey_st), EVP_PKEY_size(evp_pkey));
     int len_of_pub_key;
     unsigned char* pub_key_str = public_key_to_str(evp_pkey, &len_of_pub_key);
+    print_unsigned_chars(pub_key_str, len_of_pub_key);
 
     // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(
@@ -800,6 +810,7 @@ int verification_reply(
     free(image_buffer);
     free(hash_of_original_raw_file);
     free(raw_signature);
+    free(pub_key_str);
 
     /*
     printf("Outside enclave: the public key we have is:");

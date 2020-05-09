@@ -792,7 +792,6 @@ int verification_reply(
     //     hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
     //     evp_pkey, 1024, pub_key_str, len_of_pub_key, processed_pixels);
     printf("Size of evp_pkey is: %d\n", EVP_PKEY_bits(evp_pkey));
-    CRYPTO_add(&evp_pkey->references, 1, CRYPTO_LOCK_EVP_PKEY);
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, NULL, 0, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 

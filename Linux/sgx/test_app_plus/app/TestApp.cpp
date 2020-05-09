@@ -617,54 +617,9 @@ void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBu
 // 	free(buf);
 // }
 
-int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
-	// Return true on success; otherwise, return false
-	EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
-	unsigned char md_value[EVP_MAX_MD_SIZE];
-	unsigned int md_len, i;
-	int ret;
-
-	OpenSSL_add_all_digests();
-
-    md = EVP_get_digestbyname("SHA256");
-
-	if (md == NULL) {
-         printf("Unknown message digest %s\n", "SHA256");
-         exit(1);
-    }
-
-	mdctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(mdctx, md, NULL);
-
-	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-	if(ret != 1){
-		printf("EVP_VerifyInit_ex error. \n");
-        exit(1);
-	}
-
-    printf("hash_of_file to be verified: %s\n", hash_of_file);
-
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
-	if(ret != 1){
-		printf("EVP_VerifyUpdate error. \n");
-        exit(1);
-	}
-
-	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
-	printf("EVP_VerifyFinal result: %d\n", ret);
-
-	// Below part is for freeing data
-	// For freeing evp_md_ctx
-	EVP_MD_CTX_free(mdctx);
-
-    return ret;
-}
-
-// int verify_signature(char* hash_of_file, EVP_PKEY* public_key){
-//     // Return 1 on success, otherwise, return 0
-
-//     EVP_MD_CTX *mdctx;
+// int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
+// 	// Return true on success; otherwise, return false
+// 	EVP_MD_CTX *mdctx;
 // 	const EVP_MD *md;
 // 	unsigned char md_value[EVP_MAX_MD_SIZE];
 // 	unsigned int md_len, i;
@@ -696,12 +651,7 @@ int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_sig
 //         exit(1);
 // 	}
 
-//     printf("base64signature: %s\n", base64signature);
-//     unsigned char* encMessage;
-//     size_t encMessageLength;
-//     Base64Decode(base64signature, &encMessage, &encMessageLength);
-
-// 	ret = EVP_VerifyFinal(mdctx, encMessage, encMessageLength, public_key);
+// 	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
 // 	printf("EVP_VerifyFinal result: %d\n", ret);
 
 // 	// Below part is for freeing data
@@ -710,6 +660,56 @@ int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_sig
 
 //     return ret;
 // }
+
+int verify_signature_t(char* hash_of_file, EVP_PKEY* public_key){
+    // Return 1 on success, otherwise, return 0
+
+    EVP_MD_CTX *mdctx;
+	const EVP_MD *md;
+	unsigned char md_value[EVP_MAX_MD_SIZE];
+	unsigned int md_len, i;
+	int ret;
+
+	OpenSSL_add_all_digests();
+
+    md = EVP_get_digestbyname("SHA256");
+
+	if (md == NULL) {
+         printf("Unknown message digest %s\n", "SHA256");
+         exit(1);
+    }
+
+	mdctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(mdctx, md, NULL);
+
+	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+	if(ret != 1){
+		printf("EVP_VerifyInit_ex error. \n");
+        exit(1);
+	}
+
+    printf("hash_of_file to be verified: %s\n", hash_of_file);
+
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	if(ret != 1){
+		printf("EVP_VerifyUpdate error. \n");
+        exit(1);
+	}
+
+    printf("base64signature: %s\n", base64signature);
+    unsigned char* encMessage;
+    size_t encMessageLength;
+    Base64Decode(base64signature, &encMessage, &encMessageLength);
+
+	ret = EVP_VerifyFinal(mdctx, encMessage, encMessageLength, public_key);
+	printf("EVP_VerifyFinal result: %d\n", ret);
+
+	// Below part is for freeing data
+	// For freeing evp_md_ctx
+	EVP_MD_CTX_free(mdctx);
+
+    return ret;
+}
 
 // EVP_PKEY *evp_pkey;
 // int verification_reply(
@@ -1232,7 +1232,7 @@ int main(int argc, char *argv[], char **env)
     size_t encMessageLength;
     Base64Decode(base64signature, &encMessage, &encMessageLength);
 
-    int result = verify_hash(hash_of_file, encMessage, encMessageLength, evp_pkey);
+    int result = verify_signature_t(hash_of_file, evp_pkey);
     cout << "result: " << result << endl;
 
 	return 0;

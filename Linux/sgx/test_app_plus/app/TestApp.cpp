@@ -696,7 +696,7 @@ int verify_signature(char* hash_of_file, EVP_PKEY* public_key){
         exit(1);
 	}
 
-    // printf("base64signature: %s\n", base64signature);
+    printf("base64signature: %s\n", base64signature);
     unsigned char* encMessage;
     size_t encMessageLength;
     Base64Decode(base64signature, &encMessage, &encMessageLength);
@@ -823,7 +823,6 @@ int verification_reply(
 
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
     read_signature_base64(raw_file_signature_name);
-    cout << "base64signature: " << base64signature << endl;
 
     // Read Raw Image
     char raw_file_name[50];
@@ -845,7 +844,7 @@ int verification_reply(
     // Test Verification
     bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
     printf("(outside enclave1)verification_result: %d\n", verification_result1);
-    bool verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
+    int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
     printf("(outside enclave2)verification_result: %d\n", verification_result2);
 
     // Going to get into enclave

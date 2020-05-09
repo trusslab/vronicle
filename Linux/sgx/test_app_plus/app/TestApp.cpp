@@ -579,6 +579,50 @@ void print_public_key(EVP_PKEY* evp_pkey){
 	free(buf);
 }
 
+bool verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
+	// Return true on success; otherwise, return false
+	EVP_MD_CTX *mdctx;
+	const EVP_MD *md;
+	unsigned char md_value[EVP_MAX_MD_SIZE];
+	unsigned int md_len, i;
+	int ret;
+
+	OpenSSL_add_all_digests();
+
+    md = EVP_get_digestbyname("SHA256");
+
+	if (md == NULL) {
+         printf("Unknown message digest %s\n", "SHA256");
+         exit(1);
+    }
+
+	mdctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(mdctx, md, NULL);
+
+	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+	if(ret != 1){
+		printf("EVP_VerifyInit_ex error. \n");
+        exit(1);
+	}
+
+    printf("hash_of_file to be verified: %s\n", hash_of_file);
+
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	if(ret != 1){
+		printf("EVP_VerifyUpdate error. \n");
+        exit(1);
+	}
+
+	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
+	printf("EVP_VerifyFinal result: %d\n", ret);
+
+	// Below part is for freeing data
+	// For freeing evp_md_ctx
+	EVP_MD_CTX_free(mdctx);
+
+    return ret;
+}
+
 EVP_PKEY *evp_pkey;
 int verification_reply(
 	int socket_fd,
@@ -678,7 +722,7 @@ int verification_reply(
         cout << "Key is not read successfully..." << endl;
         return 1;
     }
-    print_public_key(evp_pkey);
+    // print_public_key(evp_pkey);
     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     // cout << "Public key read successfully, going to call enclave function" << endl;
 
@@ -708,6 +752,10 @@ int verification_reply(
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
+    // Test Verification
+    bool verification_result = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
+    printf("(outside enclave)verification_result: %d\n", verification_result);
+
     // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
@@ -732,6 +780,7 @@ int verification_reply(
     free(processed_pixels);
     free(image_buffer);
     free(hash_of_original_raw_file);
+    free(raw_signature);
 
     /*
     printf("Outside enclave: the public key we have is:");

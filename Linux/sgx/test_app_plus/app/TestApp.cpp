@@ -743,6 +743,9 @@ int verification_reply(
         cout << "Key is not read successfully..." << endl;
         return 1;
     }
+    
+    int len_of_pub_key;
+    unsigned char* pub_key_str = public_key_to_str(evp_pkey, &len_of_pub_key);
     // print_public_key(evp_pkey);
     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     // cout << "Public key read successfully, going to call enclave function" << endl;
@@ -776,13 +779,11 @@ int verification_reply(
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
     // Test Verification
-    bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
-    printf("(outside enclave1)verification_result: %d\n", verification_result1);
+    // bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
+    // printf("(outside enclave1)verification_result: %d\n", verification_result1);
     // int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
     // printf("(outside enclave2)verification_result: %d\n", verification_result2);
 	// printf("Size of pubKey(struct): %d, size of pubkey(EVP_PKEY_size): %d\n", sizeof(struct evp_pkey_st), EVP_PKEY_size(evp_pkey));
-    int len_of_pub_key;
-    unsigned char* pub_key_str = public_key_to_str(evp_pkey, &len_of_pub_key);
     // print_unsigned_chars(pub_key_str, len_of_pub_key);
 
     // Going to get into enclave

@@ -456,7 +456,7 @@ void Base64Encode( const unsigned char* buffer,
   *base64Text=(*bufferPtr).data;
 }
 
-int read_signature(const char* sign_file_name, unsigned char* signature, int* signatureLength){
+int read_signature(const char* sign_file_name, unsigned char* signature, size_t* signatureLength){
     // Return 0 on success, otherwise, return 1
     // Do not do dynamic allocaiton of signautre beforing calling this function
     // Will allocate some memory, but not free
@@ -475,7 +475,7 @@ int read_signature(const char* sign_file_name, unsigned char* signature, int* si
 
     fclose(signature_file);
 
-    Base64Decode(base64signature, &signature, &signatureLength);
+    Base64Decode(base64signature, &signature, signatureLength);
 
     free(base64signature);
 
@@ -609,7 +609,7 @@ int verification_reply(
 
     // Read Signature
     unsigned char* raw_signature;
-    int raw_signature_length;
+    size_t raw_signature_length;
 
     char raw_file_signature_name[50];
     snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
@@ -637,8 +637,8 @@ int verification_reply(
     // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-        signature, size_of_actual_signature, 
-        sizeof(int), public_key, size_of_pukey, size_of_actual_pukey, sizeof(int), processed_pixels);
+        raw_signature, (int)raw_signature_length, 
+        evp_pkey, size_of_pukey, size_of_actual_pukey, sizeof(int), processed_pixels);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

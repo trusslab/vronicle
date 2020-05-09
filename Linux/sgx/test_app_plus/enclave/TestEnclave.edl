@@ -50,7 +50,7 @@ from "sgx_tsgxssl.edl" import *;
     trusted {
         public void t_sgxssl_call_apis([user_check] void* evp_pkey_v);
         public void new_thread_func();
-        public void t_sgxver_call_apis([in, size=size_of_image_pixels] void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, [out, size=512] void *signature, [out, size=size_of_soas] void *size_of_actual_signature, int size_of_soas, [out, size=len_of_pukey] void *public_key, size_t len_of_pukey, [out, size=size_of_soap] void* size_of_actual_pukey, size_t size_of_soap, [out, size=size_of_image_pixels] void* processed_pixels);
+        public void t_sgxver_call_apis([in, size=size_of_image_pixels] void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, [in, size=size_of_actual_signature] void *signature, int size_of_actual_signature, [out, size=len_of_pukey] void *public_key, size_t len_of_pukey, [out, size=size_of_soap] void* size_of_actual_pukey, size_t size_of_soap, [out, size=size_of_image_pixels] void* processed_pixels);
  
     };
 };

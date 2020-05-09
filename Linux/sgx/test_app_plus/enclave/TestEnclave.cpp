@@ -302,6 +302,12 @@ void print_unsigned_chars(unsigned char* chars_to_print, int len){
 	printf("\"}\n");
 }
 
+EVP_PKEY* unsigned_chars_to_pub_key(unsigned char* pub_key_str, int len_of_key){
+    EVP_PKEY* result_evp_key;
+    result_evp_key = d2i_PublicKey(EVP_PKEY_RSA, &result_evp_key, &pub_key_str, len_of_key);
+    return result_evp_key;
+}
+
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
 						void *public_key, int len_of_pukey, void *public_key_str, int len_of_pukey_str, void* processed_pixels)
@@ -321,10 +327,13 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	BIO_free(bo);
 	*/
 
+	EVP_PKEY* new_key_from_str = unsigned_chars_to_pub_key((unsigned char*)public_key_str, len_of_pukey_str);
+	print_public_key(new_key_from_str);
+
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
     printf("Hello from enclave!\n");
 	print_public_key((EVP_PKEY*)public_key);
-	print_unsigned_chars((unsigned char*)public_key_str, len_of_pukey_str);
+	// print_unsigned_chars((unsigned char*)public_key_str, len_of_pukey_str);
 
 	printf("(inside enclave)size of raw signature is: %d\n", size_of_actual_signature);
 	printf("(inside enclave)signature: %s\n", (char*)signature);

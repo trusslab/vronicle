@@ -783,7 +783,7 @@ int verification_reply(
 	// printf("Size of pubKey(struct): %d, size of pubkey(EVP_PKEY_size): %d\n", sizeof(struct evp_pkey_st), EVP_PKEY_size(evp_pkey));
     int len_of_pub_key;
     unsigned char* pub_key_str = public_key_to_str(evp_pkey, &len_of_pub_key);
-    print_unsigned_chars(pub_key_str, len_of_pub_key);
+    // print_unsigned_chars(pub_key_str, len_of_pub_key);
 
     // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(

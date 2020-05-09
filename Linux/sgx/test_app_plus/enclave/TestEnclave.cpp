@@ -265,6 +265,7 @@ bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature,
         exit(1);
 	}
 
+	printf("EVP_VerifyUpdate result: %d\n", ret);
 	ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
 	printf("EVP_VerifyFinal result: %d\n", ret);
 

@@ -668,7 +668,6 @@ char* read_file_as_str(const char* file_name, long* str_len){
     return str_to_return;
 }
 
-EVP_PKEY *evp_pkey;
 int verification_reply(
 	int socket_fd,
 	struct sockaddr *saddr_p,
@@ -751,25 +750,6 @@ int verification_reply(
     if (ptr == NULL || chdir(absolutePath) != 0)
         return 1;
 
-    // evp_pkey = EVP_PKEY_new();
-    cout << "Going to open public key: " << argv[1] << endl;
-    FILE *f = fopen(argv[1], "r");
-    if(f == NULL){
-        cout << "File is not read successfully..." << endl;
-        return 1;
-    }
-    // cout << "Goint to read public key: " << argv[1] << endl;
-    evp_pkey = PEM_read_PUBKEY(f, &evp_pkey, NULL, NULL);
-    if(evp_pkey == NULL){
-        cout << "Key is not read successfully..." << endl;
-        return 1;
-    }
-    
-    int len_of_pub_key;
-    unsigned char* pub_key_str = public_key_to_str(evp_pkey, &len_of_pub_key);
-    // print_public_key(evp_pkey);
-    // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
-    // cout << "Public key read successfully, going to call enclave function" << endl;
     long original_pub_key_str_len;
     char* original_pub_key_str = read_file_as_str(argv[1], &original_pub_key_str_len);
 
@@ -801,24 +781,11 @@ int verification_reply(
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
-    // Test Verification
-    // bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
-    // printf("(outside enclave1)verification_result: %d\n", verification_result1);
-    // int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
-    // printf("(outside enclave2)verification_result: %d\n", verification_result2);
-	// printf("Size of pubKey(struct): %d, size of pubkey(EVP_PKEY_size): %d\n", sizeof(struct evp_pkey_st), EVP_PKEY_size(evp_pkey));
-    // print_unsigned_chars(pub_key_str, len_of_pub_key);
-
     // Going to get into enclave
-    // sgx_status_t status = t_sgxver_call_apis(
-    //     global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-    //     hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-    //     evp_pkey, 1024, pub_key_str, len_of_pub_key, processed_pixels);
-    printf("Size of evp_pkey is: %d\n", EVP_PKEY_bits(evp_pkey));
     sgx_status_t status = t_sgxver_call_apis(
-        global_eid, NULL, 0, image_width, image_height, 
+        global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        evp_pkey, EVP_PKEY_bits(evp_pkey), pub_key_str, len_of_pub_key, original_pub_key_str, original_pub_key_str_len, NULL);
+        original_pub_key_str, original_pub_key_str_len, processed_pixels);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
@@ -839,7 +806,6 @@ int verification_reply(
     free(image_buffer);
     free(hash_of_original_raw_file);
     free(raw_signature);
-    free(pub_key_str);
     free(original_pub_key_str);
 
     /*

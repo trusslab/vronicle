@@ -88,13 +88,13 @@ typedef struct _sgx_errlist_t {
     const char *sug; /* Suggestion */
 } sgx_errlist_t;
 
-unsigned char* image_buffer = NULL;	/* Points to large array of R,G,B-order data */
-unsigned char* pure_input_image_str = NULL; /* for signature verification purpose */
-pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
-int image_height = 0;	/* Number of rows in image */
-int image_width = 0;		/* Number of columns in image */
+// unsigned char* image_buffer = NULL;	/* Points to large array of R,G,B-order data */
+// unsigned char* pure_input_image_str = NULL; /* for signature verification purpose */
+// pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
+// int image_height = 0;	/* Number of rows in image */
+// int image_width = 0;		/* Number of columns in image */
 
-char* base64signature;  /* temp test */
+// char* base64signature;  /* temp test */
 
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
@@ -1232,7 +1232,7 @@ int main(int argc, char *argv[], char **env)
     // Test verification
     printf("Going to read hash...\n");
 
-    if(read_file_as_hash_out("data/out_raw/out_raw_0") != 0){
+    if(read_file_as_hash("data/out_raw/out_raw_0") != 0){
         // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
         printf("File(as hash): %s cannot be read.\n", argv[1]);
         return 1;

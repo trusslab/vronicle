@@ -791,7 +791,7 @@ int verification_reply(
     //     global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
     //     hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
     //     evp_pkey, 1024, pub_key_str, len_of_pub_key, processed_pixels);
-    printf("Size of evp_pkey is: ", EVP_PKEY_bits(evp_pkey));
+    printf("Size of evp_pkey is: %d\n", EVP_PKEY_bits(evp_pkey));
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, NULL, 0, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 

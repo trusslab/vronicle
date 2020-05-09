@@ -486,67 +486,67 @@ void Base64Encode( const unsigned char* buffer,
   *base64Text=(*bufferPtr).data;
 }
 
-// unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
-//     // Return signature on success, otherwise, return NULL
-//     // Need to free the return after finishing using
-//     FILE* signature_file = fopen(sign_file_name, "r");
-//     if(signature_file == NULL){
-//         return NULL;
-//     }
+unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
+    // Return signature on success, otherwise, return NULL
+    // Need to free the return after finishing using
+    FILE* signature_file = fopen(sign_file_name, "r");
+    if(signature_file == NULL){
+        return NULL;
+    }
 
-//     fseek(signature_file, 0, SEEK_END);
-//     long length = ftell(signature_file);
-//     fseek(signature_file, 0, SEEK_SET);
+    fseek(signature_file, 0, SEEK_END);
+    long length = ftell(signature_file);
+    fseek(signature_file, 0, SEEK_SET);
 
-//     char* base64signature = (char*)malloc(length);
+    char* base64signature = (char*)malloc(length);
 
-//     fread(base64signature, 1, length, signature_file);
+    fread(base64signature, 1, length, signature_file);
 
-//     fclose(signature_file);
+    fclose(signature_file);
     
-//     unsigned char* signature;
-//     Base64Decode(base64signature, &signature, signatureLength);
+    unsigned char* signature;
+    Base64Decode(base64signature, &signature, signatureLength);
 
-//     free(base64signature);
+    free(base64signature);
 
-//     return signature;
-// }
+    return signature;
+}
 
-// int read_signature_base64(const char* sign_file_name){
-//     // Return 0 on success, otherwise, return 1
-//     FILE* signature_file = fopen(sign_file_name, "r");
-//     if(signature_file == NULL){
-//         return 1;
-//     }
+int read_signature_base64(const char* sign_file_name){
+    // Return 0 on success, otherwise, return 1
+    FILE* signature_file = fopen(sign_file_name, "r");
+    if(signature_file == NULL){
+        return 1;
+    }
 
-//     /*
-//     ifstream signature_file;
-//     signature_file.open(sign_file_name);
+    /*
+    ifstream signature_file;
+    signature_file.open(sign_file_name);
 
-//     if(!signature_file.is_open()){
-//         return 1;
-//     }
-//     */
+    if(!signature_file.is_open()){
+        return 1;
+    }
+    */
 
-//     /*
-//     while(!signature_file.eof()){
-//         signature_file >> base64signature;
-//     }
-//     */
+    /*
+    while(!signature_file.eof()){
+        signature_file >> base64signature;
+    }
+    */
     
-//     //fgets(base64signature, 2048, signature_file);
+    //fgets(base64signature, 2048, signature_file);
 
-//     fseek(signature_file, 0, SEEK_END);
-//     long length = ftell(signature_file);
-//     fseek(signature_file, 0, SEEK_SET);
+    fseek(signature_file, 0, SEEK_END);
+    long length = ftell(signature_file);
+    fseek(signature_file, 0, SEEK_SET);
 
-//     base64signature = (char*)malloc(length);
+    base64signature = (char*)malloc(length);
 
-//     fread(base64signature, 1, length, signature_file);
+    fread(base64signature, 1, length, signature_file);
 
-//     fclose(signature_file);
-//     return 0;
-// }
+    fclose(signature_file);
+    return 0;
+}
 
 void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
 {
@@ -560,63 +560,63 @@ void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBu
     outputBuffer[64] = 0;
 }
 
-// int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out){
-//     // Return 0 on success, otherwise, return 1
+int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out){
+    // Return 0 on success, otherwise, return 1
 
-//     unsigned char hash[SHA256_DIGEST_LENGTH];
-//     SHA256_CTX sha256;
-//     SHA256_Init(&sha256);
-//     SHA256_Update(&sha256, data, size_of_data);
-//     SHA256_Final(hash, &sha256);
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, data, size_of_data);
+    SHA256_Final(hash, &sha256);
 
-//     sha256_hash_string(hash, hash_out);
-//     return 0;
-// }
+    sha256_hash_string(hash, hash_out);
+    return 0;
+}
 
-// int read_file_as_hash(char* file_path, char* hash_out){
-//     // Return 0 on success, otherwise, return 1
-//     FILE *file = fopen(file_path, "rb");
-//     if(file == NULL){
-//         return 1;
-//     }
+int read_file_as_hash(char* file_path, char* hash_out){
+    // Return 0 on success, otherwise, return 1
+    FILE *file = fopen(file_path, "rb");
+    if(file == NULL){
+        return 1;
+    }
 
-//     unsigned char hash[SHA256_DIGEST_LENGTH];
-//     SHA256_CTX sha256;
-//     SHA256_Init(&sha256);
-//     const int bufSize = 32768;
-//     unsigned char* buffer = (unsigned char*)malloc(bufSize);
-//     int bytesRead = 0;
-//     if(!buffer) return ENOMEM;
-//     while((bytesRead = fread(buffer, 1, bufSize, file)))
-//     {
-//         SHA256_Update(&sha256, buffer, bytesRead);
-//     }
-//     SHA256_Final(hash, &sha256);
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    const int bufSize = 32768;
+    unsigned char* buffer = (unsigned char*)malloc(bufSize);
+    int bytesRead = 0;
+    if(!buffer) return ENOMEM;
+    while((bytesRead = fread(buffer, 1, bufSize, file)))
+    {
+        SHA256_Update(&sha256, buffer, bytesRead);
+    }
+    SHA256_Final(hash, &sha256);
 
-//     sha256_hash_string(hash, hash_out);
-//     fclose(file);
-//     free(buffer);
-//     return 0;
-// }
+    sha256_hash_string(hash, hash_out);
+    fclose(file);
+    free(buffer);
+    return 0;
+}
 
-// void print_public_key(EVP_PKEY* evp_pkey){
-// 	// public key - string
-// 	int len = i2d_PublicKey(evp_pkey, NULL);
-// 	printf("For publickey, the size of buf is: %d\n", len);
-// 	unsigned char *buf = (unsigned char *) malloc (len + 1);
-// 	unsigned char *tbuf = buf;
-// 	i2d_PublicKey(evp_pkey, &tbuf);
+void print_public_key(EVP_PKEY* evp_pkey){
+	// public key - string
+	int len = i2d_PublicKey(evp_pkey, NULL);
+	printf("For publickey, the size of buf is: %d\n", len);
+	unsigned char *buf = (unsigned char *) malloc (len + 1);
+	unsigned char *tbuf = buf;
+	i2d_PublicKey(evp_pkey, &tbuf);
 
-// 	// print public key
-// 	printf ("{\"public\":\"");
-// 	int i;
-// 	for (i = 0; i < len; i++) {
-// 	    printf("%02x", (unsigned char) buf[i]);
-// 	}
-// 	printf("\"}\n");
+	// print public key
+	printf ("{\"public\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) buf[i]);
+	}
+	printf("\"}\n");
 
-// 	free(buf);
-// }
+	free(buf);
+}
 
 int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
 	// Return true on success; otherwise, return false
@@ -662,375 +662,375 @@ int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_sig
     return ret;
 }
 
-// int verify_signature_t(char* hash_to_be_verified, EVP_PKEY* public_key){
-//     // Return 1 on success, otherwise, return 0
+int verify_signature_t(char* hash_to_be_verified, EVP_PKEY* public_key){
+    // Return 1 on success, otherwise, return 0
 
-//     EVP_MD_CTX *mdctx;
-// 	const EVP_MD *md;
-// 	unsigned char md_value[EVP_MAX_MD_SIZE];
-// 	unsigned int md_len, i;
-// 	int ret;
+    EVP_MD_CTX *mdctx;
+	const EVP_MD *md;
+	unsigned char md_value[EVP_MAX_MD_SIZE];
+	unsigned int md_len, i;
+	int ret;
 
-// 	OpenSSL_add_all_digests();
+	OpenSSL_add_all_digests();
 
-//     md = EVP_get_digestbyname("SHA256");
+    md = EVP_get_digestbyname("SHA256");
 
-// 	if (md == NULL) {
-//          printf("Unknown message digest %s\n", "SHA256");
-//          exit(1);
-//     }
+	if (md == NULL) {
+         printf("Unknown message digest %s\n", "SHA256");
+         exit(1);
+    }
 
-// 	mdctx = EVP_MD_CTX_new();
-// 	EVP_DigestInit_ex(mdctx, md, NULL);
+	mdctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(mdctx, md, NULL);
 
-// 	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-// 	if(ret != 1){
-// 		printf("EVP_VerifyInit_ex error. \n");
-//         exit(1);
-// 	}
+	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+	if(ret != 1){
+		printf("EVP_VerifyInit_ex error. \n");
+        exit(1);
+	}
 
-//     printf("hash_to_be_verified to be verified: %s\n", hash_to_be_verified);
+    printf("hash_to_be_verified to be verified: %s\n", hash_to_be_verified);
 
-// 	ret = EVP_VerifyUpdate(mdctx, (void*)hash_to_be_verified, sizeof(hash_to_be_verified));
-// 	if(ret != 1){
-// 		printf("EVP_VerifyUpdate error. \n");
-//         exit(1);
-// 	}
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_to_be_verified, sizeof(hash_to_be_verified));
+	if(ret != 1){
+		printf("EVP_VerifyUpdate error. \n");
+        exit(1);
+	}
 
-//     printf("base64signature: %s\n", base64signature);
-//     unsigned char* encMessage;
-//     size_t encMessageLength;
-//     Base64Decode(base64signature, &encMessage, &encMessageLength);
+    printf("base64signature: %s\n", base64signature);
+    unsigned char* encMessage;
+    size_t encMessageLength;
+    Base64Decode(base64signature, &encMessage, &encMessageLength);
 
-// 	ret = EVP_VerifyFinal(mdctx, encMessage, encMessageLength, public_key);
-// 	printf("EVP_VerifyFinal result: %d\n", ret);
+	ret = EVP_VerifyFinal(mdctx, encMessage, encMessageLength, public_key);
+	printf("EVP_VerifyFinal result: %d\n", ret);
 
-// 	// Below part is for freeing data
-// 	// For freeing evp_md_ctx
-// 	EVP_MD_CTX_free(mdctx);
+	// Below part is for freeing data
+	// For freeing evp_md_ctx
+	EVP_MD_CTX_free(mdctx);
 
-//     return ret;
-// }
+    return ret;
+}
 
-// EVP_PKEY *evp_pkey;
-// int verification_reply(
-// 	int socket_fd,
-// 	struct sockaddr *saddr_p,
-// 	socklen_t saddrlen,
-// 	unsigned char recv_buf[],
-// 	uint32_t recv_time[],
-//     char** argv)
-// {
-// 	printf("The contractID should be: %s", recv_buf);
-// 	fflush(stdout);
-// 	/* Assume that recv_time is in local endian ! */
-// 	// unsigned char send_buf[48];
-// 	// uint32_t *u32p;
+EVP_PKEY *evp_pkey;
+int verification_reply(
+	int socket_fd,
+	struct sockaddr *saddr_p,
+	socklen_t saddrlen,
+	unsigned char recv_buf[],
+	uint32_t recv_time[],
+    char** argv)
+{
+	printf("The contractID should be: %s", recv_buf);
+	fflush(stdout);
+	/* Assume that recv_time is in local endian ! */
+	// unsigned char send_buf[48];
+	// uint32_t *u32p;
 
-//     //printf("Here is the recv_buf: %s, %s\n", recv_buf, (char*)recv_buf);
-//     // recv_buf is the id num of the frame
+    //printf("Here is the recv_buf: %s, %s\n", recv_buf, (char*)recv_buf);
+    // recv_buf is the id num of the frame
 
-// 	/* start the verification in enclave in here */
-// 	// printf("start enclave verification in the app\n");
+	/* start the verification in enclave in here */
+	// printf("start enclave verification in the app\n");
 
-//     // char* hash_of_contract;
-//     // int size_of_contract_hash;
-//     // unsigned char* signature;
-//     // unsigned char* public_key;
-//     // int size_of_pukey;
-//     // int* size_of_actual_pukey;
-//     // int* size_of_actual_signature;
+    // char* hash_of_contract;
+    // int size_of_contract_hash;
+    // unsigned char* signature;
+    // unsigned char* public_key;
+    // int size_of_pukey;
+    // int* size_of_actual_pukey;
+    // int* size_of_actual_signature;
 
-//     // // Assign int
-//     // size_of_contract_hash = SIZEOFHASH + 1;
-//     // size_of_pukey = SIZEOFPUKEY + 1;
+    // // Assign int
+    // size_of_contract_hash = SIZEOFHASH + 1;
+    // size_of_pukey = SIZEOFPUKEY + 1;
 
-//     // Initialize the data
-//     /*
-//     hash_of_contract = (char*)calloc(1, size_of_contract_hash);
-//     signature = (unsigned char*)calloc(1, SIZEOFSIGN + 1);
-//     public_key = (unsigned char*)calloc(1, size_of_pukey);
-//     size_of_actual_pukey = (int*)malloc(sizeof(int));
-//     size_of_actual_signature = (int*)malloc(sizeof(int));
-//     */
+    // Initialize the data
+    /*
+    hash_of_contract = (char*)calloc(1, size_of_contract_hash);
+    signature = (unsigned char*)calloc(1, SIZEOFSIGN + 1);
+    public_key = (unsigned char*)calloc(1, size_of_pukey);
+    size_of_actual_pukey = (int*)malloc(sizeof(int));
+    size_of_actual_signature = (int*)malloc(sizeof(int));
+    */
 
-//     /*
-//     // Assign proper values to data
-//     const int max_buffer = 1000;
-//     char buffer[max_buffer];
-//     FILE* stream;
-//     string cmd = "cd ../../../../submitted_files/";
-//     cmd.append((const char*)recv_buf);
-//     cmd.append("; tar -cf final_contract_");
-//     cmd.append((const char*)recv_buf);
-//     cmd.append(".tar *;sha256sum final_contract_");
-//     cmd.append((const char*)recv_buf);
-//     cmd.append(".tar 2>&1");
-//     string exec_result;
+    /*
+    // Assign proper values to data
+    const int max_buffer = 1000;
+    char buffer[max_buffer];
+    FILE* stream;
+    string cmd = "cd ../../../../submitted_files/";
+    cmd.append((const char*)recv_buf);
+    cmd.append("; tar -cf final_contract_");
+    cmd.append((const char*)recv_buf);
+    cmd.append(".tar *;sha256sum final_contract_");
+    cmd.append((const char*)recv_buf);
+    cmd.append(".tar 2>&1");
+    string exec_result;
 
-//     printf("Going to exec cmd: %s\n", cmd.c_str());
-//     fflush(stdout);
+    printf("Going to exec cmd: %s\n", cmd.c_str());
+    fflush(stdout);
 
-//     stream = popen(cmd.c_str(), "r");
-//     if(stream){
-//         while(!feof(stream)){
-//             if(fgets(buffer, max_buffer, stream) != NULL){
-//                 exec_result.append(buffer);
-//             }
-//         }
-//         pclose(stream);
-//     }
+    stream = popen(cmd.c_str(), "r");
+    if(stream){
+        while(!feof(stream)){
+            if(fgets(buffer, max_buffer, stream) != NULL){
+                exec_result.append(buffer);
+            }
+        }
+        pclose(stream);
+    }
 
-//     printf("Lalala\n");
-//     printf("(1)The system result is: %s\n", exec_result.c_str());
-//     strcpy(hash_of_contract, exec_result.c_str());
-//     */
+    printf("Lalala\n");
+    printf("(1)The system result is: %s\n", exec_result.c_str());
+    strcpy(hash_of_contract, exec_result.c_str());
+    */
 
-//     // Read Public Key
-//     char absolutePath[MAX_PATH];
-//     char *ptr = NULL;
+    // Read Public Key
+    char absolutePath[MAX_PATH];
+    char *ptr = NULL;
 
-//     ptr = realpath(dirname(argv[0]), absolutePath);
+    ptr = realpath(dirname(argv[0]), absolutePath);
 
-//     if (ptr == NULL || chdir(absolutePath) != 0)
-//         return 1;
+    if (ptr == NULL || chdir(absolutePath) != 0)
+        return 1;
 
-//     // evp_pkey = EVP_PKEY_new();
-//     cout << "Going to open public key: " << argv[1] << endl;
-//     FILE *f = fopen(argv[1], "r");
-//     if(f == NULL){
-//         cout << "File is not read successfully..." << endl;
-//         return 1;
-//     }
-//     // cout << "Goint to read public key: " << argv[1] << endl;
-//     evp_pkey = PEM_read_PUBKEY(f, &evp_pkey, NULL, NULL);
-//     if(evp_pkey == NULL){
-//         cout << "Key is not read successfully..." << endl;
-//         return 1;
-//     }
-//     // print_public_key(evp_pkey);
-//     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
-//     // cout << "Public key read successfully, going to call enclave function" << endl;
+    // evp_pkey = EVP_PKEY_new();
+    cout << "Going to open public key: " << argv[1] << endl;
+    FILE *f = fopen(argv[1], "r");
+    if(f == NULL){
+        cout << "File is not read successfully..." << endl;
+        return 1;
+    }
+    // cout << "Goint to read public key: " << argv[1] << endl;
+    evp_pkey = PEM_read_PUBKEY(f, &evp_pkey, NULL, NULL);
+    if(evp_pkey == NULL){
+        cout << "Key is not read successfully..." << endl;
+        return 1;
+    }
+    // print_public_key(evp_pkey);
+    // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
+    // cout << "Public key read successfully, going to call enclave function" << endl;
 
-//     // Read Signature
-//     unsigned char* raw_signature;
-//     size_t raw_signature_length;
+    // Read Signature
+    unsigned char* raw_signature;
+    size_t raw_signature_length;
 
-//     char raw_file_signature_name[50];
-//     snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
+    char raw_file_signature_name[50];
+    snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
 
-//     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
-//     read_signature_base64(raw_file_signature_name);
+    raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
+    read_signature_base64(raw_file_signature_name);
 
-//     // Read Raw Image
-//     char raw_file_name[50];
-//     snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
+    // Read Raw Image
+    char raw_file_name[50];
+    snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
 
-//     int result_of_reading_raw_file = read_raw_file(raw_file_name);
-//     cout << "Raw file read result: " << result_of_reading_raw_file << endl;
+    int result_of_reading_raw_file = read_raw_file(raw_file_name);
+    cout << "Raw file read result: " << result_of_reading_raw_file << endl;
 
-//     // Read Raw Image Hash
-//     int size_of_hoorf = 65;
-//     char* hash_of_original_raw_file = (char*) malloc(size_of_hoorf);
-//     read_file_as_hash(raw_file_name, hash_of_original_raw_file);
-//     cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
+    // Read Raw Image Hash
+    int size_of_hoorf = 65;
+    char* hash_of_original_raw_file = (char*) malloc(size_of_hoorf);
+    read_file_as_hash(raw_file_name, hash_of_original_raw_file);
+    cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
 
-//     // Prepare processed Image
-//     pixel* processed_pixels;
-//     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
+    // Prepare processed Image
+    pixel* processed_pixels;
+    processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
-//     // Test Verification
-//     bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
-//     printf("(outside enclave1)verification_result: %d\n", verification_result1);
-//     int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
-//     printf("(outside enclave2)verification_result: %d\n", verification_result2);
+    // Test Verification
+    // bool verification_result1 = verify_hash(hash_of_original_raw_file, raw_signature, (size_t)raw_signature_length, evp_pkey);
+    // printf("(outside enclave1)verification_result: %d\n", verification_result1);
+    // int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
+    // printf("(outside enclave2)verification_result: %d\n", verification_result2);
 
-//     // Going to get into enclave
-//     sgx_status_t status = t_sgxver_call_apis(
-//         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-//         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-//         evp_pkey, sizeof(struct evp_pkey_st), processed_pixels);
-//     if (status != SGX_SUCCESS) {
-//         printf("Call to t_sgxver_call_apis has failed.\n");
-//         return 1;    //Test failed
-//     }
+    // Going to get into enclave
+    sgx_status_t status = t_sgxver_call_apis(
+        global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
+        hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
+        evp_pkey, sizeof(struct evp_pkey_st), processed_pixels);
+    if (status != SGX_SUCCESS) {
+        printf("Call to t_sgxver_call_apis has failed.\n");
+        return 1;    //Test failed
+    }
 
-//     cout << "Enclave has successfully run" << endl;
-//     printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
-//     printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
-//     // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
-//     // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
+    cout << "Enclave has successfully run" << endl;
+    printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
+    printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
+    // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
+    // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
 
-//     int result = save_processed_frame(processed_pixels, (char*) recv_buf);
-//     cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
+    int result = save_processed_frame(processed_pixels, (char*) recv_buf);
+    cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
 
-//     // Free Everything (for video_provenance project)
-//     free(image_pixels);
-//     free(processed_pixels);
-//     free(image_buffer);
-//     free(hash_of_original_raw_file);
-//     free(raw_signature);
+    // Free Everything (for video_provenance project)
+    free(image_pixels);
+    free(processed_pixels);
+    free(image_buffer);
+    free(hash_of_original_raw_file);
+    free(raw_signature);
 
-//     /*
-//     printf("Outside enclave: the public key we have is:");
-// 	printf ("{\"public\":\"");
-// 	int i;
-// 	for (i = 0; i < *size_of_actual_pukey; i++) {
-// 	    printf("%02x", (unsigned char) public_key[i]);
-// 	}
-// 	printf("\"}\n");
+    /*
+    printf("Outside enclave: the public key we have is:");
+	printf ("{\"public\":\"");
+	int i;
+	for (i = 0; i < *size_of_actual_pukey; i++) {
+	    printf("%02x", (unsigned char) public_key[i]);
+	}
+	printf("\"}\n");
 
-// 	printf("The size of signature is: %d\n", *size_of_actual_signature);
-//     printf("Outside enclave, the signature is: {Signature: ");
-// 	for(i = 0; i < *size_of_actual_pukey; ++i){
-// 	    printf("%02x", (unsigned char)((unsigned char*)signature)[i]);
-// 	}
-// 	printf("\"}\n");
-//     */
+	printf("The size of signature is: %d\n", *size_of_actual_signature);
+    printf("Outside enclave, the signature is: {Signature: ");
+	for(i = 0; i < *size_of_actual_pukey; ++i){
+	    printf("%02x", (unsigned char)((unsigned char*)signature)[i]);
+	}
+	printf("\"}\n");
+    */
 
-//     // Write pubKey and signature to files
-//     /*
-//     string pubKeyOutName = "../../../../submitted_files/";
-//     pubKeyOutName.append((const char*)recv_buf);
-//     pubKeyOutName.append("/enclave_pubKey");
-//     ofstream pubKeyOut(pubKeyOutName.c_str());
-//     if(!pubKeyOut){
-//         printf("Cannot open enclave_pubKey file...\n");
-//         exit(1);
-//     }
+    // Write pubKey and signature to files
+    /*
+    string pubKeyOutName = "../../../../submitted_files/";
+    pubKeyOutName.append((const char*)recv_buf);
+    pubKeyOutName.append("/enclave_pubKey");
+    ofstream pubKeyOut(pubKeyOutName.c_str());
+    if(!pubKeyOut){
+        printf("Cannot open enclave_pubKey file...\n");
+        exit(1);
+    }
 
-//     pubKeyOut.write((char*)public_key, sizeof(public_key));
-//     pubKeyOut.close();
+    pubKeyOut.write((char*)public_key, sizeof(public_key));
+    pubKeyOut.close();
 
-//     string signOutName = "../../../../submitted_files/";
-//     signOutName.append((const char*)recv_buf);
-//     signOutName.append("/enclave_sign");
-//     ofstream signOut(signOutName.c_str());
-//     if(!signOut){
-//         printf("Cannot open enclave_sign file...\n");
-//         exit(1);
-//     }
+    string signOutName = "../../../../submitted_files/";
+    signOutName.append((const char*)recv_buf);
+    signOutName.append("/enclave_sign");
+    ofstream signOut(signOutName.c_str());
+    if(!signOut){
+        printf("Cannot open enclave_sign file...\n");
+        exit(1);
+    }
 
-//     signOut.write((char*)signature, sizeof(signature));
-//     signOut.close();
-//     */
+    signOut.write((char*)signature, sizeof(signature));
+    signOut.close();
+    */
 
-//     // Free everything
-//     /*
-//     free(hash_of_contract);
-//     free(signature);
-//     free(public_key);
-//     free(size_of_actual_pukey);
-//     free(size_of_actual_signature);
-//     */
-// 	//printf("err:%x\n", status);
-//     if (status != SGX_SUCCESS) {
-//         printf("Call to t_sgxver_call_apis has failed.\n");
-//         return 1;    //Test failed
-//     }
+    // Free everything
+    /*
+    free(hash_of_contract);
+    free(signature);
+    free(public_key);
+    free(size_of_actual_pukey);
+    free(size_of_actual_signature);
+    */
+	//printf("err:%x\n", status);
+    if (status != SGX_SUCCESS) {
+        printf("Call to t_sgxver_call_apis has failed.\n");
+        return 1;    //Test failed
+    }
 
-// // 	if ( sendto( socket_fd,
-// //		     send_buf,
-// //		     sizeof(send_buf), 0,
-// //		     saddr_p, saddrlen)
-// //	     < 48) {
-// //		perror("sendto error");
-// //		return 1;
-// //	}
+// 	if ( sendto( socket_fd,
+//		     send_buf,
+//		     sizeof(send_buf), 0,
+//		     saddr_p, saddrlen)
+//	     < 48) {
+//		perror("sendto error");
+//		return 1;
+//	}
 
-// 	return 0;
-// }
-
-
-// void request_process_loop(int fd, char** argv)
-// {
-// 	struct sockaddr src_addr;
-// 	socklen_t src_addrlen = sizeof(src_addr);
-// 	unsigned char buf[48];
-// 	uint32_t recv_time[2];
-// 	pid_t pid;
-
-// 	while (1) {
-// 		while (recvfrom(fd, buf,
-// 				48, 0,
-// 				&src_addr,
-// 				&src_addrlen)
-// 			< 48 );  /* invalid request */
-
-// 		gettime64(recv_time);
-
-// 		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
-// 		break;
-// 	}
-// }
+	return 0;
+}
 
 
-// void sgx_server(char** argv)
-// {
-// 	int s;
-// 	struct sockaddr_in sinaddr;
+void request_process_loop(int fd, char** argv)
+{
+	struct sockaddr src_addr;
+	socklen_t src_addrlen = sizeof(src_addr);
+	unsigned char buf[48];
+	uint32_t recv_time[2];
+	pid_t pid;
 
-// 	s = socket(AF_INET, SOCK_DGRAM, 0);
-// 	if (s == -1) {
-// 		perror("Can not create socket.");
-// 		die(NULL);
-// 	}
+	while (1) {
+		while (recvfrom(fd, buf,
+				48, 0,
+				&src_addr,
+				&src_addrlen)
+			< 48 );  /* invalid request */
 
-// 	memset(&sinaddr, 0, sizeof(sinaddr));
-// 	sinaddr.sin_family = AF_INET;
-// 	sinaddr.sin_port = htons(123);
-// 	sinaddr.sin_addr.s_addr = INADDR_ANY;
+		gettime64(recv_time);
 
-// 	if (0 != bind(s, (struct sockaddr *)&sinaddr, sizeof(sinaddr))) {
-// 		perror("Bind error");
-// 		die(NULL);
-// 	}
+		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
+		break;
+	}
+}
 
-// 	log_ntp_event(	"\n========================================\n"
-// 			"= Server started, waiting for requests =\n"
-// 			"========================================\n");
 
-// 	request_process_loop(s, argv);
-// 	close(s);
-// }
+void sgx_server(char** argv)
+{
+	int s;
+	struct sockaddr_in sinaddr;
 
-// int start_enclave(int argc, char *argv[])
-// {
-// 	printf("enclave initialization started\n");
+	s = socket(AF_INET, SOCK_DGRAM, 0);
+	if (s == -1) {
+		perror("Can not create socket.");
+		die(NULL);
+	}
+
+	memset(&sinaddr, 0, sizeof(sinaddr));
+	sinaddr.sin_family = AF_INET;
+	sinaddr.sin_port = htons(123);
+	sinaddr.sin_addr.s_addr = INADDR_ANY;
+
+	if (0 != bind(s, (struct sockaddr *)&sinaddr, sizeof(sinaddr))) {
+		perror("Bind error");
+		die(NULL);
+	}
+
+	log_ntp_event(	"\n========================================\n"
+			"= Server started, waiting for requests =\n"
+			"========================================\n");
+
+	request_process_loop(s, argv);
+	close(s);
+}
+
+int start_enclave(int argc, char *argv[])
+{
+	printf("enclave initialization started\n");
     
-//         /* Changing dir to where the executable is.*/
-//     /*
-//         char absolutePath[MAX_PATH];
-//         char *ptr = NULL;
+        /* Changing dir to where the executable is.*/
+    /*
+        char absolutePath[MAX_PATH];
+        char *ptr = NULL;
     
-//         ptr = realpath(dirname(argv[0]), absolutePath);
+        ptr = realpath(dirname(argv[0]), absolutePath);
     
-//         if (ptr == NULL || chdir(absolutePath) != 0)
-//         	return 1;
+        if (ptr == NULL || chdir(absolutePath) != 0)
+        	return 1;
     
-//         evp_pkey = EVP_PKEY_new();
-//         FILE *f = fopen(argv[1], "rb");
-//         if(f == NULL){
-//             cout << "File is not read successfully..." << endl;
-//             return -1;
-//         }
-//         evp_pkey = PEM_read_PUBKEY(f, NULL, NULL, NULL);
-//         if(evp_pkey == NULL){
-//             cout << "Key is not read successfully..." << endl;
-//             return -2;
-//         }
-//     */
+        evp_pkey = EVP_PKEY_new();
+        FILE *f = fopen(argv[1], "rb");
+        if(f == NULL){
+            cout << "File is not read successfully..." << endl;
+            return -1;
+        }
+        evp_pkey = PEM_read_PUBKEY(f, NULL, NULL, NULL);
+        if(evp_pkey == NULL){
+            cout << "Key is not read successfully..." << endl;
+            return -2;
+        }
+    */
 
-//     /* Initialize the enclave */
-//     if (initialize_enclave() < 0)
-//         return 1; 
-// }
+    /* Initialize the enclave */
+    if (initialize_enclave() < 0)
+        return 1; 
+}
 
-// void wait_wrapper(int s)
-// {
+void wait_wrapper(int s)
+{
 
-// 	wait(&s);
-// }
+	wait(&s);
+}
 
 EVP_PKEY *evp_pkey = NULL;
 
@@ -1191,63 +1191,63 @@ int verify_signature(){
 int main(int argc, char *argv[], char **env)
 {
 
-    // Test verification
-    printf("Going to read hash...\n");
+    // // Test verification
+    // printf("Going to read hash...\n");
 
-    hash_of_file = (char*)malloc(65);
+    // hash_of_file = (char*)malloc(65);
 
-    if(read_file_as_hash("data/out_raw/out_raw_0") != 0){
-        // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
-        printf("File(as hash): %s cannot be read.\n", argv[1]);
-        return 1;
-    }
+    // if(read_file_as_hash("data/out_raw/out_raw_0") != 0){
+    //     // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
+    //     printf("File(as hash): %s cannot be read.\n", argv[1]);
+    //     return 1;
+    // }
 
-    printf("Going to read public key...\n");
+    // printf("Going to read public key...\n");
 
-    if(read_rsa_pub_key("data/camera_pub") != 0){
-        printf("Publickey file: %s cannot be read.\n", argv[1]);
-        return 1;
-    }
+    // if(read_rsa_pub_key("data/camera_pub") != 0){
+    //     printf("Publickey file: %s cannot be read.\n", argv[1]);
+    //     return 1;
+    // }
 
-    printf("Going to read signature...\n");
+    // printf("Going to read signature...\n");
 
-    if(read_signature("data/out_raw_sign/camera_sign_0") != 0){
-        printf("signature file: %s cannot be read.\n", argv[1]);
-	    EVP_PKEY_free(evp_pkey);
-        return 1;
-    }
+    // if(read_signature("data/out_raw_sign/camera_sign_0") != 0){
+    //     printf("signature file: %s cannot be read.\n", argv[1]);
+	//     EVP_PKEY_free(evp_pkey);
+    //     return 1;
+    // }
 
-    cout << "base64signature: " << base64signature << endl;
+    // cout << "base64signature: " << base64signature << endl;
 
-    printf("Going to verify signature...\n");
+    // printf("Going to verify signature...\n");
 
-    if(verify_signature() != 1){
-        printf("signautre verfied failed.\n");
-        free(base64signature);
-        EVP_PKEY_free(evp_pkey);
-        return 1;
-    }
+    // if(verify_signature() != 1){
+    //     printf("signautre verfied failed.\n");
+    //     free(base64signature);
+    //     EVP_PKEY_free(evp_pkey);
+    //     return 1;
+    // }
 
-    unsigned char* encMessage;
-    size_t encMessageLength;
-    Base64Decode(base64signature, &encMessage, &encMessageLength);
+    // unsigned char* encMessage;
+    // size_t encMessageLength;
+    // Base64Decode(base64signature, &encMessage, &encMessageLength);
 
-    int result = verify_hash(hash_of_file, encMessage, encMessageLength, evp_pkey);
-    cout << "result: " << result << endl;
+    // int result = verify_hash(hash_of_file, encMessage, encMessageLength, evp_pkey);
+    // cout << "result: " << result << endl;
 
-	return 0;
-
-	// /* initialize and start the enclave in here */
-	// start_enclave(argc, argv);
-
-	// /* create the server waiting for the verification request from the client */
-	// int s;
-	// signal(SIGCHLD,wait_wrapper);
-	// sgx_server(argv);
-
-	// /* after verification we destroy the enclave */
-    // sgx_destroy_enclave(global_eid);
 	// return 0;
+
+	/* initialize and start the enclave in here */
+	start_enclave(argc, argv);
+
+	/* create the server waiting for the verification request from the client */
+	int s;
+	signal(SIGCHLD,wait_wrapper);
+	sgx_server(argv);
+
+	/* after verification we destroy the enclave */
+    sgx_destroy_enclave(global_eid);
+	return 0;
 }
 
 

@@ -229,7 +229,7 @@ int sign_hash(void *hash_of_contract, size_t len_of_hash, void *signature, void 
 	return 0;
 }
 
-bool verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
+bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
 	// Return true on success; otherwise, return false
 	EVP_MD_CTX *mdctx;
 	const EVP_MD *md;
@@ -257,7 +257,7 @@ bool verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_si
 
     printf("hash_of_file to be verified: %s\n", hash_of_file);
 
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, size_of_hash);
 	if(ret != 1){
 		printf("EVP_VerifyUpdate error. \n");
         exit(1);
@@ -303,7 +303,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
     printf("Hello from enclave!\n");
 	print_public_key((EVP_PKEY*)public_key);
-	bool result_of_verification = verify_hash((char*)hash_of_original_image, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)public_key);
+	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)public_key);
 	printf("result_of_verification: %d\n", result_of_verification);
 	pixel* img_pixels = (pixel*) image_pixels;
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);

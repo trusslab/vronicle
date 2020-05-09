@@ -258,10 +258,12 @@ bool verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_si
     printf("hash_of_file to be verified: %s\n", hash_of_file);
 
 	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	printf("lalala\n");
 	if(ret != 1){
 		printf("EVP_VerifyUpdate error. \n");
         exit(1);
 	}
+	printf("papapa\n");
 
 	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
 	printf("EVP_VerifyFinal result: %d\n", ret);

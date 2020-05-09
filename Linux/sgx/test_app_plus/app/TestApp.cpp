@@ -764,7 +764,7 @@ int verification_reply(
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        evp_pkey, sizeof(struct evp_pkey_st), processed_pixels);
+        evp_pkey, EVP_PKEY_size(evp_pkey), processed_pixels);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

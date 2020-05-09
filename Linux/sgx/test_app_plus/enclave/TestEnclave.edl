@@ -53,7 +53,7 @@ from "sgx_tsgxssl.edl" import *;
         public void t_sgxver_call_apis([in, size=size_of_image_pixels] void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
                                         [in, size=size_of_hooi] void *hash_of_original_image, int size_of_hooi, 
                                         [in, size=size_of_actual_signature] void *signature, size_t size_of_actual_signature, 
-                                        [in, size=len_of_pukey]void *public_key, size_t len_of_pukey,
+                                        [in, size=len_of_pukey]void *public_key, int len_of_pukey,
                                         [out, size=size_of_image_pixels] void* processed_pixels);
  
     };

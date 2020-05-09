@@ -330,7 +330,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	// Using public_key directly will cause segementation fault
 	// Probably because of incorrect len_of_pubkey (Don't know how to get the correct size)
-	// EVP_PKEY* public_key_from_str = unsigned_chars_to_pub_key((unsigned char*)public_key_str, len_of_pukey_str);
+	EVP_PKEY* public_key_from_str = unsigned_chars_to_pub_key((unsigned char*)public_key_str, len_of_pukey_str);
 	// print_public_key(public_key_from_str);
 
 	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);

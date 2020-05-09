@@ -560,6 +560,25 @@ int read_file_as_hash(char* file_path, char* hash_out){
     return 0;
 }
 
+void print_public_key(EVP_PKEY* evp_pkey){
+	// public key - string
+	int len = i2d_PublicKey(evp_pkey, NULL);
+	printf("For publickey, the size of buf is: %d\n", len);
+	unsigned char *buf = (unsigned char *) malloc (len + 1);
+	unsigned char *tbuf = buf;
+	i2d_PublicKey(evp_pkey, &tbuf);
+
+	// print public key
+	printf ("{\"public\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) buf[i]);
+	}
+	printf("\"}\n");
+
+	free(buf);
+}
+
 EVP_PKEY *evp_pkey;
 int verification_reply(
 	int socket_fd,
@@ -659,6 +678,7 @@ int verification_reply(
         cout << "Key is not read successfully..." << endl;
         return 1;
     }
+    print_public_key(evp_pkey);
     // cout << "Size of evp_pkey: " << sizeof(evp_pkey) << "; " << sizeof(*evp_pkey) << endl;
     // cout << "Public key read successfully, going to call enclave function" << endl;
 

@@ -95,7 +95,7 @@ typedef struct _sgx_errlist_t {
 // int image_width = 0;		/* Number of columns in image */
 
 char* base64signature;  /* temp test */
-char hash_of_file[65];  /* temp test */
+char* hash_of_file;  /* temp test */
 
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
@@ -1193,6 +1193,8 @@ int main(int argc, char *argv[], char **env)
 
     // Test verification
     printf("Going to read hash...\n");
+
+    hash_of_file = (char*)malloc(65);
 
     if(read_file_as_hash("data/out_raw/out_raw_0") != 0){
         // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c

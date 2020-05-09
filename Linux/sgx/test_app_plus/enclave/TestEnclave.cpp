@@ -294,7 +294,7 @@ void print_public_key(EVP_PKEY* evp_pkey){
 
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
-						void *public_key, size_t len_of_pukey, void *size_of_actual_pukey, size_t size_of_soap, void* processed_pixels)
+						void *public_key, size_t len_of_pukey, void* processed_pixels)
 {
 	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, public_key
 	// Out: processed_pixels

@@ -1165,7 +1165,7 @@ int verify_signature(){
 
     printf("hash_of_file to be verified: %s\n", hash_of_file);
 
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, 65);
 	if(ret != 1){
 		printf("EVP_VerifyUpdate error. \n");
         exit(1);
@@ -1194,7 +1194,7 @@ int main(int argc, char *argv[], char **env)
     // Test verification
     printf("Going to read hash...\n");
 
-    hash_of_file = (char*)malloc(66);
+    hash_of_file = (char*)malloc(65);
 
     if(read_file_as_hash("data/out_raw/out_raw_0") != 0){
         // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c

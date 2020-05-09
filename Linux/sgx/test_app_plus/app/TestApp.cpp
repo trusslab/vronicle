@@ -662,7 +662,7 @@ void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBu
 //     return ret;
 // }
 
-int verify_signature_t(EVP_PKEY* public_key){
+int verify_signature_t(char* hash_to_be_verified, EVP_PKEY* public_key){
     // Return 1 on success, otherwise, return 0
 
     EVP_MD_CTX *mdctx;
@@ -689,9 +689,9 @@ int verify_signature_t(EVP_PKEY* public_key){
         exit(1);
 	}
 
-    printf("hash_of_file to be verified: %s\n", hash_of_file);
+    printf("hash_to_be_verified to be verified: %s\n", hash_to_be_verified);
 
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, sizeof(hash_of_file));
+	ret = EVP_VerifyUpdate(mdctx, (void*)hash_to_be_verified, sizeof(hash_to_be_verified));
 	if(ret != 1){
 		printf("EVP_VerifyUpdate error. \n");
         exit(1);
@@ -1226,7 +1226,7 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
-    int result = verify_signature_t(evp_pkey);
+    int result = verify_signature_t(hash_of_file, evp_pkey);
     cout << "result: " << result << endl;
 
 	return 0;

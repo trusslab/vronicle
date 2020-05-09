@@ -723,8 +723,8 @@ int verification_reply(
 	printf("The contractID should be: %s", recv_buf);
 	fflush(stdout);
 	/* Assume that recv_time is in local endian ! */
-	unsigned char send_buf[48];
-	uint32_t *u32p;
+	// unsigned char send_buf[48];
+	// uint32_t *u32p;
 
     //printf("Here is the recv_buf: %s, %s\n", recv_buf, (char*)recv_buf);
     // recv_buf is the id num of the frame
@@ -732,20 +732,17 @@ int verification_reply(
 	/* start the verification in enclave in here */
 	// printf("start enclave verification in the app\n");
 
-	if(!evp_pkey)
-		printf("is nulll\n");
+    // char* hash_of_contract;
+    // int size_of_contract_hash;
+    // unsigned char* signature;
+    // unsigned char* public_key;
+    // int size_of_pukey;
+    // int* size_of_actual_pukey;
+    // int* size_of_actual_signature;
 
-    char* hash_of_contract;
-    int size_of_contract_hash;
-    unsigned char* signature;
-    unsigned char* public_key;
-    int size_of_pukey;
-    int* size_of_actual_pukey;
-    int* size_of_actual_signature;
-
-    // Assign int
-    size_of_contract_hash = SIZEOFHASH + 1;
-    size_of_pukey = SIZEOFPUKEY + 1;
+    // // Assign int
+    // size_of_contract_hash = SIZEOFHASH + 1;
+    // size_of_pukey = SIZEOFPUKEY + 1;
 
     // Initialize the data
     /*
@@ -797,7 +794,7 @@ int verification_reply(
     if (ptr == NULL || chdir(absolutePath) != 0)
         return 1;
 
-    evp_pkey = EVP_PKEY_new();
+    // evp_pkey = EVP_PKEY_new();
     cout << "Going to open public key: " << argv[1] << endl;
     FILE *f = fopen(argv[1], "r");
     if(f == NULL){

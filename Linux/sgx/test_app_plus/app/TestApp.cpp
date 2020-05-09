@@ -626,6 +626,18 @@ int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_sig
     return ret;
 }
 
+unsigned char* public_key_to_str(EVP_PKEY* evp_pkey, int* len_of_publickey){
+	// public key - string
+    // Remember to deallocate the return after using
+	int len = i2d_PublicKey(evp_pkey, NULL);
+    *len_of_publickey = len + 1;
+	unsigned char *buf = (unsigned char *) malloc (*len_of_publickey);
+	unsigned char *tbuf = buf;
+	i2d_PublicKey(evp_pkey, &tbuf);
+
+	return tbuf;
+}
+
 EVP_PKEY *evp_pkey;
 int verification_reply(
 	int socket_fd,
@@ -760,12 +772,14 @@ int verification_reply(
     // int verification_result2 = verify_signature(hash_of_original_raw_file, evp_pkey);
     // printf("(outside enclave2)verification_result: %d\n", verification_result2);
 	// printf("Size of pubKey(struct): %d, size of pubkey(EVP_PKEY_size): %d\n", sizeof(struct evp_pkey_st), EVP_PKEY_size(evp_pkey));
+    int len_of_pub_key;
+    unsigned char* pub_key_str = public_key_to_str(evp_pkey, &len_of_pub_key);
 
     // Going to get into enclave
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        evp_pkey, 8096, processed_pixels);
+        evp_pkey, 4096, pub_key_str, len_of_pub_key, processed_pixels);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

@@ -441,49 +441,49 @@ void log_ntp_event(char *msg)
 //     return 0;
 // }
 
-// size_t calcDecodeLength(const char* b64input) {
-//   size_t len = strlen(b64input), padding = 0;
+size_t calcDecodeLength(const char* b64input) {
+  size_t len = strlen(b64input), padding = 0;
 
-//   if (b64input[len-1] == '=' && b64input[len-2] == '=') //last two chars are =
-//     padding = 2;
-//   else if (b64input[len-1] == '=') //last char is =
-//     padding = 1;
-//   return (len*3)/4 - padding;
-// }
+  if (b64input[len-1] == '=' && b64input[len-2] == '=') //last two chars are =
+    padding = 2;
+  else if (b64input[len-1] == '=') //last char is =
+    padding = 1;
+  return (len*3)/4 - padding;
+}
 
-// void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length) {
-//   BIO *bio, *b64;
+void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length) {
+  BIO *bio, *b64;
 
-//   int decodeLen = calcDecodeLength(b64message);
-//   *buffer = (unsigned char*)malloc(decodeLen + 1);
-//   (*buffer)[decodeLen] = '\0';
+  int decodeLen = calcDecodeLength(b64message);
+  *buffer = (unsigned char*)malloc(decodeLen + 1);
+  (*buffer)[decodeLen] = '\0';
 
-//   bio = BIO_new_mem_buf(b64message, -1);
-//   b64 = BIO_new(BIO_f_base64());
-//   bio = BIO_push(b64, bio);
+  bio = BIO_new_mem_buf(b64message, -1);
+  b64 = BIO_new(BIO_f_base64());
+  bio = BIO_push(b64, bio);
 
-//   *length = BIO_read(bio, *buffer, strlen(b64message));
-//   BIO_free_all(bio);
-// }
+  *length = BIO_read(bio, *buffer, strlen(b64message));
+  BIO_free_all(bio);
+}
 
-// void Base64Encode( const unsigned char* buffer,
-//                    size_t length,
-//                    char** base64Text) {
-//   BIO *bio, *b64;
-//   BUF_MEM *bufferPtr;
+void Base64Encode( const unsigned char* buffer,
+                   size_t length,
+                   char** base64Text) {
+  BIO *bio, *b64;
+  BUF_MEM *bufferPtr;
 
-//   b64 = BIO_new(BIO_f_base64());
-//   bio = BIO_new(BIO_s_mem());
-//   bio = BIO_push(b64, bio);
+  b64 = BIO_new(BIO_f_base64());
+  bio = BIO_new(BIO_s_mem());
+  bio = BIO_push(b64, bio);
 
-//   BIO_write(bio, buffer, length);
-//   BIO_flush(bio);
-//   BIO_get_mem_ptr(bio, &bufferPtr);
-//   BIO_set_close(bio, BIO_NOCLOSE);
-//   BIO_free_all(bio);
+  BIO_write(bio, buffer, length);
+  BIO_flush(bio);
+  BIO_get_mem_ptr(bio, &bufferPtr);
+  BIO_set_close(bio, BIO_NOCLOSE);
+  BIO_free_all(bio);
 
-//   *base64Text=(*bufferPtr).data;
-// }
+  *base64Text=(*bufferPtr).data;
+}
 
 // unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
 //     // Return signature on success, otherwise, return NULL
@@ -547,17 +547,17 @@ void log_ntp_event(char *msg)
 //     return 0;
 // }
 
-// void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
-// {
-//     int i = 0;
+void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
+{
+    int i = 0;
 
-//     for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
-//     {
-//         sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
-//     }
+    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    {
+        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
+    }
 
-//     outputBuffer[64] = 0;
-// }
+    outputBuffer[64] = 0;
+}
 
 // int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out){
 //     // Return 0 on success, otherwise, return 1
@@ -1075,18 +1075,6 @@ int read_rsa_pub_key(const char* publickey_file_name){
     return 0;
 }
 
-void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
-{
-    int i = 0;
-
-    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
-    }
-
-    outputBuffer[64] = 0;
-}
-
 int read_file_as_hash(char* file_path){
     // Return 0 on success, otherwise, return 1
     FILE *file = fopen(file_path, "rb");
@@ -1147,31 +1135,6 @@ int read_signature(const char* sign_file_name){
 
     fclose(signature_file);
     return 0;
-}
-
-size_t calcDecodeLength(const char* b64input) {
-  size_t len = strlen(b64input), padding = 0;
-
-  if (b64input[len-1] == '=' && b64input[len-2] == '=') //last two chars are =
-    padding = 2;
-  else if (b64input[len-1] == '=') //last char is =
-    padding = 1;
-  return (len*3)/4 - padding;
-}
-
-void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length) {
-  BIO *bio, *b64;
-
-  int decodeLen = calcDecodeLength(b64message);
-  *buffer = (unsigned char*)malloc(decodeLen + 1);
-  (*buffer)[decodeLen] = '\0';
-
-  bio = BIO_new_mem_buf(b64message, -1);
-  b64 = BIO_new(BIO_f_base64());
-  bio = BIO_push(b64, bio);
-
-  *length = BIO_read(bio, *buffer, strlen(b64message));
-  BIO_free_all(bio);
 }
 
 int verify_signature(){

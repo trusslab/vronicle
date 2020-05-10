@@ -260,6 +260,7 @@ unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLen
 
     fseek(signature_file, 0, SEEK_END);
     long length = ftell(signature_file);
+    printf("read_signature: length of file from ftell is: %d\n", length);
     fseek(signature_file, 0, SEEK_SET);
 
     base64signature = (char*)malloc(length);

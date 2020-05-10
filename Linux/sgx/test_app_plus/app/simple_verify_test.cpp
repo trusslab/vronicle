@@ -231,6 +231,9 @@ int verify_signature(){
     size_t encMessageLength;
     Base64Decode(base64signature, &encMessage, &encMessageLength);
 
+    cout << "(lalala)size of raw signature is: " << (int)encMessageLength << endl;
+    cout << "(lalala)signature: " << (char*)encMessage << endl;
+
 	ret = EVP_VerifyFinal(mdctx, encMessage, encMessageLength, evp_pkey);
 	printf("EVP_VerifyFinal result: %d\n", ret);
 

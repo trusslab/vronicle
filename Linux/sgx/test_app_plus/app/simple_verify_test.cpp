@@ -267,6 +267,9 @@ unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLen
     unsigned char* signature;
     Base64Decode(base64signature, &signature, signatureLength);
 
+    cout << "(outside enclave)size of raw signature is: " << (int)*signatureLength << endl;
+    cout << "(outside enclave)signature: " << (char*)signature << endl;
+
     // free(base64signature);
 
     return signature;
@@ -329,8 +332,6 @@ int main(int argc, char *argv[]){
     // cout << "(lalala)size of raw signature is: " << (int)encMessageLength << endl;
     // cout << "(lalala)signature: " << (char*)encMessage << endl;
 
-    cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
-    cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
     return 0;
 }

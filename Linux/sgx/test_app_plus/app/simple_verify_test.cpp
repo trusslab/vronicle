@@ -180,6 +180,7 @@ void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length
   BIO *bio, *b64;
 
   int decodeLen = calcDecodeLength(b64message);
+  printf("decodeLen is: %d\n", decodeLen);
   *buffer = (unsigned char*)malloc(decodeLen + 1);
   (*buffer)[decodeLen] = '\0';
 
@@ -188,6 +189,8 @@ void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length
   bio = BIO_push(b64, bio);
 
   *length = BIO_read(bio, *buffer, strlen(b64message));
+  printf("The length is: %d\n", (int)*length);
+  printf("The buffer is: %s\n", buffer);
   BIO_free_all(bio);
 }
 

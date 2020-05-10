@@ -256,18 +256,18 @@ unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLen
     long length = ftell(signature_file);
     fseek(signature_file, 0, SEEK_SET);
 
-    char* base64signature = (char*)malloc(length);
+    char* base64signature_n = (char*)malloc(length);
 
-    fread(base64signature, 1, length, signature_file);
+    fread(base64signature_n, 1, length, signature_file);
 
     fclose(signature_file);
 
-    printf("base64signautre: %s\n", base64signature);
+    printf("base64signautre: %s\n", base64signature_n);
     
     unsigned char* signature;
-    Base64Decode(base64signature, &signature, signatureLength);
+    Base64Decode(base64signature_n, &signature, signatureLength);
 
-    free(base64signature);
+    // free(base64signature_n);
 
     return signature;
 }
@@ -320,6 +320,15 @@ int main(int argc, char *argv[]){
     size_t raw_signature_length;
 
     raw_signature = read_signature_n("data/out_raw_sign/camera_sign_0", &raw_signature_length);
+
+    // printf("base64signature: %s\n", base64signature);
+    unsigned char* encMessage;
+    size_t encMessageLength;
+    Base64Decode(base64signature, &encMessage, &encMessageLength);
+
+    cout << "(lalala)size of raw signature is: " << (int)encMessageLength << endl;
+    cout << "(lalala)signature: " << (char*)encMessage << endl;
+
     cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
     cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 

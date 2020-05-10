@@ -503,6 +503,8 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     fread(base64signature, 1, length, signature_file);
 
     fclose(signature_file);
+
+    printf("base64signautre: %s\n", base64signature);
     
     unsigned char* signature;
     Base64Decode(base64signature, &signature, signatureLength);

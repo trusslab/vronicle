@@ -791,30 +791,26 @@ int verification_reply(
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
-    // // Allocate char array for encalve to create signature of processed pixels
-    // long size_of_char_array_for_processed_img_sign = image_height * image_width * 3 * 4 + 16;
-    // printf("size_of_char_array_for_processed_img_sign: %d\n", size_of_char_array_for_processed_img_sign);
-    // char* char_array_for_processed_img_sign = (char*)malloc(size_of_char_array_for_processed_img_sign);
+    // Allocate char array for encalve to create signature of processed pixels
+    long size_of_char_array_for_processed_img_sign = image_height * image_width * 3 * 4 + 16;
+    printf("size_of_char_array_for_processed_img_sign: %d\n", size_of_char_array_for_processed_img_sign);
+    char* char_array_for_processed_img_sign = (char*)malloc(size_of_char_array_for_processed_img_sign);
 
-    // // Prepare for signature output and its hash
-    // int size_of_processed_img_signature = 1024;
-    // unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
-    // int size_of_hoprf = 65;
-    // char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
+    // Prepare for signature output and its hash
+    int size_of_processed_img_signature = 1024;
+    unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
+    int size_of_hoprf = 65;
+    char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
 
     // Going to get into enclave
     int runtime_result = -1;
-    // sgx_status_t status = t_sgxver_call_apis(
-    //     global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-    //     hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-    //     original_pub_key_str, original_pub_key_str_len, processed_pixels, &runtime_result, sizeof(int), 
-    //     char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, 
-    //     hash_of_processed_raw_file, size_of_hoprf, 
-    //     processed_img_signature, size_of_processed_img_signature);
     sgx_status_t status = t_sgxver_call_apis(
-         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-         original_pub_key_str, original_pub_key_str_len, processed_pixels, &runtime_result, sizeof(int));
+        global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
+        hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
+        original_pub_key_str, original_pub_key_str_len, processed_pixels, &runtime_result, sizeof(int), 
+        char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, 
+        hash_of_processed_raw_file, size_of_hoprf, 
+        processed_img_signature, size_of_processed_img_signature);
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

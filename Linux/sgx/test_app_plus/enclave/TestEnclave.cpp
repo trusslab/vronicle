@@ -315,7 +315,7 @@ void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBu
 
     for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
     {
-        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
+        sprintf_s(outputBuffer + (i * 2), "%02x", hash[i]);
     }
 
     outputBuffer[64] = 0;
@@ -349,13 +349,14 @@ int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_o
 
 void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image_height, char* output_str){
 
-    int total_number_of_rgb_values = image_width * image_height * 3;
+    int total_number_of_rgb_values = image_width * image_height;
 
-    sprintf(output_str, "%07d,%07d,", image_width, image_height);
+    sprintf_s(output_str, "%07d,%07d,", image_width, image_height);
     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        sprintf(output_str, "%03d,", image_buffer[i]);
+        sprintf_s(output_str, "%03d,%03d,%03d,", pixels_to_be_converted[i].r, pixels_to_be_converted[i].g, pixels_to_be_converted[i].b);
     }
-    sprintf(output_str, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+    sprintf_s(output_str, "%03d,%03d,%03d", pixels_to_be_converted[total_number_of_rgb_values - 1].r, 
+				pixels_to_be_converted[total_number_of_rgb_values - 1].g, pixels_to_be_converted[total_number_of_rgb_values - 1].b);
 
     return 0;
 }
@@ -400,11 +401,11 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
 
 	// Prepare for output processed image file str
-	pixels_to_raw_str(processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign);
+	pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign);
 
 	// Generate hash of processed image
-	str_to_hash((char*)char_array_for_processed_img_sign, size_of_cafpis, hash_of_processed_image);
-	printf("hash_of_processed_image: %s\n", hash_of_processed_image);
+	str_to_hash((char*)char_array_for_processed_img_sign, size_of_cafpis, (char*)hash_of_processed_image);
+	printf("hash_of_processed_image: %s\n", (char*)hash_of_processed_image);
 
 	// Generate signature
 

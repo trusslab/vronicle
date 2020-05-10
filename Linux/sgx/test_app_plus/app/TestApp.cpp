@@ -700,6 +700,19 @@ char* read_file_as_str(const char* file_name, long* str_len){
     return str_to_return;
 }
 
+int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_out){
+    // Return 0 on success, otherwise, return 1
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, str_for_hashing, size_of_str_for_hashing);
+    SHA256_Final(hash, &sha256);
+
+    sha256_hash_string(hash, hash_out);
+    return 0;
+}
+
 int verification_reply(
 	int socket_fd,
 	struct sockaddr *saddr_p,
@@ -847,6 +860,9 @@ int verification_reply(
     // Save processed frame
     int result = save_processed_frame(processed_pixels, (char*) recv_buf);
     cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
+    char hash_temp[65];
+    str_to_hash(char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, hash_temp);
+    cout << "(Outside Enclave)hash of char_array_for_processed_img_sign: " << hash_temp << endl;
     save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
 
     // Free Everything (for video_provenance project)

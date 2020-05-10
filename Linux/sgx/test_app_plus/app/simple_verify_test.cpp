@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include "jpeglib.h"
 #include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +16,6 @@
 
 using namespace std;
 
-JSAMPLE * image_buffer = NULL;	/* Points to large array of R,G,B-order data */
 int image_height = 0;	/* Number of rows in image */
 int image_width = 0;		/* Number of columns in image */
 

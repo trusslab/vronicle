@@ -243,6 +243,34 @@ int verify_signature(){
     return ret;
 }
 
+unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLength){
+    // Return signature on success, otherwise, return NULL
+    // Need to free the return after finishing using
+    FILE* signature_file = fopen(sign_file_name, "r");
+    if(signature_file == NULL){
+        return NULL;
+    }
+
+    fseek(signature_file, 0, SEEK_END);
+    long length = ftell(signature_file);
+    fseek(signature_file, 0, SEEK_SET);
+
+    char* base64signature = (char*)malloc(length);
+
+    fread(base64signature, 1, length, signature_file);
+
+    fclose(signature_file);
+
+    printf("base64signautre: %s\n", base64signature);
+    
+    unsigned char* signature;
+    Base64Decode(base64signature, &signature, signatureLength);
+
+    free(base64signature);
+
+    return signature;
+}
+
 int main(int argc, char *argv[]){
     if(argc != 4){
         printf("Usage: [raw_file_name] [sign_file_name] [publickey_file_name]");
@@ -282,6 +310,14 @@ int main(int argc, char *argv[]){
         EVP_PKEY_free(evp_pkey);
         return 1;
     }
+
+    // Read Signature
+    unsigned char* raw_signature;
+    size_t raw_signature_length;
+
+    raw_signature = read_signature_n("data/out_raw_sign/camera_sign_0", &raw_signature_length);
+    cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
+    cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
     return 0;
 }

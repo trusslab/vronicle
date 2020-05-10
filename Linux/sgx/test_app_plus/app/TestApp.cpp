@@ -507,6 +507,7 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     char* base64signature = (char*)malloc(length + 1);
 
     int success_read_count = fread(base64signature, 1, length, signature_file);
+    base64signature[success_read_count] = '\0';
     printf("success_read_count is %d\n", success_read_count);
 
     fclose(signature_file);

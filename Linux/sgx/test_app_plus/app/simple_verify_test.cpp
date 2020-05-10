@@ -316,7 +316,7 @@ int main(int argc, char *argv[]){
     size_t raw_signature_length;
 
     raw_signature = read_signature_n("data/out_raw_sign/camera_sign_0", &raw_signature_length);
-    cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
+    cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
     cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
     return 0;

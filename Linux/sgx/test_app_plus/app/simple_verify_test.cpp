@@ -278,6 +278,8 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
+    /*
+
     printf("Going to read hash...\n");
 
     if(read_file_as_hash(argv[1]) != 0){
@@ -311,6 +313,7 @@ int main(int argc, char *argv[]){
         EVP_PKEY_free(evp_pkey);
         return 1;
     }
+    */
 
     // Read Signature
     unsigned char* raw_signature;

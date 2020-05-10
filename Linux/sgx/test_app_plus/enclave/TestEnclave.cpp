@@ -36,8 +36,6 @@
 
 #include <errno.h>
 #include <limits.h>
-#include "internal_securecrt.h"
-#include "mbusafecrt_internal.h"
 
 #include "TestEnclave.h"
 #include "TestEnclave_t.h"  /* print_string */
@@ -68,6 +66,21 @@ void printf(const char *fmt, ...)
     vsnprintf(buf, BUFSIZ, fmt, ap);
     va_end(ap);
     uprint(buf);
+}
+
+int sprintf_s (
+        char *string,
+        size_t sizeInBytes,
+        const char *format,
+        ...
+        )
+{
+        int ret;
+        va_list arglist;
+        va_start(arglist, format);
+        ret = _vsprintf_s(string, sizeInBytes, format, arglist);
+        va_end(arglist);
+        return ret;
 }
 
 typedef void CRYPTO_RWLOCK;

@@ -421,8 +421,8 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
 
 	// Generate hash of processed image
-	unsigned_chars_to_hash(reinterpret_cast<unsigned char*>((char*)char_array_for_processed_img_sign), size_of_cafpis, (char*)hash_of_processed_image);
-	printf("hash_of_processed_image: %s\n", (char*)hash_of_processed_image);
+	str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
+	printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Generate signature
 

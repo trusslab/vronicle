@@ -256,18 +256,18 @@ unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLen
     long length = ftell(signature_file);
     fseek(signature_file, 0, SEEK_SET);
 
-    char* base64signature_n = (char*)malloc(length);
+    base64signature = (char*)malloc(length);
 
-    fread(base64signature_n, 1, length, signature_file);
+    fread(base64signature, 1, length, signature_file);
 
     fclose(signature_file);
 
-    printf("base64signautre: %s\n", base64signature_n);
+    printf("base64signautre: %s\n", base64signature);
     
     unsigned char* signature;
-    Base64Decode(base64signature_n, &signature, signatureLength);
+    Base64Decode(base64signature, &signature, signatureLength);
 
-    // free(base64signature_n);
+    // free(base64signature);
 
     return signature;
 }

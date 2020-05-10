@@ -94,7 +94,6 @@ pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used 
 int image_height = 0;	/* Number of rows in image */
 int image_width = 0;		/* Number of columns in image */
 
-char* base64signature;  /* temp test */
 char* hash_of_file;  /* temp test */
 
 /* Error code returned by sgx_create_enclave */
@@ -498,7 +497,7 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     long length = ftell(signature_file);
     fseek(signature_file, 0, SEEK_SET);
 
-    base64signature = (char*)malloc(length);
+    char* base64signature = (char*)malloc(length);
 
     fread(base64signature, 1, length, signature_file);
 

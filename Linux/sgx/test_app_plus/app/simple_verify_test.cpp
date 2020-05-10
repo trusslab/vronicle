@@ -322,7 +322,7 @@ int main(int argc, char *argv[]){
     unsigned char* raw_signature;
     size_t raw_signature_length;
 
-    raw_signature = read_signature_n("data/out_raw_sign/camera_sign_0", &raw_signature_length);
+    raw_signature = read_signature_n("../data/out_raw_sign/camera_sign_0", &raw_signature_length);
 
     // printf("base64signature: %s\n", base64signature);
     // unsigned char* encMessage;

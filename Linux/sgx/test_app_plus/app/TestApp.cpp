@@ -443,11 +443,14 @@ int save_processed_frame(pixel* processed_pixels, char* frame_id){
 
 size_t calcDecodeLength(const char* b64input) {
   size_t len = strlen(b64input), padding = 0;
+  printf("The len in calc is: %d\n", (int)len);
 
   if (b64input[len-1] == '=' && b64input[len-2] == '=') //last two chars are =
     padding = 2;
   else if (b64input[len-1] == '=') //last char is =
     padding = 1;
+
+  printf("The padding in calc is: %d\n", (int)padding);
   return (len*3)/4 - padding;
 }
 

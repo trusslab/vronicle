@@ -486,7 +486,7 @@ void Base64Encode( const unsigned char* buffer,
   *base64Text=(*bufferPtr).data;
 }
 
-unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
+unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLength){
     // Return signature on success, otherwise, return NULL
     // Need to free the return after finishing using
     FILE* signature_file = fopen(sign_file_name, "r");
@@ -498,11 +498,13 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     long length = ftell(signature_file);
     fseek(signature_file, 0, SEEK_SET);
 
-    char* base64signature = (char*)malloc(length);
+    base64signature = (char*)malloc(length);
 
     fread(base64signature, 1, length, signature_file);
 
     fclose(signature_file);
+
+    printf("base64signautre: %s\n", base64signature);
     
     unsigned char* signature;
     Base64Decode(base64signature, &signature, signatureLength);
@@ -992,16 +994,25 @@ void wait_wrapper(int s)
 /* Application entry */
 int main(int argc, char *argv[], char **env)
 {
-	/* initialize and start the enclave in here */
-	start_enclave(argc, argv);
+    // Read Signature
+    unsigned char* raw_signature;
+    size_t raw_signature_length;
 
-	/* create the server waiting for the verification request from the client */
-	int s;
-	signal(SIGCHLD,wait_wrapper);
-	sgx_server(argv);
+    raw_signature = read_signature_n("../data/out_raw_sign/camera_sign_0", &raw_signature_length);
 
-	/* after verification we destroy the enclave */
-    sgx_destroy_enclave(global_eid);
+    cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
+    cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
+    
+	// /* initialize and start the enclave in here */
+	// start_enclave(argc, argv);
+
+	// /* create the server waiting for the verification request from the client */
+	// int s;
+	// signal(SIGCHLD,wait_wrapper);
+	// sgx_server(argv);
+
+	// /* after verification we destroy the enclave */
+    // sgx_destroy_enclave(global_eid);
 	return 0;
 }
 

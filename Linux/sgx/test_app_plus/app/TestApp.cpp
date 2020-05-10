@@ -998,7 +998,7 @@ int main(int argc, char *argv[], char **env)
     unsigned char* raw_signature;
     size_t raw_signature_length;
 
-    raw_signature = read_signature("../data/out_raw_sign/camera_sign_0", &raw_signature_length);
+    raw_signature = read_signature("data/out_raw_sign/camera_sign_0", &raw_signature_length);
 
     cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
     cout << "(outside enclave)signature: " << (char*)raw_signature << endl;

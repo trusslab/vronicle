@@ -322,12 +322,12 @@ int main(int argc, char *argv[]){
     raw_signature = read_signature_n("data/out_raw_sign/camera_sign_0", &raw_signature_length);
 
     // printf("base64signature: %s\n", base64signature);
-    unsigned char* encMessage;
-    size_t encMessageLength;
-    Base64Decode(base64signature, &encMessage, &encMessageLength);
+    // unsigned char* encMessage;
+    // size_t encMessageLength;
+    // Base64Decode(base64signature, &encMessage, &encMessageLength);
 
-    cout << "(lalala)size of raw signature is: " << (int)encMessageLength << endl;
-    cout << "(lalala)signature: " << (char*)encMessage << endl;
+    // cout << "(lalala)size of raw signature is: " << (int)encMessageLength << endl;
+    // cout << "(lalala)signature: " << (char*)encMessage << endl;
 
     cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
     cout << "(outside enclave)signature: " << (char*)raw_signature << endl;

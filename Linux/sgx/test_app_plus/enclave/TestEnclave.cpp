@@ -34,6 +34,11 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include <errno.h>
+#include <limits.h>
+#include "internal_securecrt.h"
+#include "mbusafecrt_internal.h"
+
 #include "TestEnclave.h"
 #include "TestEnclave_t.h"  /* print_string */
 #include "tSgxSSL_api.h"
@@ -357,8 +362,6 @@ void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image
     }
     sprintf_s(output_str, "%03d,%03d,%03d", pixels_to_be_converted[total_number_of_rgb_values - 1].r, 
 				pixels_to_be_converted[total_number_of_rgb_values - 1].g, pixels_to_be_converted[total_number_of_rgb_values - 1].b);
-
-    return 0;
 }
 
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 

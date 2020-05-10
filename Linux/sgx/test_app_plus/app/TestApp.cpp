@@ -486,7 +486,7 @@ void Base64Encode( const unsigned char* buffer,
   *base64Text=(*bufferPtr).data;
 }
 
-unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLength){
+unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
     // Return signature on success, otherwise, return NULL
     // Need to free the return after finishing using
     FILE* signature_file = fopen(sign_file_name, "r");
@@ -998,11 +998,11 @@ int main(int argc, char *argv[], char **env)
     unsigned char* raw_signature;
     size_t raw_signature_length;
 
-    raw_signature = read_signature_n("../data/out_raw_sign/camera_sign_0", &raw_signature_length);
+    raw_signature = read_signature("../data/out_raw_sign/camera_sign_0", &raw_signature_length);
 
     cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
     cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
-    
+
 	// /* initialize and start the enclave in here */
 	// start_enclave(argc, argv);
 

@@ -68,21 +68,6 @@ void printf(const char *fmt, ...)
     uprint(buf);
 }
 
-int sprintf_s (
-        char *string,
-        size_t sizeInBytes,
-        const char *format,
-        ...
-        )
-{
-        int ret;
-        va_list arglist;
-        va_start(arglist, format);
-        ret = _vsprintf_s(string, sizeInBytes, format, arglist);
-        va_end(arglist);
-        return ret;
-}
-
 typedef void CRYPTO_RWLOCK;
 
 struct evp_pkey_st {
@@ -333,7 +318,7 @@ void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBu
 
     for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
     {
-        sprintf_s(outputBuffer + (i * 2), "%02x", hash[i]);
+        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
     }
 
     outputBuffer[64] = 0;
@@ -369,11 +354,11 @@ void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image
 
     int total_number_of_rgb_values = image_width * image_height;
 
-    sprintf_s(output_str, "%07d,%07d,", image_width, image_height);
+    sprintf(output_str, "%07d,%07d,", image_width, image_height);
     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        sprintf_s(output_str, "%03d,%03d,%03d,", pixels_to_be_converted[i].r, pixels_to_be_converted[i].g, pixels_to_be_converted[i].b);
+        sprintf(output_str, "%03d,%03d,%03d,", pixels_to_be_converted[i].r, pixels_to_be_converted[i].g, pixels_to_be_converted[i].b);
     }
-    sprintf_s(output_str, "%03d,%03d,%03d", pixels_to_be_converted[total_number_of_rgb_values - 1].r, 
+    sprintf(output_str, "%03d,%03d,%03d", pixels_to_be_converted[total_number_of_rgb_values - 1].r, 
 				pixels_to_be_converted[total_number_of_rgb_values - 1].g, pixels_to_be_converted[total_number_of_rgb_values - 1].b);
 }
 

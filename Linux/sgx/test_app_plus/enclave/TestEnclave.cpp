@@ -309,25 +309,25 @@ EVP_PKEY* unsigned_chars_to_pub_key(const unsigned char* pub_key_str, int len_of
     return result_evp_key;
 }
 
-char* pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image_height){
-    // return raw str on success; otherwise, return NULL
+// char* pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image_height){
+//     // return raw str on success; otherwise, return NULL
 
-    int total_number_of_rgb_values = image_width * image_height * 3;
+//     int total_number_of_rgb_values = image_width * image_height * 3;
 
-    FILE* output_file = fopen(file_name, "w+");
-    if(output_file == NULL){
-        return 1;
-    }
-    fprintf(output_file, "%07d,%07d,", image_width, image_height);
-    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        fprintf(output_file, "%03d,", image_buffer[i]);
-    }
-    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
-    fclose(output_file);
+//     FILE* output_file = fopen(file_name, "w+");
+//     if(output_file == NULL){
+//         return 1;
+//     }
+//     fprintf(output_file, "%07d,%07d,", image_width, image_height);
+//     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+//         fprintf(output_file, "%03d,", image_buffer[i]);
+//     }
+//     fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+//     fclose(output_file);
     
-    free(image_buffer);
-    return 0;
-}
+//     free(image_buffer);
+//     return 0;
+// }
 
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,

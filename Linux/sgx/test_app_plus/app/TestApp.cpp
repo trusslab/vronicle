@@ -781,11 +781,16 @@ int verification_reply(
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
+    // Allocate char array for encalve to create signature of processed pixels
+    long size_of_char_array_for_processed_img_sign = image_height * image_width * 3 * 4 + 16;
+    printf("size_of_char_array_for_processed_img_sign: %d\n", size_of_char_array_for_processed_img_sign);
+
     // Going to get into enclave
+    int runtime_result = -1;
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        original_pub_key_str, original_pub_key_str_len, processed_pixels);
+        original_pub_key_str, original_pub_key_str_len, processed_pixels, &runtime_result, sizeof(int));
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

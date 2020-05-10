@@ -194,7 +194,7 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 	return res;
 }
 
-int sign_hash(void *hash_of_contract, size_t len_of_hash, void *signature, void *size_of_actual_signature){
+int sign_hash(void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
 	
 	EVP_MD_CTX *mdctx;
 	const EVP_MD *md;
@@ -210,7 +210,7 @@ int sign_hash(void *hash_of_contract, size_t len_of_hash, void *signature, void 
         exit(1);
 	}
 
-	ret = EVP_SignUpdate(mdctx, hash_of_contract, len_of_hash);
+	ret = EVP_SignUpdate(mdctx, hash_to_be_signed, len_of_hash);
 	if(ret != 1){
 		printf("EVP_SignUpdate error. \n");
         exit(1);
@@ -309,34 +309,66 @@ EVP_PKEY* unsigned_chars_to_pub_key(const unsigned char* pub_key_str, int len_of
     return result_evp_key;
 }
 
+char* pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image_height){
+    // return raw str on success; otherwise, return NULL
+
+    int total_number_of_rgb_values = image_width * image_height * 3;
+
+    FILE* output_file = fopen(file_name, "w+");
+    if(output_file == NULL){
+        return 1;
+    }
+    fprintf(output_file, "%07d,%07d,", image_width, image_height);
+    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+        fprintf(output_file, "%03d,", image_buffer[i]);
+    }
+    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+    fclose(output_file);
+    
+    free(image_buffer);
+    return 0;
+}
+
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
 						void *original_pub_key_str, long original_pub_key_str_len, 
-						void* processed_pixels)
+						void* processed_pixels, void* runtime_result, int size_of_runtime_result)
 {
-	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, original_pub_key_str, original_pub_key_str_len
-	// Out: processed_pixels
+	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, original_pub_key_str, original_pub_key_str_len,
+	// size_of_runtime_result, 
+	// ===========================================
+	// Out: processed_pixels, runtime_result,
+	// ===========================================
+	// runtime_result: 0: success; 1: verification failed; 
 
 	// rsa_key_gen();
 	// char* mKey = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t\n8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI\nv1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO\nAMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn\n1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD\nTBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07\nLj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc\n3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b\nyG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV\nSLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c\nHUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto\n0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==\n-----END PUBLIC KEY-----\n";
+	// Convert str to public key
 	BIO* bo = BIO_new( BIO_s_mem() );
 	BIO_write( bo, (char*)original_pub_key_str, original_pub_key_str_len);
-
 	EVP_PKEY* pukey = 0;
 	PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
 	BIO_free(bo);
     printf("Hello from enclave!\n");
 
-	// sign_hash(hash_of_contract, len_of_hash, signature, size_of_actual_signature);
-	// print_unsigned_chars((unsigned char*)public_key_str, len_of_pukey_str);
-
+	// Verify signature
 	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
 	printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
+	if(result_of_verification != 1){
+		*(int*)runtime_result = 1;
+		return;
+	}
+
+	// Process image
 	pixel* img_pixels = (pixel*) image_pixels;
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
 	blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 9);
 	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
 
+	// Generate signature
+
+
+	// Free Memory
 	EVP_PKEY_free(pukey);
 	// printf("The new key has been cleared, enclave finished running...\n");
 
@@ -347,6 +379,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// int len = i2d_PublicKey(evp_pkey, NULL);
 	// *(int*)size_of_actual_pukey = len;
 	// i2d_PublicKey(evp_pkey, (unsigned char**)&public_key);
+	*(int*)runtime_result = 0;
 
 	// freeEverthing();
 }

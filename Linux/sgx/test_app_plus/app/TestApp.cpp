@@ -455,6 +455,7 @@ void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length
   BIO *bio, *b64;
 
   int decodeLen = calcDecodeLength(b64message);
+  printf("decodeLen is: %d\n", decodeLen);
   *buffer = (unsigned char*)malloc(decodeLen + 1);
   (*buffer)[decodeLen] = '\0';
 

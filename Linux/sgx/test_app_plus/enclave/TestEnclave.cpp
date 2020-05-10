@@ -309,35 +309,69 @@ EVP_PKEY* unsigned_chars_to_pub_key(const unsigned char* pub_key_str, int len_of
     return result_evp_key;
 }
 
-// char* pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image_height){
-//     // return raw str on success; otherwise, return NULL
+void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
+{
+    int i = 0;
 
-//     int total_number_of_rgb_values = image_width * image_height * 3;
+    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    {
+        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
+    }
 
-//     FILE* output_file = fopen(file_name, "w+");
-//     if(output_file == NULL){
-//         return 1;
-//     }
-//     fprintf(output_file, "%07d,%07d,", image_width, image_height);
-//     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-//         fprintf(output_file, "%03d,", image_buffer[i]);
-//     }
-//     fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
-//     fclose(output_file);
-    
-//     free(image_buffer);
-//     return 0;
-// }
+    outputBuffer[64] = 0;
+}
+
+int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out){
+    // Return 0 on success, otherwise, return 1
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, data, size_of_data);
+    SHA256_Final(hash, &sha256);
+
+    sha256_hash_string(hash, hash_out);
+    return 0;
+}
+
+int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_out){
+    // Return 0 on success, otherwise, return 1
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, str_for_hashing, size_of_str_for_hashing);
+    SHA256_Final(hash, &sha256);
+
+    sha256_hash_string(hash, hash_out);
+    return 0;
+}
+
+void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image_height, char* output_str){
+
+    int total_number_of_rgb_values = image_width * image_height * 3;
+
+    sprintf(output_str, "%07d,%07d,", image_width, image_height);
+    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+        sprintf(output_str, "%03d,", image_buffer[i]);
+    }
+    sprintf(output_str, "%03d", image_buffer[total_number_of_rgb_values - 1]);
+
+    return 0;
+}
 
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
 						void *original_pub_key_str, long original_pub_key_str_len, 
-						void* processed_pixels, void* runtime_result, int size_of_runtime_result)
+						void* processed_pixels, void* runtime_result, int size_of_runtime_result, 
+						void* char_array_for_processed_img_sign, int size_of_cafpis, 
+						void* hash_of_processed_image, int size_of_hopi,
+						void* processed_img_signautre, int size_of_pis)
 {
 	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, original_pub_key_str, original_pub_key_str_len,
-	// size_of_runtime_result, 
+	// size_of_runtime_result, size_of_cafpis, size_of_pis, 
 	// ===========================================
-	// Out: processed_pixels, runtime_result,
+	// Out: processed_pixels, runtime_result, char_array_for_processed_img_sign, processed_img_signautre, 
 	// ===========================================
 	// runtime_result: 0: success; 1: verification failed; 
 
@@ -364,6 +398,13 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
 	blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 9);
 	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
+
+	// Prepare for output processed image file str
+	pixels_to_raw_str(processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign);
+
+	// Generate hash of processed image
+	str_to_hash((char*)char_array_for_processed_img_sign, size_of_cafpis, hash_of_processed_image);
+	printf("hash_of_processed_image: %s\n", hash_of_processed_image);
 
 	// Generate signature
 

@@ -55,7 +55,10 @@ from "sgx_tsgxssl.edl" import *;
                                         [in, size=size_of_actual_signature] void *signature, size_t size_of_actual_signature,
                                         [in, size=original_pub_key_str_len]void *original_pub_key_str, long original_pub_key_str_len,
                                         [out, size=size_of_image_pixels] void* processed_pixels,
-                                        [out, size=size_of_runtime_result] void* runtime_result, int size_of_runtime_result);
+                                        [out, size=size_of_runtime_result] void* runtime_result, int size_of_runtime_result,
+                                        [out, size=size_of_cafpis] void* char_array_for_processed_img_sign, int size_of_cafpis,
+                                        [out, size=size_of_hopi] void* hash_of_processed_image, int size_of_hopi,
+                                        [out, size=size_of_pis] void* processed_img_signautre, int size_of_pis);
  
     };
 };

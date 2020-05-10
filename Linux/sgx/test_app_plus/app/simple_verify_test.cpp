@@ -265,11 +265,12 @@ unsigned char* read_signature_n(const char* sign_file_name, size_t* signatureLen
 
     base64signature = (char*)malloc(length);
 
-    fread(base64signature, 1, length, signature_file);
+    int success_read_count = fread(base64signature, 1, length, signature_file);
+    printf("success_read_count is %d\n", success_read_count);
 
     fclose(signature_file);
 
-    printf("base64signautre: %s\n", base64signature);
+    printf("base64signautre: {%s}\n", base64signature);
     
     unsigned char* signature;
     Base64Decode(base64signature, &signature, signatureLength);

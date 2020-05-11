@@ -236,6 +236,8 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 		printf("EVP_SignFinal error. \n");
         exit(1);
 	}
+	((unsigned char*)sizeOfSignature)[sizeOfSignature] = '\0';
+	++sizeOfSignature;
 	*(int*)size_of_actual_signature = sizeOfSignature;
 
 	printf("The size of signature is: %d\n", *(int*)size_of_actual_signature);

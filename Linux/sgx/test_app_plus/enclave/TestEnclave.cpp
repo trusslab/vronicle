@@ -438,12 +438,12 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
     // printf("Hello from enclave!\n");
 
 	// Verify signature
-	// bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
-	// // printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
-	// if(result_of_verification != 1){
-	// 	*(int*)runtime_result = 1;
-	// 	return;
-	// }
+	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
+	// printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
+	if(result_of_verification != 1){
+		*(int*)runtime_result = 1;
+		return;
+	}
 
 	// Process image
 	// pixel* img_pixels = (pixel*) image_pixels;

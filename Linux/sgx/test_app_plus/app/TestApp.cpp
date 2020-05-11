@@ -695,7 +695,9 @@ char* read_file_as_str(const char* file_name, long* str_len){
 
     fread(str_to_return, 1, *str_len - 1, file);
 
-    str_to_return[*str_len] = '\0';
+    printf("When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
+
+    str_to_return[*str_len - 1] = '\0';
 
     fclose(file);
 

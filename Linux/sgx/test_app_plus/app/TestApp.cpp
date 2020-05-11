@@ -817,7 +817,7 @@ int verification_reply(
     int size_of_processed_img_signature = 1024;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
     // printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
-    int size_of_actual_processed_img_signature;
+    size_t size_of_actual_processed_img_signature;
     int size_of_hoprf = 65;
     char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
 
@@ -831,7 +831,7 @@ int verification_reply(
         hash_of_processed_raw_file, size_of_hoprf, 
         filter_pri_key_str, filter_pri_key_str_len,
         processed_img_signature, size_of_processed_img_signature, 
-        &size_of_actual_processed_img_signature, sizeof(int));
+        &size_of_actual_processed_img_signature, sizeof(size_t));
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

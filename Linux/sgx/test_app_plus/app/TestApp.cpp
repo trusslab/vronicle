@@ -688,12 +688,14 @@ char* read_file_as_str(const char* file_name, long* str_len){
     }
 
     fseek(file, 0, SEEK_END);
-    *str_len = ftell(file);
+    *str_len = ftell(file) + 1;
     fseek(file, 0, SEEK_SET);
 
     char* str_to_return = (char*)malloc(*str_len);
 
-    fread(str_to_return, 1, *str_len, file);
+    fread(str_to_return, 1, *str_len - 1, file);
+
+    str_to_return[*str_len] = '\0';
 
     fclose(file);
 

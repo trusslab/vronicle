@@ -247,7 +247,7 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	// if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) goto err;
 	/* Obtain the signature */
 	if(1 != EVP_DigestSignFinal(mdctx, (unsigned char*)signature, (size_t*)size_of_actual_signature)){
-		printf("EVP_DigestSignFinal error: %ld. \n", ERR_get_error());
+		printf("EVP_DigestSignFinal error: %ld. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);
 	};
 	

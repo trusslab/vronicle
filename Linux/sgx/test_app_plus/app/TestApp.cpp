@@ -713,6 +713,26 @@ int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_o
     return 0;
 }
 
+int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
+    // Return 0 on success, otherwise, return 1
+
+    char* dirname = "data/processed_raw_sign";
+    mkdir(dirname, 0777);
+
+    char processed_raw_sign_file_name[50];
+    snprintf(processed_raw_sign_file_name, 50, "data/processed_raw_sign/processed_raw_sign_%s", frame_id);
+
+    ofstream signature_file;
+    signature_file.open(processed_raw_sign_file_name);
+    if (!signature_file.is_open()){
+        return 1;
+    }
+    signature_file.write((char*)signature, len_of_sign);
+    signature_file.close();
+
+    return 0;
+}
+
 int verification_reply(
 	int socket_fd,
 	struct sockaddr *saddr_p,
@@ -798,6 +818,10 @@ int verification_reply(
     long original_pub_key_str_len;
     char* original_pub_key_str = read_file_as_str(argv[1], &original_pub_key_str_len);
 
+    // Read Filter Private Key
+    long filter_pri_key_str_len;
+    char* filter_pri_key_str = read_file_as_str(argv[2], &filter_pri_key_str_len);
+
     // Read Signature
     unsigned char* raw_signature;
     size_t raw_signature_length;
@@ -834,6 +858,7 @@ int verification_reply(
     // Prepare for signature output and its hash
     int size_of_processed_img_signature = 1024;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
+    int size_of_actual_processed_img_signature;
     int size_of_hoprf = 65;
     char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
 
@@ -845,25 +870,41 @@ int verification_reply(
         original_pub_key_str, original_pub_key_str_len, processed_pixels, &runtime_result, sizeof(int), 
         char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, 
         hash_of_processed_raw_file, size_of_hoprf, 
-        processed_img_signature, size_of_processed_img_signature);
+        filter_pri_key_str, filter_pri_key_str_len,
+        processed_img_signature, size_of_processed_img_signature, 
+        &size_of_actual_processed_img_signature, sizeof(int));
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
     }
 
-    cout << "Enclave has successfully run" << endl;
+    if (runtime_result != 0) {
+        printf("Runtime result verification failed: %d\n", runtime_result);
+        return 1;
+    }
+
+    cout << "Enclave has successfully run with runtime_result: " << runtime_result << endl;
     printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
     printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
     // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
     // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
 
     // Save processed frame
-    int result = save_processed_frame(processed_pixels, (char*) recv_buf);
-    cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
-    char hash_temp[65];
-    str_to_hash(char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, hash_temp);
-    cout << "(Outside Enclave)hash of char_array_for_processed_img_sign: " << hash_temp << endl;
-    save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
+    int result_of_frame_saving = save_processed_frame(processed_pixels, (char*) recv_buf);
+    if(result_of_frame_saving != 0){
+        return 1;
+    }
+    // cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
+    // char hash_temp[65];
+    // str_to_hash(char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, hash_temp);
+    // cout << "(Outside Enclave)hash of char_array_for_processed_img_sign: " << hash_temp << endl;
+    // save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
+
+    // Save processed filter singature
+    int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_actual_processed_img_signature, (char*) recv_buf);
+    if(result_of_filter_sign_saving != 0){
+        return 1;
+    }
 
     // Free Everything (for video_provenance project)
     free(image_pixels);
@@ -875,6 +916,7 @@ int verification_reply(
     free(char_array_for_processed_img_sign);
     free(hash_of_processed_raw_file);
     free(processed_img_signature);
+    free(filter_pri_key_str);
 
     /*
     printf("Outside enclave: the public key we have is:");

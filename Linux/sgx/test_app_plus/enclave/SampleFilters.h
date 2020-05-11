@@ -45,6 +45,10 @@ pixel* blur(pixel* image_buffer, pixel* output_buffer, int row_length, int total
     return output_buffer;
 }
 
+const char* get_blur_private_key_str(){
+    return "";
+}
+
 pixel* sharpen(pixel* image_buffer, int row_length, int total_num_of_pixels, int v){
     // Inspired by https://ai.stanford.edu/~syyeung/cvweb/tutorial1.html
     float avg_weight = 1.0 / ((v * v) - 1);

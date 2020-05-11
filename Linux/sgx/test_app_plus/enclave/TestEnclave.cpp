@@ -207,7 +207,7 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 	return res;
 }
 
-int sign_hash(void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
+int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
 	
 	EVP_MD_CTX *mdctx;
 	const EVP_MD *md;
@@ -229,12 +229,9 @@ int sign_hash(void *hash_to_be_signed, size_t len_of_hash, void *signature, void
         exit(1);
 	}
 
-	//printf("The size of pkey is: %d\n", EVP_PKEY_size(evp_pkey));
-	//printf("The len of pkey is: %d\n", i2d_PrivateKey(evp_pkey, NULL));
-
 	unsigned int sizeOfSignature = -1;
 
-	ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, evp_pkey);
+	ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
 	if(ret != 1){
 		printf("EVP_SignFinal error. \n");
         exit(1);
@@ -382,15 +379,17 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 						void* processed_pixels, void* runtime_result, int size_of_runtime_result, 
 						void* char_array_for_processed_img_sign, int size_of_cafpis, 
 						void* hash_of_processed_image, int size_of_hopi,
-						void* processed_img_signautre, int size_of_pis)
+						void* filter_pri_key_str, long filter_pri_key_str_len, 
+						void* processed_img_signautre, int size_of_pis, 
+						void* size_of_actual_processed_img_signature, size_t sizeof_soapis)
 {
 
 	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, original_pub_key_str, original_pub_key_str_len,
-	// size_of_runtime_result, size_of_cafpis, size_of_pis, size_of_hopi
+	// size_of_runtime_result, size_of_cafpis, size_of_pis, size_of_hopi, filter_pri_key_str, filter_pri_key_str_len, sizeof_soapis, 
 	// ===========================================
-	// Out: processed_pixels, runtime_result, char_array_for_processed_img_sign, processed_img_signautre, hash_of_processed_image
+	// Out: processed_pixels, runtime_result, char_array_for_processed_img_sign, processed_img_signautre, hash_of_processed_image, 
+	// size_of_actual_processed_img_signature, 
 	// ===========================================
-	// runtime_result: 0: success; 1: verification failed; 
 
 	// rsa_key_gen();
 	// char* mKey = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t\n8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI\nv1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO\nAMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn\n1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD\nTBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07\nLj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc\n3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b\nyG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV\nSLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c\nHUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto\n0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==\n-----END PUBLIC KEY-----\n";
@@ -424,8 +423,21 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
 	printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
-	// Generate signature
+	// Convert str to filter private key
+	BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
+	BIO_write(filter_pri_key_bo, (char*)filter_pri_key_str, filter_pri_key_str_len);
+	// BIO_write(bo, (char*)mKey, strlen(mKey));
+	EVP_PKEY* filter_private_key = 0;
+	PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
+	BIO_free(filter_pri_key_bo);
 
+	// Generate signature
+	int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
+	if(result_of_filter_signing != 0){
+		*(int*)runtime_result = 2;
+		EVP_PKEY_free(pukey);
+		return;
+	}
 
 	// Free Memory
 	EVP_PKEY_free(pukey);

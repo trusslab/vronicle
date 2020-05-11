@@ -246,7 +246,7 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	/* Allocate memory for the signature based on size in slen */
 	// if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) goto err;
 	/* Obtain the signature */
-	printf("Before passing in (size_t*)size_of_actual_signature, it is: %zu\n", (size_t*)size_of_actual_signature);
+	printf("Before passing in (size_t*)size_of_actual_signature, it is: %d\n", (size_t*)size_of_actual_signature);
 	if(1 != EVP_DigestSignFinal(mdctx, (unsigned char*)signature, (size_t*)size_of_actual_signature)){
 		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);

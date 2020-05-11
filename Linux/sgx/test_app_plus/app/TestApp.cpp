@@ -496,23 +496,25 @@ void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length
 
 void Base64Encode( const unsigned char* buffer,
                    size_t length,
-                   char** base64Text) {
-  BIO *bio, *b64;
-  BUF_MEM *bufferPtr;
+                   char** base64Text, 
+                   size_t* actual_base64_len) {
+    BIO *bio, *b64;
+    BUF_MEM *bufferPtr;
 
-  b64 = BIO_new(BIO_f_base64());
-  bio = BIO_new(BIO_s_mem());
-  bio = BIO_push(b64, bio);
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);
 
-  BIO_write(bio, buffer, length);
-  BIO_flush(bio);
-  BIO_get_mem_ptr(bio, &bufferPtr);
-  BIO_set_close(bio, BIO_NOCLOSE);
-  BIO_free_all(bio);
+    BIO_write(bio, buffer, length);
+    BIO_flush(bio);
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    BIO_set_close(bio, BIO_NOCLOSE);
+    BIO_free_all(bio);
 
-  printf("Inside Base64Encode we have data(length: %d){%s}\n", (*bufferPtr).length, (*bufferPtr).data);
+    *actual_base64_len = (*bufferPtr).length;
+  // printf("Inside Base64Encode we have data(length: %d){%s}\n", (*bufferPtr).length, (*bufferPtr).data);
 
-  *base64Text=(*bufferPtr).data;
+    *base64Text=(*bufferPtr).data;
 }
 
 unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
@@ -724,13 +726,12 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
 
     char* base64_signature;
 
-    printf("The base64_signature before assigning signauture is (length: %d): %s\n", strlen(base64_signature), base64_signature);
-
-    Base64Encode(signature, len_of_sign, &base64_signature);
-    // int len_of_base64encoded_str;
+    // printf("The base64_signature before assigning signauture is (length: %d): %s\n", strlen(base64_signature), base64_signature);
+    int len_of_base64encoded_str;
+    Base64Encode(signature, len_of_sign, &base64_signature, (size_t*)&len_of_base64encoded_str);
     // base64_signature = base64_encode(signature, (size_t)len_of_sign, (size_t*)&len_of_base64encoded_str);
 
-    printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", strlen(base64_signature), len_of_sign, base64_signature);
+    // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", strlen(base64_signature), len_of_sign, base64_signature);
     // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", len_of_base64encoded_str, len_of_sign, base64_signature);
 
     char* dirname = "data/processed_raw_sign";
@@ -744,7 +745,7 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     if (!signature_file.is_open()){
         return 1;
     }
-    signature_file.write(base64_signature, strlen(base64_signature));
+    signature_file.write(base64_signature, len_of_base64encoded_str);
     signature_file.close();
 
     return 0;

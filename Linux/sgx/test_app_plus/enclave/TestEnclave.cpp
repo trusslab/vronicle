@@ -31,6 +31,7 @@
 
 
 #include <stdio.h>      /* vsnprintf */
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 
@@ -398,7 +399,7 @@ void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image
 
 	char* temp_output_str = output_str;
 
-	char image_width_str[7] = "0000000";
+	char image_width_str[8] = "0000000";
 	itoa(image_width, image_width_str, 10);
 	printf("After assigning value, image_width_str is(length = %d): %s\n", strlen(image_width_str), image_width_str);
 

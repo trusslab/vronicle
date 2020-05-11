@@ -618,6 +618,25 @@ void print_public_key(EVP_PKEY* evp_pkey){
 	free(buf);
 }
 
+void print_private_key(EVP_PKEY* evp_pkey){
+	// private key - string
+	int len = i2d_PrivateKey(evp_pkey, NULL);
+	printf("For privatekey, the size of buf is: %d\n", len);
+	unsigned char *buf = (unsigned char *) malloc (len + 1);
+	unsigned char *tbuf = buf;
+	i2d_PrivateKey(evp_pkey, &tbuf);
+
+	// print private key
+	printf ("{\"private\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) buf[i]);
+	}
+	printf("\"}\n");
+
+	free(buf);
+}
+
 int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
 	// Return true on success; otherwise, return false
 	EVP_MD_CTX *mdctx;
@@ -761,7 +780,7 @@ int verification_reply(
 {
 	fflush(stdout);
 
-    printf("Here is the recv_buf: %s, %s\n", recv_buf, (char*)recv_buf);
+    printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
 
     // Read Public Key
     char absolutePath[MAX_PATH];
@@ -796,13 +815,13 @@ int verification_reply(
     snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
 
     int result_of_reading_raw_file = read_raw_file(raw_file_name);
-    cout << "Raw file read result: " << result_of_reading_raw_file << endl;
+    // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
 
     // Read Raw Image Hash
     int size_of_hoorf = 65;
     char* hash_of_original_raw_file = (char*) malloc(size_of_hoorf);
     read_file_as_hash(raw_file_name, hash_of_original_raw_file);
-    cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
+    // cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
 
     // Prepare processed Image
     pixel* processed_pixels;
@@ -810,7 +829,7 @@ int verification_reply(
 
     // Allocate char array for encalve to create signature of processed pixels
     long size_of_char_array_for_processed_img_sign = image_height * image_width * 3 * 4 + 16;
-    printf("size_of_char_array_for_processed_img_sign: %d\n", size_of_char_array_for_processed_img_sign);
+    // printf("size_of_char_array_for_processed_img_sign: %d\n", size_of_char_array_for_processed_img_sign);
     char* char_array_for_processed_img_sign = (char*)malloc(size_of_char_array_for_processed_img_sign);
 
     // Prepare for signature output and its hash
@@ -843,8 +862,8 @@ int verification_reply(
     }
 
     cout << "Enclave has successfully run with runtime_result: " << runtime_result << endl;
-    printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
-    printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
+    // printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
+    // printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
     // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
     // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
 
@@ -860,7 +879,7 @@ int verification_reply(
     // save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
 
     // Save processed filter singature
-    printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
+    // printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
     int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_actual_processed_img_signature, (char*) recv_buf);
     if(result_of_filter_sign_saving != 0){
         return 1;

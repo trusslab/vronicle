@@ -164,24 +164,7 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 	return res;
 }
 
-void print_private_key(EVP_PKEY* evp_pkey){
-	// private key - string
-	int len = i2d_PrivateKey(evp_pkey, NULL);
-	printf("For privatekey, the size of buf is: %d\n", len);
-	unsigned char *buf = (unsigned char *) malloc (len + 1);
-	unsigned char *tbuf = buf;
-	i2d_PrivateKey(evp_pkey, &tbuf);
 
-	// print private key
-	printf ("{\"private\":\"");
-	int i;
-	for (i = 0; i < len; i++) {
-	    printf("%02x", (unsigned char) buf[i]);
-	}
-	printf("\"}\n");
-
-	free(buf);
-}
 
 int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
 	
@@ -246,7 +229,7 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	/* Allocate memory for the signature based on size in slen */
 	// if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) goto err;
 	/* Obtain the signature */
-	printf("Before passing in (size_t*)size_of_actual_signature, it is: %zu\n", *(size_t*)size_of_actual_signature);
+	// printf("Before passing in (size_t*)size_of_actual_signature, it is: %zu\n", *(size_t*)size_of_actual_signature);
 	if(1 != EVP_DigestSignFinal(mdctx, (unsigned char*)signature, (size_t*)size_of_actual_signature)){
 		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);
@@ -338,7 +321,7 @@ bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature,
         exit(1);
 	}
 
-    printf("hash_of_file to be verified: %s\n", hash_of_file);
+    // printf("hash_of_file to be verified: %s\n", hash_of_file);
 
 	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, size_of_hash);
 	if(ret != 1){
@@ -347,7 +330,7 @@ bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature,
 	}
 
 	ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
-	printf("EVP_VerifyFinal result: %d\n", ret);
+	// printf("EVP_VerifyFinal result: %d\n", ret);
 
 	// Below part is for freeing data
 	// For freeing evp_md_ctx
@@ -452,11 +435,11 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	EVP_PKEY* pukey = 0;
 	PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
 	BIO_free(bo);
-    printf("Hello from enclave!\n");
+    // printf("Hello from enclave!\n");
 
 	// Verify signature
 	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
-	printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
+	// printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
 	if(result_of_verification != 1){
 		*(int*)runtime_result = 1;
 		return;
@@ -464,9 +447,9 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	// Process image
 	pixel* img_pixels = (pixel*) image_pixels;
-	printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
+	// printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
 	blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 9);
-	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
+	// printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
 
 	// Prepare for output processed image file str
 	pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);

@@ -429,64 +429,56 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// rsa_key_gen();
 	// char* mKey = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t\n8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI\nv1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO\nAMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn\n1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD\nTBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07\nLj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc\n3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b\nyG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV\nSLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c\nHUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto\n0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==\n-----END PUBLIC KEY-----\n";
 	// Convert str to public key
-	BIO* bo = BIO_new( BIO_s_mem() );
-	BIO_write(bo, (char*)original_pub_key_str, original_pub_key_str_len);
-	// BIO_write(bo, (char*)mKey, strlen(mKey));
-	EVP_PKEY* pukey = 0;
-	PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
-	BIO_free(bo);
+	// BIO* bo = BIO_new( BIO_s_mem() );
+	// BIO_write(bo, (char*)original_pub_key_str, original_pub_key_str_len);
+	// // BIO_write(bo, (char*)mKey, strlen(mKey));
+	// EVP_PKEY* pukey = 0;
+	// PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
+	// BIO_free(bo);
     // printf("Hello from enclave!\n");
 
 	// Verify signature
-	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
-	// printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
-	if(result_of_verification != 1){
-		*(int*)runtime_result = 1;
-		return;
-	}
+	// bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
+	// // printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
+	// if(result_of_verification != 1){
+	// 	*(int*)runtime_result = 1;
+	// 	return;
+	// }
 
 	// Process image
-	pixel* img_pixels = (pixel*) image_pixels;
+	// pixel* img_pixels = (pixel*) image_pixels;
 	// printf("The very first pixel: R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
 	// blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 9);
 	// printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
 
 	// Prepare for output processed image file str
-	pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
+	// pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
 
 	// Generate hash of processed image
-	str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
-	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
+	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
+	// // printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Convert str to filter private key
-	BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
-	BIO_write(filter_pri_key_bo, (char*)filter_pri_key_str, filter_pri_key_str_len);
-	// BIO_write(bo, (char*)mKey, strlen(mKey));
-	EVP_PKEY* filter_private_key = 0;
-	PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
-	BIO_free(filter_pri_key_bo);
+	// BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
+	// BIO_write(filter_pri_key_bo, (char*)filter_pri_key_str, filter_pri_key_str_len);
+	// // BIO_write(bo, (char*)mKey, strlen(mKey));
+	// EVP_PKEY* filter_private_key = 0;
+	// PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
+	// BIO_free(filter_pri_key_bo);
 
 	// Generate signature
-	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
-	if(result_of_filter_signing != 0){
-		*(int*)runtime_result = 2;
-		EVP_PKEY_free(pukey);
-		return;
-	}
+	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
+	// int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
+	// if(result_of_filter_signing != 0){
+	// 	*(int*)runtime_result = 2;
+	// 	EVP_PKEY_free(pukey);
+	// 	return;
+	// }
 
 	// Free Memory
-	EVP_PKEY_free(pukey);
-	EVP_PKEY_free(filter_private_key);
-	// printf("The new key has been cleared, enclave finished running...\n");
+	// EVP_PKEY_free(pukey);
+	// EVP_PKEY_free(filter_private_key);
 
-	/* call the API for verification here */
-	/* FIXME */
-
-	// Assign publicKey
-	// int len = i2d_PublicKey(evp_pkey, NULL);
-	// *(int*)size_of_actual_pukey = len;
-	// i2d_PublicKey(evp_pkey, (unsigned char**)&public_key);
 	*(int*)runtime_result = 0;
 
 	// freeEverthing();

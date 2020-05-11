@@ -510,7 +510,7 @@ void Base64Encode( const unsigned char* buffer,
   BIO_set_close(bio, BIO_NOCLOSE);
   BIO_free_all(bio);
 
-  printf("Inside Base64Encode we have data(length: %d){%s}\n", length, (*bufferPtr).data);
+  printf("Inside Base64Encode we have data(length: %d){%s}\n", strlen((*bufferPtr).data), (*bufferPtr).data);
 
   *base64Text=(*bufferPtr).data;
 }

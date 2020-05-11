@@ -718,11 +718,11 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
 
     char* base64_signature;
 
-    printf("The base64_signature before assigning signauture is: %s\n", base64_signature);
+    printf("The base64_signature before assigning signauture is (length: %d): %s\n", str(base64_signature), base64_signature);
 
     Base64Encode(signature, len_of_sign, &base64_signature);
 
-    printf("The base64_signature after assigning signauture of length %d is: %s\n", len_of_sign, base64_signature);
+    printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", str(base64_signature), len_of_sign, base64_signature);
 
     char* dirname = "data/processed_raw_sign";
     mkdir(dirname, 0777);

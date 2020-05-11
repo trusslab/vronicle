@@ -246,6 +246,7 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	/* Allocate memory for the signature based on size in slen */
 	// if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) goto err;
 	/* Obtain the signature */
+	printf("Before passing in (size_t*)size_of_actual_signature, it is: %zu\n", (size_t*)size_of_actual_signature);
 	if(1 != EVP_DigestSignFinal(mdctx, (unsigned char*)signature, (size_t*)size_of_actual_signature)){
 		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);
@@ -431,7 +432,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 						void* char_array_for_processed_img_sign, int size_of_cafpis, 
 						void* hash_of_processed_image, int size_of_hopi,
 						void* filter_pri_key_str, long filter_pri_key_str_len, 
-						void* processed_img_signautre, int size_of_pis, 
+						void* processed_img_signautre, size_t size_of_pis, 
 						void* size_of_actual_processed_img_signature, size_t sizeof_soapis)
 {
 
@@ -483,6 +484,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	BIO_free(filter_pri_key_bo);
 
 	// Generate signature
+	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
 	int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
 	if(result_of_filter_signing != 0){
 		*(int*)runtime_result = 2;

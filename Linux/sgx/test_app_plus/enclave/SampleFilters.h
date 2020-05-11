@@ -74,6 +74,33 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
     return output_buffer;
 }
 
+pixel* blur_9(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, float v){
+    // Inspired by https://processing.org/examples/blur.html
+    // This is a 9 x 9 blur
+    float kernel[9][9] = {{ v, v, v, v, v, v, v, v, v }, { v, v, v, v, v, v, v, v, v }, { v, v, v, v, v, v, v, v, v }, { v, v, v, v, v, v, v, v, v }, 
+                            { v, v, v, v, v, v, v, v, v }, { v, v, v, v, v, v, v, v, v }, { v, v, v, v, v, v, v, v, v }, { v, v, v, v, v, v, v, v, v }, 
+                            { v, v, v, v, v, v, v, v, v }};
+    // float kernel[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
+    int column_length = total_num_of_pixels / row_length;   // or height
+    for(int y = 4; y < column_length - 4; ++y){
+        for(int x = 4; x < row_length - 4; ++x){
+            float temp_r = 0.0, temp_g = 0.0, temp_b = 0.0;
+            for(int ky = -4; ky <= 4; ++ky){
+                for(int kx = -4; kx <= 4; ++kx){
+                    int pos = (y + ky) * row_length + (x + kx);
+                    temp_r += kernel[ky+4][kx+4] * image_buffer[pos].r;
+                    temp_g += kernel[ky+4][kx+4] * image_buffer[pos].g;
+                    temp_b += kernel[ky+4][kx+4] * image_buffer[pos].b;
+                }
+            }
+            output_buffer[y * row_length + x].r = truncate(temp_r);
+            output_buffer[y * row_length + x].g = truncate(temp_g);
+            output_buffer[y * row_length + x].b = truncate(temp_b);
+        }
+    }
+    return output_buffer;
+}
+
 pixel* sharpen(pixel* image_buffer, int row_length, int total_num_of_pixels, int v){
     // Inspired by https://ai.stanford.edu/~syyeung/cvweb/tutorial1.html
     float avg_weight = 1.0 / ((v * v) - 1);

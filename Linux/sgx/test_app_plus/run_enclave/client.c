@@ -61,7 +61,7 @@ int open_connect(const char* server)
 	return s;
 }
 
-void request(int fd, char* contractID)
+void request(int fd, const char* contractID)
 {
 	unsigned char buf[48];
 	strcpy(buf, (unsigned char*)contractID);
@@ -129,8 +129,16 @@ int client(const char* server, char* contractId)
 	int fd;
 
 	fd = open_connect(server);
-	request(fd, contractId);
+
+	int num_of_frames = atoi(contractId);
+	for(int i = 0; i < num_of_frames; ++i){
+		char current_frame_id[10];
+		sprintf(current_frame_id, "%d", i);
+		request(fd, current_frame_id);
+	}
 //	get_reply(fd);
+
+	request(fd, "no_more_frame");
 
 	close(fd);
 

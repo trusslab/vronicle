@@ -1010,8 +1010,12 @@ void request_process_loop(int fd, char** argv)
 
 		gettime64(recv_time);
 
+        if(strcmp((char*) buf, "no_more_frame") == 0){
+            printf("No more frame detected, ending encalve server...\n");
+            break;
+        }
+
 		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
-		break;
 	}
 }
 

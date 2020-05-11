@@ -845,6 +845,7 @@ int verification_reply(
 
     // Going to get into enclave
     int runtime_result = -1;
+    auto start = high_resolution_clock::now();
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
@@ -854,6 +855,9 @@ int verification_reply(
         filter_pri_key_str, filter_pri_key_str_len,
         processed_img_signature, size_of_processed_img_signature, 
         &size_of_actual_processed_img_signature, sizeof(size_t));
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Processing frame " << (char*)buf << " in enclave takes time: " << duration.count() << endl; 
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

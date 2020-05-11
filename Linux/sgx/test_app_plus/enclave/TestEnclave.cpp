@@ -456,29 +456,29 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
 
 	// Generate hash of processed image
-	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
-	// // printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
+	str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
+	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Convert str to filter private key
-	// BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
-	// BIO_write(filter_pri_key_bo, (char*)filter_pri_key_str, filter_pri_key_str_len);
-	// // BIO_write(bo, (char*)mKey, strlen(mKey));
-	// EVP_PKEY* filter_private_key = 0;
-	// PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
-	// BIO_free(filter_pri_key_bo);
+	BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
+	BIO_write(filter_pri_key_bo, (char*)filter_pri_key_str, filter_pri_key_str_len);
+	// BIO_write(bo, (char*)mKey, strlen(mKey));
+	EVP_PKEY* filter_private_key = 0;
+	PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
+	BIO_free(filter_pri_key_bo);
 
 	// Generate signature
-	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	// int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
-	// if(result_of_filter_signing != 0){
-	// 	*(int*)runtime_result = 2;
-	// 	EVP_PKEY_free(pukey);
-	// 	return;
-	// }
+	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
+	int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
+	if(result_of_filter_signing != 0){
+		*(int*)runtime_result = 2;
+		EVP_PKEY_free(pukey);
+		return;
+	}
 
 	// Free Memory
 	EVP_PKEY_free(pukey);
-	// EVP_PKEY_free(filter_private_key);
+	EVP_PKEY_free(filter_private_key);
 
 	*(int*)runtime_result = 0;
 

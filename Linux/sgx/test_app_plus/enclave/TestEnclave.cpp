@@ -272,9 +272,6 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	//printf("The size of pkey is: %d\n", EVP_PKEY_size(key_for_sign));
 	//printf("The len of pkey is: %d\n", i2d_PrivateKey(key_for_sign, NULL));
 
-	unsigned char* signature;
-	signature = (unsigned char*)malloc(1024);
-
 	unsigned int sizeOfSignature = -1;
 
 	ret = EVP_SignFinal(mdctx, signature, &sizeOfSignature, priKey);

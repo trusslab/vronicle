@@ -274,7 +274,7 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 
 	unsigned int sizeOfSignature = -1;
 
-	ret = EVP_SignFinal(mdctx, signature, &sizeOfSignature, priKey);
+	ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
 	if(ret != 1){
 		printf("EVP_SignFinal error. \n");
         exit(1);

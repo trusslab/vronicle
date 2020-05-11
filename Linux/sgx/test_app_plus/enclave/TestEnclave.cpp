@@ -185,36 +185,77 @@ void print_private_key(EVP_PKEY* evp_pkey){
 
 int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
 	
-	EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
+	// EVP_MD_CTX *mdctx;
+	// const EVP_MD *md;
 
-	md = EVP_sha256();
-	mdctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(mdctx, md, NULL);
+	// md = EVP_sha256();
+	// mdctx = EVP_MD_CTX_new();
+	// EVP_DigestInit_ex(mdctx, md, NULL);
 
-	int ret;
-	ret = EVP_SignInit_ex(mdctx, md, NULL);
-	if(ret != 1){
-		printf("EVP_SignInit_ex error. \n");
-        exit(1);
+	// int ret;
+	// ret = EVP_SignInit_ex(mdctx, md, NULL);
+	// if(ret != 1){
+	// 	printf("EVP_SignInit_ex error. \n");
+    //     exit(1);
+	// }
+
+	// printf("In filter signing, len_of_hash is: %d\n", len_of_hash);
+
+	// ret = EVP_SignUpdate(mdctx, hash_to_be_signed, len_of_hash);
+	// if(ret != 1){
+	// 	printf("EVP_SignUpdate error. \n");
+    //     exit(1);
+	// }
+
+	// unsigned int sizeOfSignature = -1;
+
+	// ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
+	// if(ret != 1){
+	// 	printf("EVP_SignFinal error : %ld. \n",  ERR_get_error());
+    //     exit(1);
+	// }
+	// *(int*)size_of_actual_signature = sizeOfSignature;
+
+	EVP_MD_CTX *mdctx = NULL;
+	int ret = 0;
+	
+	// (unsigned char*)signature = NULL;
+	
+	/* Create the Message Digest Context */
+	if(!(mdctx = EVP_MD_CTX_create())){
+		printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
+		exit(1);
 	}
-
-	printf("In filter signing, len_of_hash is: %d\n", len_of_hash);
-
-	ret = EVP_SignUpdate(mdctx, hash_to_be_signed, len_of_hash);
-	if(ret != 1){
-		printf("EVP_SignUpdate error. \n");
-        exit(1);
+	
+	/* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
+	if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priKey)){
+		printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
+		exit(1);
 	}
-
-	unsigned int sizeOfSignature = -1;
-
-	ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
-	if(ret != 1){
-		printf("EVP_SignFinal error : %ld. \n",  ERR_get_error());
-        exit(1);
+	
+	/* Call update with the message */
+	if(1 != EVP_DigestSignUpdate(mdctx, hash_to_be_signed, len_of_hash)){
+		printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
+		exit(1);
 	}
-	*(int*)size_of_actual_signature = sizeOfSignature;
+	
+	/* Finalise the DigestSign operation */
+	/* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
+	* signature. Length is returned in slen */
+	// if(1 != EVP_DigestSignFinal(mdctx, NULL, slen)) goto err;
+	/* Allocate memory for the signature based on size in slen */
+	// if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) goto err;
+	/* Obtain the signature */
+	if(1 != EVP_DigestSignFinal(mdctx, (unsigned char*)signature, (int*)size_of_actual_signature)){
+		printf("EVP_DigestSignFinal error: %ld. \n", ERR_get_error());
+		exit(1);
+	};
+	
+	/* Success */
+	ret = 1;
+	
+	/* Clean up */
+	if(mdctx) EVP_MD_CTX_destroy(mdctx);
 
 	// Return 0 on success, otherwise, return 1
     // EVP_MD_CTX *mdctx;

@@ -816,7 +816,7 @@ int verification_reply(
     // Prepare for signature output and its hash
     int size_of_processed_img_signature = 1024;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
-    printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
+    // printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
     int size_of_actual_processed_img_signature;
     int size_of_hoprf = 65;
     char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);

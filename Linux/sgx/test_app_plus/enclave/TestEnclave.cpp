@@ -164,6 +164,25 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 	return res;
 }
 
+void print_private_key(EVP_PKEY* evp_pkey){
+	// private key - string
+	int len = i2d_PrivateKey(evp_pkey, NULL);
+	printf("For privatekey, the size of buf is: %d\n", len);
+	unsigned char *buf = (unsigned char *) malloc (len + 1);
+	unsigned char *tbuf = buf;
+	i2d_PrivateKey(evp_pkey, &tbuf);
+
+	// print private key
+	printf ("{\"private\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) buf[i]);
+	}
+	printf("\"}\n");
+
+	free(buf);
+}
+
 int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
 	
 	// EVP_MD_CTX *mdctx;
@@ -230,6 +249,8 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	//printf("The len of pkey is: %d\n", i2d_PrivateKey(key_for_sign, NULL));
 
 	unsigned int sizeOfSignature = -1;
+
+	print_private_key(priKey);
 
 	ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
 	if(ret != 1){

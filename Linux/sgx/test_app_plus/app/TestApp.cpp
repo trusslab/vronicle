@@ -857,7 +857,7 @@ int verification_reply(
         &size_of_actual_processed_img_signature, sizeof(size_t));
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Processing frame " << (char*)buf << " in enclave takes time: " << duration.count() << endl; 
+    cout << "Processing frame " << (char*)recv_buf << " in enclave takes time: " << duration.count() << endl; 
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed

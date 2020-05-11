@@ -716,6 +716,10 @@ int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_o
 int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     // Return 0 on success, otherwise, return 1
 
+    char* base64_signature;
+
+    Base64Encode(signature, len_of_sign, &base64_signature);
+
     char* dirname = "data/processed_raw_sign";
     mkdir(dirname, 0777);
 
@@ -727,7 +731,7 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     if (!signature_file.is_open()){
         return 1;
     }
-    signature_file.write((char*)signature, len_of_sign);
+    signature_file.write(base64_signature, strlen(base64_signature));
     signature_file.close();
 
     return 0;

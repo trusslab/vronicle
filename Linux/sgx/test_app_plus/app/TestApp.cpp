@@ -778,7 +778,7 @@ int verification_reply(
     // Read Filter Private Key
     long filter_pri_key_str_len;
     char* filter_pri_key_str = read_file_as_str(argv[2], &filter_pri_key_str_len);
-    printf("The filter private key is read as(length: %d): {%s}\n", filter_pri_key_str_len, filter_pri_key_str);
+    // printf("The filter private key is read as(length: %d): {%s}\n", filter_pri_key_str_len, filter_pri_key_str);
 
     // Read Signature
     unsigned char* raw_signature;
@@ -788,8 +788,8 @@ int verification_reply(
     snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
 
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
-    cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
-    cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
+    // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
+    // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
     // Read Raw Image
     char raw_file_name[50];

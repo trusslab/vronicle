@@ -10,7 +10,7 @@ pixel* blur(pixel* image_buffer, pixel* output_buffer, int row_length, int total
             kernel[i][i2] = avg_weight;
         }
     }
-    printf("avg_weight: %f\n", avg_weight);
+    // printf("avg_weight: %f\n", avg_weight);
     // float kernel[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
     int column_length = total_num_of_pixels / row_length;   // or height
     for(int y = 0; y < column_length; ++y){

@@ -290,7 +290,7 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	// }
 	// *(int*)size_of_actual_signature = sizeOfSignature;
 
-	printf("The size of signature is: %d\n", *(int*)size_of_actual_signature);
+	// printf("The size of signature is: %d\n", *(int*)size_of_actual_signature);
 
 	return 0;
 }

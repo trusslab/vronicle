@@ -222,7 +222,7 @@ void print_error_message(sgx_status_t ret)
 
 int read_raw_file(const char* file_name){
     // Return 0 on success, return 1 on failure
-    cout << "Going to read raw file: " << file_name << endl;
+    // cout << "Going to read raw file: " << file_name << endl;
     FILE* input_raw_file = fopen(file_name, "r");
     if(input_raw_file == NULL){
         return 1;
@@ -242,7 +242,7 @@ int read_raw_file(const char* file_name){
             } else if (counter_for_image_info == 1){
                 image_height = atoi(info);
                 ++counter_for_image_info;
-                printf("The image has width: %d, and height: %d.\n", image_width, image_height);
+                // printf("The image has width: %d, and height: %d.\n", image_width, image_height);
                 image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * image_width * image_height * 3);
             } else {
                 if(counter_for_checking_if_all_rgb_values_read_properly + 10 >= image_width * image_height * 3){
@@ -259,7 +259,7 @@ int read_raw_file(const char* file_name){
         counter_for_checking_if_all_rgb_values_read_properly != image_width * image_height * 3){
             return 1;
         }
-    printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
+    // printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
 
     int total_number_of_pixels = image_width * image_height;
     image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
@@ -718,7 +718,7 @@ char* read_file_as_str(const char* file_name, long* str_len){
 
     fread(str_to_return, 1, *str_len - 1, file);
 
-    printf("When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
+    // printf("When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
 
     str_to_return[*str_len - 1] = '\0';
 

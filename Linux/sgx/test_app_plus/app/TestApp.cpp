@@ -768,6 +768,7 @@ int verification_reply(
     // Read Filter Private Key
     long filter_pri_key_str_len;
     char* filter_pri_key_str = read_file_as_str(argv[2], &filter_pri_key_str_len);
+    printf("The filter private key is read as(length: %d): {%s}\n", filter_pri_key_str_len, filter_pri_key_str);
 
     // Read Signature
     unsigned char* raw_signature;
@@ -803,8 +804,9 @@ int verification_reply(
     char* char_array_for_processed_img_sign = (char*)malloc(size_of_char_array_for_processed_img_sign);
 
     // Prepare for signature output and its hash
-    int size_of_processed_img_signature = 512;
+    int size_of_processed_img_signature = 1024;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
+    printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
     int size_of_actual_processed_img_signature;
     int size_of_hoprf = 65;
     char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
@@ -848,6 +850,7 @@ int verification_reply(
     // save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
 
     // Save processed filter singature
+    printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
     int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_actual_processed_img_signature, (char*) recv_buf);
     if(result_of_filter_sign_saving != 0){
         return 1;

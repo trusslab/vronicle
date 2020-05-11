@@ -209,34 +209,82 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 
 int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
 	
-	EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
+	// EVP_MD_CTX *mdctx;
+	// const EVP_MD *md;
 
-	md = EVP_sha256();
+	// md = EVP_sha256();
+	// mdctx = EVP_MD_CTX_new();
+	// EVP_DigestInit_ex(mdctx, md, NULL);
+
+	// int ret;
+	// ret = EVP_SignInit_ex(mdctx, md, NULL);
+	// if(ret != 1){
+	// 	printf("EVP_SignInit_ex error. \n");
+    //     exit(1);
+	// }
+
+	// ret = EVP_SignUpdate(mdctx, hash_to_be_signed, len_of_hash);
+	// if(ret != 1){
+	// 	printf("EVP_SignUpdate error. \n");
+    //     exit(1);
+	// }
+
+	// unsigned int sizeOfSignature = -1;
+
+	// ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
+	// if(ret != 1){
+	// 	printf("EVP_SignFinal error. \n");
+    //     exit(1);
+	// }
+	// *(int*)size_of_actual_signature = sizeOfSignature;
+
+	// Return 0 on success, otherwise, return 1
+    EVP_MD_CTX *mdctx;
+	const EVP_MD *md;
+	unsigned char md_value[EVP_MAX_MD_SIZE];
+	unsigned int md_len, i;
+
+	OpenSSL_add_all_digests();
+
+	md = EVP_get_digestbyname("SHA256");
+
+	if (md == NULL) {
+         printf("Unknown message digest %s\n", "SHA256");
+         exit(1);
+    }
+
 	mdctx = EVP_MD_CTX_new();
 	EVP_DigestInit_ex(mdctx, md, NULL);
 
 	int ret;
-	ret = EVP_SignInit_ex(mdctx, md, NULL);
+	ret = EVP_SignInit_ex(mdctx, EVP_sha256(), NULL);
 	if(ret != 1){
 		printf("EVP_SignInit_ex error. \n");
         exit(1);
 	}
 
-	ret = EVP_SignUpdate(mdctx, hash_to_be_signed, len_of_hash);
+	ret = EVP_SignUpdate(mdctx, (void*)hash_to_be_signed, sizeof(hash_to_be_signed));
 	if(ret != 1){
 		printf("EVP_SignUpdate error. \n");
         exit(1);
 	}
 
+	//printf("The size of pkey is: %d\n", EVP_PKEY_size(key_for_sign));
+	//printf("The len of pkey is: %d\n", i2d_PrivateKey(key_for_sign, NULL));
+
+	unsigned char* signature;
+	signature = (unsigned char*)malloc(1024);
+
 	unsigned int sizeOfSignature = -1;
 
-	ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
+	ret = EVP_SignFinal(mdctx, signature, &sizeOfSignature, priKey);
 	if(ret != 1){
 		printf("EVP_SignFinal error. \n");
         exit(1);
 	}
 	*(int*)size_of_actual_signature = sizeOfSignature;
+
+	printf("The size of signature is: %d\n", *(int*)size_of_actual_signature);
 
 	return 0;
 }

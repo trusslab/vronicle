@@ -239,7 +239,9 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
         exit(1);
 	}
 
-	ret = EVP_SignUpdate(mdctx, (void*)hash_to_be_signed, sizeof(hash_to_be_signed));
+	printf("hash_to_be_signed (length = %d): {%s}\n", strlen((char*)hash_to_be_signed), (char*)hash_to_be_signed);
+
+	ret = EVP_SignUpdate(mdctx, (void*)hash_to_be_signed, strlen((char*)hash_to_be_signed));
 	if(ret != 1){
 		printf("EVP_SignUpdate error. \n");
         exit(1);
@@ -251,6 +253,8 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	unsigned int sizeOfSignature = -1;
 
 	print_private_key(priKey);
+
+	printf("signature for filter signing before passing in (pre sizeOfSignature = %u): {%s}\n", sizeOfSignature, (unsigned char*)signature);
 
 	ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
 	if(ret != 1){
@@ -425,7 +429,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	// Generate hash of processed image
 	str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
-	printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
+	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Convert str to filter private key
 	BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );

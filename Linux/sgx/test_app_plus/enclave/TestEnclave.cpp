@@ -398,6 +398,10 @@ void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image
 
 	char* temp_output_str = output_str;
 
+	char image_width_str[7] = "0000000";
+	itoa(image_width, image_width_str, 10);
+	printf("After assigning value, image_width_str is(length = %d): %s\n", strlen(image_width_str), image_width_str);
+
     sprintf_s(temp_output_str, (size_t)size_of_output_str, "%07d,%07d,", image_width, image_height);
 	temp_output_str += 16;	// For above padding
     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){

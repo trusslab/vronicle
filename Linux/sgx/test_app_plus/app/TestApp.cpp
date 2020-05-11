@@ -79,6 +79,9 @@
 
 using namespace std;
 
+#include <chrono> 
+using namespace std::chrono;
+
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
 
@@ -780,7 +783,7 @@ int verification_reply(
 {
 	fflush(stdout);
 
-    printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
+    // printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
 
     // Read Public Key
     char absolutePath[MAX_PATH];
@@ -861,7 +864,7 @@ int verification_reply(
         return 1;
     }
 
-    cout << "Enclave has successfully run with runtime_result: " << runtime_result << endl;
+    // cout << "Enclave has successfully run with runtime_result: " << runtime_result << endl;
     // printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
     // printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
     // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
@@ -923,7 +926,12 @@ void request_process_loop(int fd, char** argv)
             break;
         }
 
+        auto start = high_resolution_clock::now();
 		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(stop - start);
+        cout << "Processing frame " << (char*)buf << " takes time: " << duration.count() << endl; 
+
 	}
 }
 

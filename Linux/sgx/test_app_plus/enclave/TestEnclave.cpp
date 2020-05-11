@@ -140,50 +140,7 @@ void rsa_key_gen()
 	}
 	EVP_PKEY_assign_RSA(evp_pkey, keypair);
 
-	/*
-
-	// public key - string
-	int len = i2d_PublicKey(evp_pkey, NULL);
-	printf("For publickey, the size of buf is: %d\n", len);
-	unsigned char *buf = (unsigned char *) malloc (len + 1);
-	unsigned char *tbuf = buf;
-	i2d_PublicKey(evp_pkey, &tbuf);
-
-	// print public key
-	printf ("{\"public\":\"");
-	int i;
-	for (i = 0; i < len; i++) {
-	    printf("%02x", (unsigned char) buf[i]);
-	}
-	printf("\"}\n");
-
-	free(buf);
-
-	// private key - string
-	len = i2d_PrivateKey(evp_pkey, NULL);
-	buf = (unsigned char *) malloc (len + 1);
-	tbuf = buf;
-	i2d_PrivateKey(evp_pkey, &tbuf);
-
-	// print private key
-	printf ("{\"private\":\"");
-	for (i = 0; i < len; i++) {
-	    printf("%02x", (unsigned char) buf[i]);
-	}
-	printf("\"}\n");
-
-	free(buf);
-	*/
-
 	BN_free(bn);
-
-    /*
-	EVP_PKEY_free(evp_pkey);
-
-	if (evp_pkey->pkey.ptr != NULL) {
-	  RSA_free(keypair);
-	}
-    */
 }
 
 int freeEverthing(){
@@ -328,25 +285,6 @@ bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature,
 	EVP_MD_CTX_free(mdctx);
 
     return ret;
-}
-
-void print_public_key(EVP_PKEY* evp_pkey){
-	// public key - string
-	int len = i2d_PublicKey(evp_pkey, NULL);
-	printf("For publickey, the size of buf is: %d\n", len);
-	unsigned char *buf = (unsigned char *) malloc (len + 1);
-	unsigned char *tbuf = buf;
-	i2d_PublicKey(evp_pkey, &tbuf);
-
-	// print public key
-	printf ("{\"public\":\"");
-	int i;
-	for (i = 0; i < len; i++) {
-	    printf("%02x", (unsigned char) buf[i]);
-	}
-	printf("\"}\n");
-
-	free(buf);
 }
 
 void print_unsigned_chars(unsigned char* chars_to_print, int len){
@@ -502,27 +440,6 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 void t_sgxssl_call_apis(void* evp_pkey_v)
 {
-	/*
-    int ret = 0;
-	EVP_PKEY* evp_pkey = (EVP_PKEY*)evp_pkey_v;
-    
-    printf("Start tests\n");
-
-	// public key - string
-	int len = i2d_PublicKey(evp_pkey, NULL);
-	unsigned char *buf = (unsigned char *) malloc (len + 1);
-	unsigned char *tbuf = buf;
-	i2d_PublicKey(evp_pkey, &tbuf);
-
-	// print public key
-	printf ("{\"public\":\"");
-	int i;
-	for (i = 0; i < len; i++) {
-	    printf("%02x", (unsigned char) buf[i]);
-	}
-	printf("\"}\n");
-
-	free(buf);
-	*/
+	return;
 }
 

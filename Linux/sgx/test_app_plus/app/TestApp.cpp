@@ -745,70 +745,9 @@ int verification_reply(
 	uint32_t recv_time[],
     char** argv)
 {
-	printf("The contractID should be: %s", recv_buf);
 	fflush(stdout);
-	/* Assume that recv_time is in local endian ! */
-	// unsigned char send_buf[48];
-	// uint32_t *u32p;
 
     printf("Here is the recv_buf: %s, %s\n", recv_buf, (char*)recv_buf);
-    // recv_buf is the id num of the frame
-
-	/* start the verification in enclave in here */
-	// printf("start enclave verification in the app\n");
-
-    // char* hash_of_contract;
-    // int size_of_contract_hash;
-    // unsigned char* signature;
-    // unsigned char* public_key;
-    // int size_of_pukey;
-    // int* size_of_actual_pukey;
-    // int* size_of_actual_signature;
-
-    // // Assign int
-    // size_of_contract_hash = SIZEOFHASH + 1;
-    // size_of_pukey = SIZEOFPUKEY + 1;
-
-    // Initialize the data
-    /*
-    hash_of_contract = (char*)calloc(1, size_of_contract_hash);
-    signature = (unsigned char*)calloc(1, SIZEOFSIGN + 1);
-    public_key = (unsigned char*)calloc(1, size_of_pukey);
-    size_of_actual_pukey = (int*)malloc(sizeof(int));
-    size_of_actual_signature = (int*)malloc(sizeof(int));
-    */
-
-    /*
-    // Assign proper values to data
-    const int max_buffer = 1000;
-    char buffer[max_buffer];
-    FILE* stream;
-    string cmd = "cd ../../../../submitted_files/";
-    cmd.append((const char*)recv_buf);
-    cmd.append("; tar -cf final_contract_");
-    cmd.append((const char*)recv_buf);
-    cmd.append(".tar *;sha256sum final_contract_");
-    cmd.append((const char*)recv_buf);
-    cmd.append(".tar 2>&1");
-    string exec_result;
-
-    printf("Going to exec cmd: %s\n", cmd.c_str());
-    fflush(stdout);
-
-    stream = popen(cmd.c_str(), "r");
-    if(stream){
-        while(!feof(stream)){
-            if(fgets(buffer, max_buffer, stream) != NULL){
-                exec_result.append(buffer);
-            }
-        }
-        pclose(stream);
-    }
-
-    printf("Lalala\n");
-    printf("(1)The system result is: %s\n", exec_result.c_str());
-    strcpy(hash_of_contract, exec_result.c_str());
-    */
 
     // Read Public Key
     char absolutePath[MAX_PATH];
@@ -921,73 +860,6 @@ int verification_reply(
     free(hash_of_processed_raw_file);
     free(processed_img_signature);
     free(filter_pri_key_str);
-
-    /*
-    printf("Outside enclave: the public key we have is:");
-	printf ("{\"public\":\"");
-	int i;
-	for (i = 0; i < *size_of_actual_pukey; i++) {
-	    printf("%02x", (unsigned char) public_key[i]);
-	}
-	printf("\"}\n");
-
-	printf("The size of signature is: %d\n", *size_of_actual_signature);
-    printf("Outside enclave, the signature is: {Signature: ");
-	for(i = 0; i < *size_of_actual_pukey; ++i){
-	    printf("%02x", (unsigned char)((unsigned char*)signature)[i]);
-	}
-	printf("\"}\n");
-    */
-
-    // Write pubKey and signature to files
-    /*
-    string pubKeyOutName = "../../../../submitted_files/";
-    pubKeyOutName.append((const char*)recv_buf);
-    pubKeyOutName.append("/enclave_pubKey");
-    ofstream pubKeyOut(pubKeyOutName.c_str());
-    if(!pubKeyOut){
-        printf("Cannot open enclave_pubKey file...\n");
-        exit(1);
-    }
-
-    pubKeyOut.write((char*)public_key, sizeof(public_key));
-    pubKeyOut.close();
-
-    string signOutName = "../../../../submitted_files/";
-    signOutName.append((const char*)recv_buf);
-    signOutName.append("/enclave_sign");
-    ofstream signOut(signOutName.c_str());
-    if(!signOut){
-        printf("Cannot open enclave_sign file...\n");
-        exit(1);
-    }
-
-    signOut.write((char*)signature, sizeof(signature));
-    signOut.close();
-    */
-
-    // Free everything
-    /*
-    free(hash_of_contract);
-    free(signature);
-    free(public_key);
-    free(size_of_actual_pukey);
-    free(size_of_actual_signature);
-    */
-	//printf("err:%x\n", status);
-    // if (status != SGX_SUCCESS) {
-    //     printf("Call to t_sgxver_call_apis has failed.\n");
-    //     return 1;    //Test failed
-    // }
-
-// 	if ( sendto( socket_fd,
-//		     send_buf,
-//		     sizeof(send_buf), 0,
-//		     saddr_p, saddrlen)
-//	     < 48) {
-//		perror("sendto error");
-//		return 1;
-//	}
 
 	return 0;
 }

@@ -287,7 +287,6 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    /*
 
     printf("Going to read hash...\n");
 
@@ -322,13 +321,12 @@ int main(int argc, char *argv[]){
         EVP_PKEY_free(evp_pkey);
         return 1;
     }
-    */
 
-    // Read Signature
-    unsigned char* raw_signature;
-    size_t raw_signature_length;
+    // // Read Signature
+    // unsigned char* raw_signature;
+    // size_t raw_signature_length;
 
-    raw_signature = read_signature_n("../data/out_raw_sign/camera_sign_0", &raw_signature_length);
+    // raw_signature = read_signature_n("../data/out_raw_sign/camera_sign_0", &raw_signature_length);
 
     // printf("base64signature: %s\n", base64signature);
     // unsigned char* encMessage;
@@ -338,8 +336,8 @@ int main(int argc, char *argv[]){
     // cout << "(lalala)size of raw signature is: " << (int)encMessageLength << endl;
     // cout << "(lalala)signature: " << (char*)encMessage << endl;
 
-    cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
-    cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
+    // cout << "(outside enclave)size of raw signature is: " << (int)raw_signature_length << endl;
+    // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
     return 0;
 }

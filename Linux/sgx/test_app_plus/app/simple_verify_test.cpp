@@ -14,6 +14,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "RawBase.h"
+
 using namespace std;
 
 int image_height = 0;	/* Number of rows in image */
@@ -51,6 +53,72 @@ EVP_PKEY *evp_pkey = NULL;
 RSA *keypair = NULL;
 char hash_of_file[65];
 char* base64signature;
+
+unsigned char* image_buffer = NULL;	/* Points to large array of R,G,B-order data */
+unsigned char* pure_input_image_str = NULL; /* for signature verification purpose */
+pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
+int image_height = 0;	/* Number of rows in image */
+int image_width = 0;		/* Number of columns in image */
+
+int read_raw_file(const char* file_name){
+    // Return 0 on success, return 1 on failure
+    // cout << "Going to read raw file: " << file_name << endl;
+    FILE* input_raw_file = fopen(file_name, "r");
+    if(input_raw_file == NULL){
+        return 1;
+    }
+    char buff[257]; // Plus one for eof
+    int counter_for_image_info = 0; // First two are width and height
+    int counter_for_checking_if_all_rgb_values_read_properly = 0;
+    char* info;
+    while(fgets(buff, 257, input_raw_file) != NULL){
+        // printf("buff: %s\n", buff);
+        info = strtok(buff, ",");
+        while(info != NULL){
+            // printf("Info: %d\n", atoi(info));
+            if(counter_for_image_info == 0){
+                image_width = atoi(info);
+                ++counter_for_image_info;
+            } else if (counter_for_image_info == 1){
+                image_height = atoi(info);
+                ++counter_for_image_info;
+                // printf("The image has width: %d, and height: %d.\n", image_width, image_height);
+                image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * image_width * image_height * 3);
+            } else {
+                if(counter_for_checking_if_all_rgb_values_read_properly + 10 >= image_width * image_height * 3){
+                    // printf("Current counter: %d, current limit: %d.\n", counter_for_checking_if_all_rgb_values_read_properly, image_width * image_height * 3);
+                    // printf("Current info: %d\n", atoi(info));
+                }
+                image_buffer[counter_for_checking_if_all_rgb_values_read_properly++] = atoi(info);
+            }
+            info = strtok(NULL, ",");
+        }
+        // printf("Current buff: %s\n", buff);
+    }
+    if(image_buffer == NULL || image_height == 0 || image_width == 0 || 
+        counter_for_checking_if_all_rgb_values_read_properly != image_width * image_height * 3){
+            return 1;
+        }
+    // printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
+
+    int total_number_of_pixels = image_width * image_height;
+    image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
+
+    return 0;
+}
+
+int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_out){
+    // Return 0 on success, otherwise, return 1
+
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, str_for_hashing, size_of_str_for_hashing);
+    SHA256_Final(hash, &sha256);
+
+    sha256_hash_string(hash, hash_out);
+    return 0;
+}
 
 int read_rsa_pub_key(const char* publickey_file_name){
     // Return 0 on success, otherwise, return 1
@@ -291,9 +359,21 @@ int main(int argc, char *argv[]){
 
     printf("Going to read hash...\n");
 
-    if(read_file_as_hash(argv[1]) != 0){
-        // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
-        printf("File(as hash): %s cannot be read.\n", argv[1]);
+    // if(read_file_as_hash(argv[1]) != 0){
+    //     // https://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
+    //     printf("File(as hash): %s cannot be read.\n", argv[1]);
+    //     return 1;
+    // }
+
+    if(read_raw_file(argv[1]) != 0){
+        printf("read_raw_file: %s cannot be read.\n", argv[1]);
+        return 1;
+    }
+
+
+
+    if(str_to_hash((char*)image_pixels, strlen((char*)image_pixels), hash_of_file) != 0){
+        printf("str_to_hash: %s cannot be read.\n", argv[1]);
         return 1;
     }
 

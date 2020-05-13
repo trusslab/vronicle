@@ -18,9 +18,6 @@
 
 using namespace std;
 
-int image_height = 0;	/* Number of rows in image */
-int image_width = 0;		/* Number of columns in image */
-
 typedef void CRYPTO_RWLOCK;
 
 struct evp_pkey_st {
@@ -59,6 +56,17 @@ unsigned char* pure_input_image_str = NULL; /* for signature verification purpos
 pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
 int image_height = 0;	/* Number of rows in image */
 int image_width = 0;		/* Number of columns in image */
+
+pixel* unsigned_chars_to_pixels(unsigned char* uchars, int num_of_pixels){
+    // This will allocate new memory and return it (pixels)
+    // Return NULL on error
+    if(uchars == NULL){
+        return NULL;
+    }
+    pixel* results = (pixel*)malloc(sizeof(pixel) * num_of_pixels);
+    memcpy(results, uchars, num_of_pixels * 3);
+    return results;
+}
 
 int read_raw_file(const char* file_name){
     // Return 0 on success, return 1 on failure
@@ -105,6 +113,18 @@ int read_raw_file(const char* file_name){
     image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
 
     return 0;
+}
+
+void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
+{
+    int i = 0;
+
+    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    {
+        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
+    }
+
+    outputBuffer[64] = 0;
 }
 
 int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_out){
@@ -159,18 +179,6 @@ int read_rsa_pub_key(const char* publickey_file_name){
     fclose(publickey_file);
 
     return 0;
-}
-
-void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
-{
-    int i = 0;
-
-    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
-    }
-
-    outputBuffer[64] = 0;
 }
 
 int read_file_as_hash(char* file_path){

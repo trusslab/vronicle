@@ -68,7 +68,7 @@ int read_rsa_pub_key(const char* publickey_file_name){
     */
     evp_pkey = PEM_read_PUBKEY(publickey_file, &evp_pkey, NULL, NULL);
     if(evp_pkey == NULL){
-        printf("A NULL key\n");
+        printf("A NULL key: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return 1;
     }
 

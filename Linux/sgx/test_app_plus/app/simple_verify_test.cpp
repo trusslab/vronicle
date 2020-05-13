@@ -59,6 +59,7 @@ int read_rsa_pub_key(const char* publickey_file_name){
         printf("what? No file?\n");
         return 1;
     }
+    printf("Potential public file: {%s} has been read\n", publickey_file_name);
     /*
     keypair = PEM_read_RSAPublicKey(publickey_file, &keypair, NULL, NULL);
     if(keypair == NULL){

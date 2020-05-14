@@ -68,6 +68,7 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
                 }
             }
             if(!printed){
+                printf("Assing to output_buffer[%d], temp_r: %f, temp_g: %f, temp_b: %f\n", (y * row_length + x), temp_r, temp_g, temp_b);
                 printf("Assing to output_buffer[%d], temp_r: %f, temp_g: %f, temp_b: %f\n", (y * row_length + x), truncate(temp_r), truncate(temp_g), truncate(temp_b));
                 printed = 1;
             }

@@ -55,6 +55,7 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
     float kernel[5][5] = {{ v, v, v, v, v }, { v, v, v, v, v }, { v, v, v, v, v }, { v, v, v, v, v }, { v, v, v, v, v }};
     // float kernel[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
     int column_length = total_num_of_pixels / row_length;   // or height
+    int printed = 0;
     for(int y = 2; y < column_length - 2; ++y){
         for(int x = 2; x < row_length - 2; ++x){
             float temp_r = 0.0, temp_g = 0.0, temp_b = 0.0;
@@ -66,7 +67,10 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
                     temp_b += kernel[ky+2][kx+2] * image_buffer[pos].b;
                 }
             }
-            printf("Assing to output_buffer[%d], temp_r: %f, temp_g: %f, temp_b: %f\n", (y * row_length + x), truncate(temp_r), truncate(temp_g), truncate(temp_b));
+            if(!printed){
+                printf("Assing to output_buffer[%d], temp_r: %f, temp_g: %f, temp_b: %f\n", (y * row_length + x), truncate(temp_r), truncate(temp_g), truncate(temp_b));
+                printed = 1;
+            }
             output_buffer[y * row_length + x].r = truncate(temp_r);
             output_buffer[y * row_length + x].g = truncate(temp_g);
             output_buffer[y * row_length + x].b = truncate(temp_b);

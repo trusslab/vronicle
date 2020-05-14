@@ -66,12 +66,13 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
                     temp_b += kernel[ky+2][kx+2] * image_buffer[pos].b;
                 }
             }
-            printf("temp_r: %f, temp_g: %f, temp_b: %f\n", temp_r, temp_g, temp_b);
+            // printf("temp_r: %f, temp_g: %f, temp_b: %f\n", truncate(temp_r), truncate(temp_g), truncate(temp_b));
             output_buffer[y * row_length + x].r = truncate(temp_r);
             output_buffer[y * row_length + x].g = truncate(temp_g);
             output_buffer[y * row_length + x].b = truncate(temp_b);
         }
     }
+    printf("Beofre return, a random processed pixel is: R: %d, G: %d, B: %d\n", output_buffer[5].r, output_buffer[5].g, output_buffer[5].b);
     return output_buffer;
 }
 

@@ -66,6 +66,7 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
                     temp_b += kernel[ky+2][kx+2] * image_buffer[pos].b;
                 }
             }
+            printf("temp_r: %f, temp_g: %f, temp_b: %f\n", temp_r, temp_g, temp_b);
             output_buffer[y * row_length + x].r = truncate(temp_r);
             output_buffer[y * row_length + x].g = truncate(temp_g);
             output_buffer[y * row_length + x].b = truncate(temp_b);

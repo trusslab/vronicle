@@ -399,13 +399,11 @@ void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image
 	char* temp_output_str = output_str;
 
     sprintf_s(temp_output_str, (size_t)size_of_output_str, "%07d,%07d,", image_width, image_height);
-	/*
 	temp_output_str += 16;	// For above padding
     for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
         sprintf_s(temp_output_str, (size_t)size_of_output_str, "%03d,%03d,%03d,", pixels_to_be_converted[i].r, pixels_to_be_converted[i].g, pixels_to_be_converted[i].b);
 		temp_output_str += 12;	// For above padding
 	}
-	*/
     sprintf_s(temp_output_str, (size_t)size_of_output_str, "%03d,%03d,%03d", pixels_to_be_converted[total_number_of_rgb_values - 1].r, 
 				pixels_to_be_converted[total_number_of_rgb_values - 1].g, pixels_to_be_converted[total_number_of_rgb_values - 1].b);
 }

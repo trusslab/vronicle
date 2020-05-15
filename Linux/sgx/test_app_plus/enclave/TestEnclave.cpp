@@ -409,10 +409,11 @@ void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image
 }
 
 void pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number_of_rgb_values, char* output_str){
+	char* temp_output_str = output_str;
 	for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        strncat(output_str, &pixels_to_be_converted[i].r, 1);
-        strncat(output_str, &pixels_to_be_converted[i].g, 1);
-        strncat(output_str, &pixels_to_be_converted[i].b, 1);
+        memcpy(temp_output_str++, &pixels_to_be_converted[i].r, 1);
+        memcpy(temp_output_str++, &pixels_to_be_converted[i].g, 1);
+        memcpy(temp_output_str++, &pixels_to_be_converted[i].b, 1);
 	}
 }
 

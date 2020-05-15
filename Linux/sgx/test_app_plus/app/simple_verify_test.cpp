@@ -57,6 +57,8 @@ pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used 
 int image_height = 0;	/* Number of rows in image */
 int image_width = 0;		/* Number of columns in image */
 
+char* processed_img_str;
+
 pixel* unsigned_chars_to_pixels(unsigned char* uchars, int num_of_pixels){
     // This will allocate new memory and return it (pixels)
     // Return NULL on error
@@ -66,6 +68,20 @@ pixel* unsigned_chars_to_pixels(unsigned char* uchars, int num_of_pixels){
     pixel* results = (pixel*)malloc(sizeof(pixel) * num_of_pixels);
     memcpy(results, uchars, num_of_pixels * 3);
     return results;
+}
+
+int pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number_of_rgb_values, char* output_str){
+	// Return the len of (fake) str
+	char* temp_output_str = output_str;
+	int len_of_str = 0;
+	for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
+        memcpy(temp_output_str++, &pixels_to_be_converted[i].r, 1);
+        memcpy(temp_output_str++, &pixels_to_be_converted[i].g, 1);
+        memcpy(temp_output_str++, &pixels_to_be_converted[i].b, 1);
+		len_of_str += 3;
+	}
+	// printf("Testing if we copy it successfully: %s\n", &(output_str[7692]));
+	return len_of_str;
 }
 
 int read_raw_file(const char* file_name){
@@ -127,7 +143,7 @@ void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBu
     outputBuffer[64] = 0;
 }
 
-int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_out){
+int str_to_hash(char* str_for_hashing, size_t size_of_str_for_hashing, char* hash_out){
     // Return 0 on success, otherwise, return 1
 
     unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -378,9 +394,11 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
+    processed_img_str = (char*) malloc(image_height * image_width * 3 + 1);
+    size_t len_of_processed_img_str = pixels_to_linked_pure_str(image_pixels, image_width * image_height, processed_img_str);
 
-
-    if(str_to_hash((char*)image_pixels, strlen((char*)image_pixels), hash_of_file) != 0){
+    printf("len_of_processed_img_str: %zu\n", len_of_processed_img_str);
+    if(str_to_hash(processed_img_str, len_of_processed_img_str, hash_of_file) != 0){
         printf("str_to_hash: %s cannot be read.\n", argv[1]);
         return 1;
     }

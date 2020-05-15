@@ -408,13 +408,18 @@ void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image
 				pixels_to_be_converted[total_number_of_rgb_values - 1].g, pixels_to_be_converted[total_number_of_rgb_values - 1].b);
 }
 
-void pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number_of_rgb_values, char* output_str){
+int pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number_of_rgb_values, char* output_str){
+	// Return the len of (fake) str
 	char* temp_output_str = output_str;
+	int len_of_str = 0;
 	for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
         memcpy(temp_output_str++, &pixels_to_be_converted[i].r, 1);
         memcpy(temp_output_str++, &pixels_to_be_converted[i].g, 1);
         memcpy(temp_output_str++, &pixels_to_be_converted[i].b, 1);
+		len_of_str += 3;
 	}
+	printf("Testing if we copy it successfully: %s\n", &(output_str[7692]));
+	return len_of_str;
 }
 
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
@@ -463,11 +468,12 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	// Prepare for output processed image file str
 	//pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
-	pixels_to_linked_pure_str((pixel*)processed_pixels, image_width * image_height, (char*)char_array_for_processed_img_sign);
+	int len_of_processed_image_str = pixels_to_linked_pure_str((pixel*)processed_pixels, image_width * image_height, (char*)char_array_for_processed_img_sign);
 
 	// Generate hash of processed image
-	printf("The len of char_array_for_processed_img_sign is: %d\n", strlen((char*)char_array_for_processed_img_sign));
-	str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
+	printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
+	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
+	str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
 	// str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
 	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 

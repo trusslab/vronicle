@@ -69,7 +69,7 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
             }
             if(!printed){
                 // printf("Assing111 to output_buffer[%d], temp_r: %f, temp_g: %f, temp_b: %f\n", (y * row_length + x), temp_r, temp_g, temp_b);
-                printf("Assingaaa to output_buffer[%d], temp_r: %f, temp_g: %f, temp_b: %f\n", (y * row_length + x), truncate(temp_r), truncate(temp_g), truncate(temp_b));
+                // printf("Assingaaa to output_buffer[%d], temp_r: %f, temp_g: %f, temp_b: %f\n", (y * row_length + x), truncate(temp_r), truncate(temp_g), truncate(temp_b));
                 printed = 1;
             }
             // output_buffer[y * row_length + x].r = truncate(temp_r);
@@ -80,7 +80,7 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
             output_buffer[y * row_length + x].b = temp_b;
         }
     }
-    printf("Beofre return, a random processed pixel is: R: %d, G: %d, B: %d\n", output_buffer[2562].r, output_buffer[2562].g, output_buffer[2562].b);
+    // printf("Beofre return, a random processed pixel is: R: %d, G: %d, B: %d\n", output_buffer[2562].r, output_buffer[2562].g, output_buffer[2562].b);
     return output_buffer;
 }
 

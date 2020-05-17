@@ -53,11 +53,18 @@ pixel* blur_5(pixel* image_buffer, pixel* output_buffer, int row_length, int tot
     // Inspired by https://processing.org/examples/blur.html
     // This is a 5 x 5 blur
     float kernel[5][5] = {{ v, v, v, v, v }, { v, v, v, v, v }, { v, v, v, v, v }, { v, v, v, v, v }, { v, v, v, v, v }};
+    int pad = 2;
     // float kernel[3][3] = {{1, 2, 1}, {2, 4, 2}, {1, 2, 1}};
     int column_length = total_num_of_pixels / row_length;   // or height
     int printed = 0;
-    for(int y = 2; y < column_length - 2; ++y){
-        for(int x = 2; x < row_length - 2; ++x){
+    for(int y = 0; y < column_length; ++y){
+        for(int x = 0; x < row_length; ++x){
+            if(y < pad || x < pad || column_length - y < pad || row_length - x < pad){
+                output_buffer[y * row_length + x].r = image_buffer[y * row_length + x].r;
+                output_buffer[y * row_length + x].g = image_buffer[y * row_length + x].g;
+                output_buffer[y * row_length + x].b = image_buffer[y * row_length + x].b;
+                continue;
+            }
             float temp_r = 0.0, temp_g = 0.0, temp_b = 0.0;
             for(int ky = -2; ky <= 2; ++ky){
                 for(int kx = -2; kx <= 2; ++kx){

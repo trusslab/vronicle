@@ -451,31 +451,32 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	BIO_free(bo);
     // printf("Hello from enclave!\n");
 
-	// Verify signature
-	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
-	// printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
-	if(result_of_verification != 1){
-		*(int*)runtime_result = 1;
-		return;
-	}
 
-	// Process image
-	pixel* img_pixels = (pixel*) image_pixels;
-	printf("The very first pixel(Before processed by filter): R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
-	// blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 5);
-	blur_5(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 1.0 / 25.0);
-	printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
+	// // Verify signature
+	// bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
+	// // printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
+	// if(result_of_verification != 1){
+	// 	*(int*)runtime_result = 1;
+	// 	return;
+	// }
 
-	// Prepare for output processed image file str
-	//pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
-	size_t len_of_processed_image_str = pixels_to_linked_pure_str((pixel*)processed_pixels, image_width * image_height, (char*)char_array_for_processed_img_sign);
+	// // Process image
+	// pixel* img_pixels = (pixel*) image_pixels;
+	// printf("The very first pixel(Before processed by filter): R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
+	// // blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 5);
+	// blur_5(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 1.0 / 25.0);
+	// printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
 
-	// Generate hash of processed image
-	// printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
-	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
-	str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
-	// str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
-	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
+	// // Prepare for output processed image file str
+	// //pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
+	// size_t len_of_processed_image_str = pixels_to_linked_pure_str((pixel*)processed_pixels, image_width * image_height, (char*)char_array_for_processed_img_sign);
+
+	// // Generate hash of processed image
+	// // printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
+	// // str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
+	// str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
+	// // str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
+	// // printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Convert str to filter private key
 	BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
@@ -485,14 +486,14 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
 	BIO_free(filter_pri_key_bo);
 
-	// Generate signature
-	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
-	if(result_of_filter_signing != 0){
-		*(int*)runtime_result = 2;
-		EVP_PKEY_free(pukey);
-		return;
-	}
+	// // Generate signature
+	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
+	// int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
+	// if(result_of_filter_signing != 0){
+	// 	*(int*)runtime_result = 2;
+	// 	EVP_PKEY_free(pukey);
+	// 	return;
+	// }
 
 	// Free Memory
 	EVP_PKEY_free(pukey);

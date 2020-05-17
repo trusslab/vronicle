@@ -444,13 +444,13 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// char* mKey = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t\n8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI\nv1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO\nAMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn\n1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD\nTBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07\nLj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc\n3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b\nyG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV\nSLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c\nHUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto\n0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==\n-----END PUBLIC KEY-----\n";
 	
 	// Convert str to public key
-	// BIO* bo = BIO_new( BIO_s_mem() );
-	// BIO_write(bo, (char*)original_pub_key_str, original_pub_key_str_len);
-	// // BIO_write(bo, (char*)mKey, strlen(mKey));
-	// EVP_PKEY* pukey = 0;
-	// PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
-	// BIO_free(bo);
-    // // printf("Hello from enclave!\n");
+	BIO* bo = BIO_new( BIO_s_mem() );
+	BIO_write(bo, (char*)original_pub_key_str, original_pub_key_str_len);
+	// BIO_write(bo, (char*)mKey, strlen(mKey));
+	EVP_PKEY* pukey = 0;
+	PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
+	BIO_free(bo);
+    // printf("Hello from enclave!\n");
 
 
 	// // Verify signature
@@ -479,13 +479,13 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// // str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
 	// // printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
-	// // Convert str to filter private key
-	// BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
-	// BIO_write(filter_pri_key_bo, (char*)filter_pri_key_str, filter_pri_key_str_len);
-	// // BIO_write(bo, (char*)mKey, strlen(mKey));
-	// EVP_PKEY* filter_private_key = 0;
-	// PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
-	// BIO_free(filter_pri_key_bo);
+	// Convert str to filter private key
+	BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );
+	BIO_write(filter_pri_key_bo, (char*)filter_pri_key_str, filter_pri_key_str_len);
+	// BIO_write(bo, (char*)mKey, strlen(mKey));
+	EVP_PKEY* filter_private_key = 0;
+	PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
+	BIO_free(filter_pri_key_bo);
 
 	// // Generate signature
 	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
@@ -496,9 +496,9 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// 	return;
 	// }
 
-	// // Free Memory
-	// EVP_PKEY_free(pukey);
-	// EVP_PKEY_free(filter_private_key);
+	// Free Memory
+	EVP_PKEY_free(pukey);
+	EVP_PKEY_free(filter_private_key);
 
 	*(int*)runtime_result = 0;
 

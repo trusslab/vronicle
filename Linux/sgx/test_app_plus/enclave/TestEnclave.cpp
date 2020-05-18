@@ -472,12 +472,12 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	//pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
 	size_t len_of_processed_image_str = pixels_to_linked_pure_str((pixel*)processed_pixels, image_width * image_height, (char*)char_array_for_processed_img_sign);
 
-	// // Generate hash of processed image
-	// // printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
-	// // str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
-	// str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
-	// // str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
-	// // printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
+	// Generate hash of processed image
+	// printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
+	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
+	str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
+	// str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
+	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Convert str to filter private key
 	BIO* filter_pri_key_bo = BIO_new( BIO_s_mem() );

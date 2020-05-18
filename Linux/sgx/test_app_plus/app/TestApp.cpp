@@ -785,6 +785,8 @@ int verification_reply(
 
     // printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
 
+    auto start_of_reading_public_key = high_resolution_clock::now();
+
     // Read Public Key
     char absolutePath[MAX_PATH];
     char *ptr = NULL;
@@ -802,6 +804,12 @@ int verification_reply(
     char* filter_pri_key_str = read_file_as_str(argv[2], &filter_pri_key_str_len);
     // printf("The filter private key is read as(length: %d): {%s}\n", filter_pri_key_str_len, filter_pri_key_str);
 
+    auto end_of_reading_public_key = high_resolution_clock::now();
+    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
+    cout << "Processing frame " << (char*)recv_buf << " read public key take time: " << public_key_read_duration.count() << endl; 
+
+    auto start_of_reading_signature = high_resolution_clock::now();
+
     // Read Signature
     unsigned char* raw_signature;
     size_t raw_signature_length;
@@ -813,6 +821,12 @@ int verification_reply(
     // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
     // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
+    auto end_of_reading_signature = high_resolution_clock::now();
+    auto signature_read_duration = duration_cast<microseconds>(end_of_reading_signature - start_of_reading_signature);
+    cout << "Processing frame " << (char*)recv_buf << " read signature take time: " << signature_read_duration.count() << endl; 
+
+    auto start_of_reading_raw_img = high_resolution_clock::now();
+
     // Read Raw Image
     char raw_file_name[50];
     snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
@@ -820,11 +834,23 @@ int verification_reply(
     int result_of_reading_raw_file = read_raw_file(raw_file_name);
     // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
 
+    auto end_of_reading_raw_img = high_resolution_clock::now();
+    auto raw_img_read_duration = duration_cast<microseconds>(end_of_reading_raw_img - start_of_reading_raw_img);
+    cout << "Processing frame " << (char*)recv_buf << " read raw img take time: " << raw_img_read_duration.count() << endl; 
+
+    auto start_of_reading_raw_img_hash = high_resolution_clock::now();
+
     // Read Raw Image Hash
     int size_of_hoorf = 65;
     char* hash_of_original_raw_file = (char*) malloc(size_of_hoorf);
     read_file_as_hash(raw_file_name, hash_of_original_raw_file);
     // cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
+
+    auto end_of_reading_raw_img_hash = high_resolution_clock::now();
+    auto raw_img_hash_read_duration = duration_cast<microseconds>(end_of_reading_raw_img_hash - start_of_reading_raw_img_hash);
+    cout << "Processing frame " << (char*)recv_buf << " read raw img hash take time: " << raw_img_hash_read_duration.count() << endl; 
+
+    auto start_of_allocation = high_resolution_clock::now();
 
     // Prepare processed Image
     pixel* processed_pixels;
@@ -842,6 +868,10 @@ int verification_reply(
     size_t size_of_actual_processed_img_signature;
     int size_of_hoprf = 65;
     char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
+
+    auto end_of_allocation = high_resolution_clock::now();
+    auto allocation_duration = duration_cast<microseconds>(end_of_allocation - start_of_allocation);
+    cout << "Processing frame " << (char*)recv_buf << " allocation take time: " << allocation_duration.count() << endl; 
 
     // Going to get into enclave
     int runtime_result = -1;
@@ -874,16 +904,24 @@ int verification_reply(
     // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
     // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
 
+    auto start_of_saving_frame = high_resolution_clock::now();
+
     // Save processed frame
     int result_of_frame_saving = save_processed_frame(processed_pixels, (char*) recv_buf);
     if(result_of_frame_saving != 0){
         return 1;
     }
+
+    auto end_of_saving_frame = high_resolution_clock::now();
+    auto saving_frame_duration = duration_cast<microseconds>(end_of_saving_frame - start_of_saving_frame);
+    cout << "Processing frame " << (char*)recv_buf << " save processed frame take time: " << saving_frame_duration.count() << endl; 
     // cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
     // char hash_temp[65];
     // str_to_hash(char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, hash_temp);
     // cout << "(Outside Enclave)hash of char_array_for_processed_img_sign: " << hash_temp << endl;
     // save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
+
+    auto start_of_saving_signature = high_resolution_clock::now();
 
     // Save processed filter singature
     // printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
@@ -891,6 +929,12 @@ int verification_reply(
     if(result_of_filter_sign_saving != 0){
         return 1;
     }
+
+    auto end_of_saving_signature = high_resolution_clock::now();
+    auto saving_signature_duration = duration_cast<microseconds>(end_of_saving_signature - start_of_saving_signature);
+    cout << "Processing frame " << (char*)recv_buf << " save processed frame's signature take time: " << saving_signature_duration.count() << endl; 
+
+    auto start_of_freeing = high_resolution_clock::now();
 
     // Free Everything (for video_provenance project)
     free(image_pixels);
@@ -903,6 +947,10 @@ int verification_reply(
     free(hash_of_processed_raw_file);
     free(processed_img_signature);
     free(filter_pri_key_str);
+
+    auto end_of_freeing = high_resolution_clock::now();
+    auto freeing_duration = duration_cast<microseconds>(end_of_freeing - start_of_freeing);
+    cout << "Processing frame " << (char*)recv_buf << " deallocation take time: " << freeing_duration.count() << endl; 
 
 	return 0;
 }

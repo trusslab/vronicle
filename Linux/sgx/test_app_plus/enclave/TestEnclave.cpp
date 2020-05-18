@@ -487,14 +487,14 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	PEM_read_bio_PrivateKey(filter_pri_key_bo, &filter_private_key, 0, 0);
 	BIO_free(filter_pri_key_bo);
 
-	// // Generate signature
-	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	// int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
-	// if(result_of_filter_signing != 0){
-	// 	*(int*)runtime_result = 2;
-	// 	EVP_PKEY_free(pukey);
-	// 	return;
-	// }
+	// Generate signature
+	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
+	int result_of_filter_signing = sign_hash(filter_private_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
+	if(result_of_filter_signing != 0){
+		*(int*)runtime_result = 2;
+		EVP_PKEY_free(pukey);
+		return;
+	}
 
 	// Free Memory
 	EVP_PKEY_free(pukey);

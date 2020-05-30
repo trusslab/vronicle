@@ -294,6 +294,7 @@ int main(int argc, char *argv[])
         return 1; 
  
     sgx_status_t status = t_sgxssl_call_apis(global_eid, evp_pkey);
+    printf("The job is done!");
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxssl_call_apis has failed.\n");
         return 1;    //Test failed

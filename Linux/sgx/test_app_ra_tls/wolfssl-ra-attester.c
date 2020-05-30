@@ -186,6 +186,7 @@ wolfssl_create_key_and_x509
     sha256_rsa_pubkey(report_data.d, &genKey);
     attestation_verification_report_t attestation_report;
 
+    printf("Going to do RA in wolfssl...\n");
     do_remote_attestation(&report_data, opts, &attestation_report);
 
     generate_x509(&genKey, der_cert, der_cert_len,

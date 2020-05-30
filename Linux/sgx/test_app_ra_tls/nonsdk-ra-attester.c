@@ -312,6 +312,7 @@ void do_remote_attestation
     attestation_verification_report_t* attn_report
 )
 {
+    printf("nonsdk-ra_attester.c: do_remote_attestation: start...\n");
     uint32_t quote_size;
     sgx_quote_t* quote = alloc_quote(&quote_size);
     assert(quote != NULL);

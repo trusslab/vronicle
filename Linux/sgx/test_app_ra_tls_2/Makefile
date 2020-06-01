@@ -1,6 +1,12 @@
 # Makefile to build non-SGX-SDK-based RA-TLS client and server
 # programs.
 
+# Pre export by Myles (05-31-2020)
+export QUOTE_TYPE=SGX_LINKABLE_SIGNATURE
+export SPID=98992B8D5C5267B72A2C92678A7439F5
+export EPID_SUBSCRIPTION_KEY=ecb6baf92cbb4f57a338e8f29739cf00
+# Pre export complete
+
 export SGX_SDK?=/opt/intel/sgxsdk
 
 SGX_DCAP_URI=https://github.com/intel/SGXDataCenterAttestationPrimitives

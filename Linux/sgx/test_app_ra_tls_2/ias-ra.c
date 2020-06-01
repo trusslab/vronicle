@@ -49,7 +49,7 @@ void http_get
 {
     curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 1L);
+    CURLcode ces_res = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 1L);
     printf("The curl_easy_setopt result is: %d\n", ces_res);
     
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, accumulate_function);

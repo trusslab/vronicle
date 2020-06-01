@@ -64,6 +64,7 @@ void http_get
     }
 
     CURLcode res = curl_easy_perform(curl);
+    printf("The CURL result is: %d\n", res);
     assert(res == CURLE_OK);
 }
 

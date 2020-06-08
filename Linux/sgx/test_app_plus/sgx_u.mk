@@ -35,6 +35,7 @@
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 UNTRUSTED_DIR=app
+USE_OPENSSL = 1
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -81,23 +82,28 @@ endif
 App_Cpp_Files := $(UNTRUSTED_DIR)/TestApp.cpp
 App_Cpp_Objects := $(App_Cpp_Files:.cpp=.o)
 
+App_C_Files := $(UNTRUSTED_DIR)/sgxsdk-ra-attester_u.c $(UNTRUSTED_DIR)/ias-ra.c
+App_C_Objects := $(App_C_Files:.c=.o)
+
 App_Include_Paths := -I$(UNTRUSTED_DIR) -I$(SGX_SDK_INC)
 
-App_C_Flags := $(SGX_COMMON_CFLAGS) -fpic -fpie -fstack-protector -Wformat -Wformat-security -Wno-attributes $(App_Include_Paths)
+App_C_Flags := $(SGX_COMMON_CFLAGS) -fpic -fpie -fstack-protector -Wformat -Wformat-security -Wno-attributes $(App_Include_Paths) -lcurl
 App_Cpp_Flags := $(App_C_Flags) -std=c++11 -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/
 
 ifneq ($(SGX_MODE), HW)
 	Urts_Library_Name := sgx_urts_sim
-	UaeService_Library_Name := sgx_uae_service_sim
+	Epid_Library_Name := sgx_epid_sim
+	Quote_Library_Name := sgx_quote_ex_sim
 else
 	Urts_Library_Name := sgx_urts
-	UaeService_Library_Name := sgx_uae_service
+	Epid_Library_Name := sgx_epid
+	Quote_Library_Name := sgx_quote_ex
 endif
 
 
 Security_Link_Flags := -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -pie
 
-App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(UaeService_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread 
+App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(Epid_Library_Name) -l$(Quote_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread -lcurl
 
 
 .PHONY: all test
@@ -122,7 +128,11 @@ $(UNTRUSTED_DIR)/%.o: $(UNTRUSTED_DIR)/%.cpp
 	$(VCXX) $(App_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
 
-TestApp: $(UNTRUSTED_DIR)/TestEnclave_u.o $(App_Cpp_Objects)
+$(UNTRUSTED_DIR)/%.o: $(UNTRUSTED_DIR)/%.c
+	$(VCC) $(App_C_Flags) -c $< -o $@
+	@echo "CC  <=  $<"
+
+TestApp: $(UNTRUSTED_DIR)/TestEnclave_u.o $(App_Cpp_Objects) $(App_C_Objects)
 	$(VCXX) $^ -o $@ $(App_Link_Flags)
 	@echo "LINK =>  $@"
 

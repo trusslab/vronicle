@@ -106,8 +106,8 @@ endif
 endif
 
 								
-TestEnclave_Cpp_Files := $(wildcard $(ENCLAVE_DIR)/*.cpp) $(wildcard $(ENCLAVE_DIR)/tests/*.cpp)
-TestEnclave_C_Files := $(wildcard $(ENCLAVE_DIR)/*.c) $(wildcard $(ENCLAVE_DIR)/tests/*.c)
+TestEnclave_Cpp_Files := $(wildcard $(ENCLAVE_DIR)/*.cpp)
+TestEnclave_C_Files := $(wildcard $(ENCLAVE_DIR)/*.c)
 
 TestEnclave_Cpp_Objects := $(TestEnclave_Cpp_Files:.cpp=.o)
 TestEnclave_C_Objects := $(TestEnclave_C_Files:.c=.o)

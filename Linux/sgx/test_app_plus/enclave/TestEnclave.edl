@@ -34,6 +34,7 @@
 enclave {
     
 from "sgx_tsgxssl.edl" import *;
+from "ra_tls.edl" import *;
 
     /* 
      * uprint - invokes OCALL to display string buffer inside the enclave.
@@ -43,13 +44,11 @@ from "sgx_tsgxssl.edl" import *;
     untrusted {
         void uprint([in, string] const char *str);
         void usgx_exit(int reason);
-        int ucreate_thread();
     };
 
 
     trusted {
         public void t_sgxssl_call_apis([user_check] void* evp_pkey_v);
-        public void new_thread_func();
         public void t_sgxver_call_apis([in, size=size_of_image_pixels] void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
                                         [in, size=size_of_hooi] void *hash_of_original_image, int size_of_hooi, 
                                         [in, size=size_of_actual_signature] void *signature, size_t size_of_actual_signature,

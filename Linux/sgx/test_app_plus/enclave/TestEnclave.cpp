@@ -54,6 +54,13 @@
 
 #define ADD_ENTROPY_SIZE	32
 
+void exit(int status)
+{
+	usgx_exit(status);
+	// Calling to abort function to eliminate warning: ‘noreturn’ function does return [enabled by default]
+	abort();
+}
+
 /* 
  * printf: 
  *   Invokes OCALL to display the enclave buffer to the terminal.

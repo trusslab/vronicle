@@ -42,7 +42,7 @@
 #include <pwd.h>
 #include <libgen.h>
 #include <stdlib.h>
-#include <pthread.h>
+// #include <pthread.h>
 
 # define MAX_PATH FILENAME_MAX
 # define SIZEOFHASH 256
@@ -53,8 +53,8 @@
 
 #include "TestApp.h"
 
-#include <evp.h>
-#include <pem.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
 
 #include <string.h>
 #include <stdint.h>
@@ -69,13 +69,6 @@
 #include <arpa/inet.h>
 
 #include <time.h> /* for time() and ctime() */
-
-#include "mysql_connection.h"
-
-#include <cppconn/driver.h>
-#include <cppconn/exception.h>
-#include <cppconn/resultset.h>
-#include <cppconn/statement.h>
 
 using namespace std;
 
@@ -357,20 +350,6 @@ void usgx_exit(int reason)
 {
 	printf("usgx_exit: %d\n", reason);
 	exit(reason);
-}
-
-
-void* thread_test_func(void* p)
-{
-	new_thread_func(global_eid);
-	return NULL;
-}
-
-int ucreate_thread()
-{
-	pthread_t thread;
-	int res = pthread_create(&thread, NULL, thread_test_func, NULL);
-	return res;
 }
 
 #define UTC_NTP 2208988800U /* 1970 - 1900 */

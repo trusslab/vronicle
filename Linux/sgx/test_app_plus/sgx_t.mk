@@ -152,17 +152,17 @@ $(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_t.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-$(ENCLAVE_DIR)/ra_tls_options.c: ra_tls_options.c.sh
+$(ENCLAVE_DIR)/ra_tls_options.c: $(ENCLAVE_DIR)/ra_tls_options.c.sh
     ifndef QUOTE_TYPE
-	$(error QUOTE_TYPE is not set)
-	endif
+    $(error QUOTE_TYPE is not set)
+    endif
     ifndef EPID_SUBSCRIPTION_KEY
-	$(error EPID_SUBSCRIPTION_KEY is not set)
-	endif
+    $(error EPID_SUBSCRIPTION_KEY is not set)
+    endif
     ifndef SPID
-	$(error SPID is not set)
-	endif
-	@cd $(ENCLAVE_DIR) && bash $^ > $@
+    $(error SPID is not set)
+    endif
+	bash $^ > $@
 	@echo "GEN  =>  $@"
 
 $(ENCLAVE_DIR)/ra_tls_options.o: $(ENCLAVE_DIR)/ra_tls_options.c
@@ -181,7 +181,7 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 

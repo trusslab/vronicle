@@ -3,3 +3,4 @@
 .vscode/
 data/processed_raw/
 data/processed_raw_sign/
+enclave/ra_tls_options.c

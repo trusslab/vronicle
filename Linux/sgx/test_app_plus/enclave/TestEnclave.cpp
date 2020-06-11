@@ -42,6 +42,7 @@
 #include "tSgxSSL_api.h"
 #include "RawBase.h"
 #include "SampleFilters.h"
+#include "ra-attester.h"
 
 #include <openssl/ec.h>
 #include <openssl/bn.h>
@@ -517,3 +518,16 @@ void t_sgxssl_call_apis(void* evp_pkey_v)
 	return;
 }
 
+extern struct ra_tls_options my_ra_tls_options;
+
+void t_create_key_and_x509(void)
+{
+    uint8_t der_key[2048];
+    uint8_t der_cert[8 * 1024];
+    int32_t der_key_len = sizeof(der_key);
+    int32_t der_cert_len = sizeof(der_cert);
+
+    create_key_and_x509(der_key, &der_key_len,
+                        der_cert, &der_cert_len,
+                        &my_ra_tls_options);
+}

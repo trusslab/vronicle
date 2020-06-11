@@ -60,6 +60,7 @@ from "ra_tls.edl" import *;
                                         [in, size=filter_pri_key_str_len] void* filter_pri_key_str, long filter_pri_key_str_len, 
                                         [out, size=size_of_pis] void* processed_img_signautre, size_t size_of_pis,
                                         [out, size=sizeof_soapis] void* size_of_actual_processed_img_signature, size_t sizeof_soapis);
+        public void t_create_key_and_x509(void);
  
     };
 };

@@ -3,6 +3,10 @@
 
 #include <sgx_quote.h>
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 struct ra_tls_options {
     sgx_spid_t spid;
     sgx_quote_sign_type_t quote_type;
@@ -49,4 +53,9 @@ void ecdsa_create_key_and_x509
 void ra_tls_create_report(
     sgx_report_t* report
 );
+
+#if defined(__cplusplus)
+}
+#endif
+
 #endif

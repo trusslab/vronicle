@@ -9,6 +9,7 @@
 
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
+#include <openssl/bn.h>
 
 #include "ra-attester.h"
 #include "ra.h"
@@ -66,7 +67,7 @@ void generate_x509
     X509_EXTENSION *ex = X509_EXTENSION_new();
     X509_EXTENSION_set_object(ex, obj);
     X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, &ex, -1);
+    X509_add_ext(crt, ex, -1);
 
     // obj.data   = ias_root_cert_oid + 2;
     obj = OBJ_txt2obj((char*)(ias_root_cert_oid + 2), 1);
@@ -74,7 +75,7 @@ void generate_x509
     val.length = attn_report->ias_sign_ca_cert_len;
     X509_EXTENSION_set_object(ex, obj);
     X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, &ex, -1);
+    X509_add_ext(crt, ex, -1);
 
     // obj.data   = ias_leaf_cert_oid + 2;
     obj = OBJ_txt2obj((char*)(ias_leaf_cert_oid + 2), 1);
@@ -82,7 +83,7 @@ void generate_x509
     val.length = attn_report->ias_sign_cert_len;
     X509_EXTENSION_set_object(ex, obj);
     X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, &ex, -1);
+    X509_add_ext(crt, ex, -1);
 
     // obj.data   = ias_report_signature_oid + 2;
     obj = OBJ_txt2obj((char*)(ias_report_signature_oid + 2), 1);
@@ -90,7 +91,7 @@ void generate_x509
     val.length = attn_report->ias_report_signature_len;
     X509_EXTENSION_set_object(ex, obj);
     X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, &ex, -1);
+    X509_add_ext(crt, ex, -1);
 
     X509_sign(crt, key, EVP_sha256());
 
@@ -142,10 +143,13 @@ openssl_create_key_and_x509
 )
 {
     /* Generate key. */
-    RSA* key;
+    RSA* key = RSA_new();
+    BIGNUM *bn = BN_new();
+
+    BN_set_word(bn, RSA_F4);
 
     static const int nr_bits = 3072;
-    key = RSA_generate_key(nr_bits, RSA_F4, NULL, NULL);
+    RSA_generate_key_ex(key, nr_bits, bn, NULL);
     assert(NULL != key);
     
     uint8_t der[4096];
@@ -170,6 +174,7 @@ openssl_create_key_and_x509
     generate_x509(evp_key, der_cert, der_cert_len,
                   &attestation_report);
     EVP_PKEY_free(evp_key);
+    BN_free(bn);
     evp_key = NULL;
 }
 

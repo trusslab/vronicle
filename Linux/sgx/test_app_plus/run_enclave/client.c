@@ -66,7 +66,7 @@ void request(int fd, const char* contractID)
 	unsigned char buf[48];
 	strcpy(buf, (unsigned char*)contractID);
 	uint32_t tts[2]; /* Transmit Timestamp */
-	printf("(Before send to enclave server) contractID: %s, buf: %s", contractID, (const char*)buf);
+	printf("(Before send to enclave server) contractID: %s, buf: %s\n", contractID, (const char*)buf);
 	/* LI VN MODE = 00 100 011*/
 	if (send(fd, buf, 48, 0) !=48 ) {
 		die("Send error\n");

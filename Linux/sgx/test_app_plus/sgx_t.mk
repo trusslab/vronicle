@@ -152,6 +152,23 @@ $(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_t.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
+$(ENCLAVE_DIR)/ra_tls_options.c: ra_tls_options.c.sh
+    ifndef QUOTE_TYPE
+	$(error QUOTE_TYPE is not set)
+	endif
+    ifndef EPID_SUBSCRIPTION_KEY
+	$(error EPID_SUBSCRIPTION_KEY is not set)
+	endif
+    ifndef SPID
+	$(error SPID is not set)
+	endif
+	@cd $(ENCLAVE_DIR) && bash $^ > $@
+	@echo "GEN  =>  $@"
+
+$(ENCLAVE_DIR)/ra_tls_options.o: $(ENCLAVE_DIR)/ra_tls_options.c
+	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
+	@echo "CC   <=  $<"
+
 $(ENCLAVE_DIR)/%.o: $(ENCLAVE_DIR)/%.cpp
 	$(VCXX) $(TestEnclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"

@@ -1,3 +1,5 @@
 *.o
 *.a
 .vscode/
+data/processed_raw/
+data/processed_raw_sign/

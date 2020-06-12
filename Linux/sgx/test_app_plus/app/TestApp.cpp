@@ -778,11 +778,6 @@ int verification_reply(
     long original_pub_key_str_len;
     char* original_pub_key_str = read_file_as_str(argv[1], &original_pub_key_str_len);
 
-    // Read Filter Private Key
-    long filter_pri_key_str_len;
-    char* filter_pri_key_str = read_file_as_str(argv[2], &filter_pri_key_str_len);
-    // printf("The filter private key is read as(length: %d): {%s}\n", filter_pri_key_str_len, filter_pri_key_str);
-
     auto end_of_reading_public_key = high_resolution_clock::now();
     auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
     cout << "Processing frame " << (char*)recv_buf << " read public key take time: " << public_key_read_duration.count() << endl; 
@@ -861,7 +856,6 @@ int verification_reply(
         original_pub_key_str, original_pub_key_str_len, processed_pixels, &runtime_result, sizeof(int), 
         char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, 
         hash_of_processed_raw_file, size_of_hoprf, 
-        filter_pri_key_str, filter_pri_key_str_len,
         processed_img_signature, size_of_processed_img_signature, 
         &size_of_actual_processed_img_signature, sizeof(size_t));
     auto stop = high_resolution_clock::now();
@@ -925,7 +919,6 @@ int verification_reply(
     free(char_array_for_processed_img_sign);
     free(hash_of_processed_raw_file);
     free(processed_img_signature);
-    free(filter_pri_key_str);
 
     auto end_of_freeing = high_resolution_clock::now();
     auto freeing_duration = duration_cast<microseconds>(end_of_freeing - start_of_freeing);
@@ -1041,10 +1034,18 @@ int main(int argc, char *argv[], char **env)
 	/* initialize and start the enclave in here */
 	start_enclave(argc, argv);
 
+    auto start = high_resolution_clock::now();
+    t_create_key_and_x509(global_eid);
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Conducting RA took time: " << duration.count() << endl; 
+
 	/* create the server waiting for the verification request from the client */
 	int s;
 	signal(SIGCHLD,wait_wrapper);
 	sgx_server(argv);
+
+    t_free(global_eid);
 
 	/* after verification we destroy the enclave */
     sgx_destroy_enclave(global_eid);

@@ -507,7 +507,7 @@ void t_sgxssl_call_apis(void* evp_pkey_v)
 
 extern struct ra_tls_options my_ra_tls_options;
 
-void t_create_key_and_x509(void)
+void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of_cert, size_t asoc)
 {
     uint8_t der_key[2048];
     uint8_t der_cert[4 * 4096];
@@ -520,6 +520,9 @@ void t_create_key_and_x509(void)
 	evp_pkey = 0;
 	const unsigned char *key = (const unsigned char*)der_key;
     evp_pkey = d2i_AutoPrivateKey(&evp_pkey, &key, der_key_len);
+	memcpy(cert, der_cert, der_cert_len);
+	size_of_cert = der_cert_len;
+	*(size_t*)actual_size_of_cert = der_cert_len;
 }
 
 void t_free(void)

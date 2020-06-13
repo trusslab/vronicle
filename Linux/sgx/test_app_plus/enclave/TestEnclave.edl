@@ -59,7 +59,8 @@ from "ra_tls.edl" import *;
                                         [out, size=size_of_hopi] void* hash_of_processed_image, int size_of_hopi,
                                         [out, size=size_of_pis] void* processed_img_signautre, size_t size_of_pis,
                                         [out, size=sizeof_soapis] void* size_of_actual_processed_img_signature, size_t sizeof_soapis);
-        public void t_create_key_and_x509(void);
+        public void t_create_key_and_x509([out, size=size_of_cert] void* cert, size_t size_of_cert,
+                                          [out, size=asoc] void* actual_size_of_cert, size_t asoc);
         public void t_free(void);
  
     };

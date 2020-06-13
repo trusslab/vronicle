@@ -1034,8 +1034,10 @@ int main(int argc, char *argv[], char **env)
 	/* initialize and start the enclave in here */
 	start_enclave(argc, argv);
 
+    size_t size_of_cert = 4 * 4096;
+    unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
     auto start = high_resolution_clock::now();
-    t_create_key_and_x509(global_eid);
+    t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Conducting RA took time: " << duration.count() << endl; 

@@ -533,16 +533,17 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// Generate hash of processed image
 	// printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
 	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
-	str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
+	// str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
 	// str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
 	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Generate signature
 	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	int result_of_filter_signing = sign_hash(enc_priv_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
+	int result_of_filter_signing = sign_hash(enc_priv_key, char_array_for_processed_img_sign, len_of_processed_image_str, processed_img_signautre, size_of_actual_processed_img_signature);
 	if(result_of_filter_signing != 0){
 		*(int*)runtime_result = 2;
 		EVP_PKEY_free(pukey);
+		X509_free(cam_cert);
 		return;
 	}
 

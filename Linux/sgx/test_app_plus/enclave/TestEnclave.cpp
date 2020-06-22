@@ -480,13 +480,16 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	BIO* bo_pub = BIO_new( BIO_s_mem() );
 	BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
 
-	EVP_PKEY* vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &evp_pkey, 0, 0);
+	EVP_PKEY* vendor_pubkey = EVP_PKEY_new();
+	vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &vendor_pubkey, 0, 0);
 	BIO_free(bo_pub);
 
 	BIO* bo = BIO_new( BIO_s_mem() );
 	BIO_write(bo, (char*)original_cert_str, original_cert_str_len);
 
-	X509* cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, 0);
+    X509* cam_cert;
+    cam_cert = X509_new();
+	cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, NULL);
 	BIO_free(bo);
 
 	int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
@@ -495,11 +498,13 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 		*(int*)runtime_result = 1;
 		return;
 	}
+	EVP_PKEY_free(vendor_pubkey);
 
 	printf("Certificate is verified\n");
 
 	// BIO_write(bo, (char*)mKey, strlen(mKey));
-	EVP_PKEY* pukey = X509_get_pubkey(cam_cert);
+	EVP_PKEY* pukey = EVP_PKEY_new();
+	pukey = X509_get_pubkey(cam_cert);
     // printf("Hello from enclave!\n");
 
 	print_public_key(pukey);
@@ -543,6 +548,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	// Free Memory
 	EVP_PKEY_free(pukey);
+	X509_free(cam_cert);
 
 	*(int*)runtime_result = 0;
 }

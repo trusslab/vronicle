@@ -208,7 +208,6 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	// *(int*)size_of_actual_signature = sizeOfSignature;
 
 	EVP_MD_CTX *mdctx = NULL;
-	int ret = 0;
 	
 	// (unsigned char*)signature = NULL;
 	
@@ -242,9 +241,6 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);
 	};
-	
-	/* Success */
-	ret = 1;
 	
 	/* Clean up */
 	if(mdctx) EVP_MD_CTX_destroy(mdctx);
@@ -307,8 +303,6 @@ bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature,
 	// Return true on success; otherwise, return false
 	EVP_MD_CTX *mdctx;
 	const EVP_MD *md;
-	unsigned char md_value[EVP_MAX_MD_SIZE];
-	unsigned int md_len, i;
 	int ret;
 
 	OpenSSL_add_all_digests();

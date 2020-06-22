@@ -436,6 +436,25 @@ int verify_cert(X509* cert_to_verify, EVP_PKEY* pubkey_for_verify)
     return r;
 }
 
+void print_public_key(EVP_PKEY* evp_pkey){
+	// public key - string
+	int len = i2d_PublicKey(evp_pkey, NULL);
+	printf("For publickey, the size of buf is: %d\n", len);
+	unsigned char *buf = (unsigned char *) malloc (len + 1);
+	unsigned char *tbuf = buf;
+	i2d_PublicKey(evp_pkey, &tbuf);
+
+	// print public key
+	printf ("{\"public\":\"");
+	int i;
+	for (i = 0; i < len; i++) {
+	    printf("%02x", (unsigned char) buf[i]);
+	}
+	printf("\"}\n");
+
+	free(buf);
+}
+
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
 						void *original_vendor_pub_str, long original_vendor_pub_str_len, 
@@ -458,7 +477,6 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	
 	// Convert str to public key & cert
 
-	/*
 	BIO* bo_pub = BIO_new( BIO_s_mem() );
 	BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
 
@@ -471,16 +489,18 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	X509* cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, 0);
 	BIO_free(bo);
 
-	int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
+	// int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
 
-	if(result_of_cert_verify != 1){
-		*(int*)runtime_result = 1;
-		return;
-	}
+	// if(result_of_cert_verify != 1){
+	// 	*(int*)runtime_result = 1;
+	// 	return;
+	// }
 
 	// BIO_write(bo, (char*)mKey, strlen(mKey));
 	EVP_PKEY* pukey = X509_get_pubkey(cam_cert);
     // printf("Hello from enclave!\n");
+
+	print_public_key(pukey);
 
 	// Verify signature
 	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
@@ -489,7 +509,6 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 		*(int*)runtime_result = 1;
 		return;
 	}
-	*/
 
 	// Process image
 	pixel* img_pixels = (pixel*) image_pixels;
@@ -514,12 +533,12 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	int result_of_filter_signing = sign_hash(evp_pkey, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
 	if(result_of_filter_signing != 0){
 		*(int*)runtime_result = 2;
-		// EVP_PKEY_free(pukey);
+		EVP_PKEY_free(pukey);
 		return;
 	}
 
 	// Free Memory
-	// EVP_PKEY_free(pukey);
+	EVP_PKEY_free(pukey);
 
 	*(int*)runtime_result = 0;
 }

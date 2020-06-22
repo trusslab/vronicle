@@ -114,7 +114,7 @@ struct evp_pkey_st {
     CRYPTO_RWLOCK *lock;
 } /* EVP_PKEY */ ;
 
-EVP_PKEY *evp_pkey;
+EVP_PKEY *enc_priv_key;
 RSA *keypair;
 
 void rsa_key_gen()
@@ -141,20 +141,20 @@ void rsa_key_gen()
 	    return;
 	}
 
-	evp_pkey = EVP_PKEY_new();
-	if (evp_pkey == NULL) {
+	enc_priv_key = EVP_PKEY_new();
+	if (enc_priv_key == NULL) {
 		printf("EVP_PKEY_new failure: %ld\n", ERR_get_error());
 		return;
 	}
-	EVP_PKEY_assign_RSA(evp_pkey, keypair);
+	EVP_PKEY_assign_RSA(enc_priv_key, keypair);
 
 	BN_free(bn);
 }
 
 int freeEverthing(){
-	EVP_PKEY_free(evp_pkey);
+	EVP_PKEY_free(enc_priv_key);
 
-	if (evp_pkey->pkey.ptr != NULL) {
+	if (enc_priv_key->pkey.ptr != NULL) {
 	  RSA_free(keypair);
 	}
     return 0;
@@ -436,13 +436,13 @@ int verify_cert(X509* cert_to_verify, EVP_PKEY* pubkey_for_verify)
     return r;
 }
 
-void print_public_key(EVP_PKEY* evp_pkey){
+void print_public_key(EVP_PKEY* enc_priv_key){
 	// public key - string
-	int len = i2d_PublicKey(evp_pkey, NULL);
+	int len = i2d_PublicKey(enc_priv_key, NULL);
 	printf("For publickey, the size of buf is: %d\n", len);
 	unsigned char *buf = (unsigned char *) malloc (len + 1);
 	unsigned char *tbuf = buf;
-	i2d_PublicKey(evp_pkey, &tbuf);
+	i2d_PublicKey(enc_priv_key, &tbuf);
 
 	// print public key
 	printf ("{\"public\":\"");
@@ -539,7 +539,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	// Generate signature
 	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	int result_of_filter_signing = sign_hash(evp_pkey, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
+	int result_of_filter_signing = sign_hash(enc_priv_key, hash_of_processed_image, (size_t)size_of_hopi, processed_img_signautre, size_of_actual_processed_img_signature);
 	if(result_of_filter_signing != 0){
 		*(int*)runtime_result = 2;
 		EVP_PKEY_free(pukey);
@@ -570,9 +570,9 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
     create_key_and_x509(der_key, &der_key_len,
                         der_cert, &der_cert_len,
                         &my_ra_tls_options);
-	evp_pkey = 0;
+	enc_priv_key = 0;
 	const unsigned char *key = (const unsigned char*)der_key;
-    evp_pkey = d2i_AutoPrivateKey(&evp_pkey, &key, der_key_len);
+    enc_priv_key = d2i_AutoPrivateKey(&enc_priv_key, &key, der_key_len);
 	memcpy(cert, der_cert, der_cert_len);
 	size_of_cert = der_cert_len;
 	*(size_t*)actual_size_of_cert = der_cert_len;

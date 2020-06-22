@@ -55,6 +55,8 @@
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include <string.h>
 #include <stdint.h>
@@ -767,6 +769,7 @@ int verification_reply(
     auto start_of_reading_public_key = high_resolution_clock::now();
 
     // Read Public Key
+    /*
     char absolutePath[MAX_PATH];
     char *ptr = NULL;
 
@@ -781,6 +784,28 @@ int verification_reply(
     auto end_of_reading_public_key = high_resolution_clock::now();
     auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
     cout << "Processing frame " << (char*)recv_buf << " read public key take time: " << public_key_read_duration.count() << endl; 
+
+    auto start_of_reading_signature = high_resolution_clock::now();
+    */
+
+    // Read Certificate and its vendor public key
+    char absolutePath[MAX_PATH];
+    char *ptr = NULL;
+
+    ptr = realpath(dirname(argv[0]), absolutePath);
+
+    if (ptr == NULL || chdir(absolutePath) != 0)
+        return 1;
+
+    long original_vendor_pub_str_len;
+    char* original_vendor_pub_str = read_file_as_str(argv[1], &original_vendor_pub_str_len);
+
+    long original_cert_str_len;
+    char* original_cert_str = read_file_as_str(argv[2], &original_cert_str_len);
+
+    auto end_of_reading_public_key = high_resolution_clock::now();
+    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
+    cout << "Processing frame " << (char*)recv_buf << " read camera certificate take time: " << public_key_read_duration.count() << endl; 
 
     auto start_of_reading_signature = high_resolution_clock::now();
 
@@ -853,7 +878,8 @@ int verification_reply(
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
         hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        original_pub_key_str, original_pub_key_str_len, processed_pixels, &runtime_result, sizeof(int), 
+        original_vendor_pub_str, original_vendor_pub_str_len, 
+        original_cert_str, original_cert_str_len, processed_pixels, &runtime_result, sizeof(int), 
         char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, 
         hash_of_processed_raw_file, size_of_hoprf, 
         processed_img_signature, size_of_processed_img_signature, 
@@ -915,7 +941,8 @@ int verification_reply(
     free(image_buffer);
     free(hash_of_original_raw_file);
     free(raw_signature);
-    free(original_pub_key_str);
+    free(original_vendor_pub_str);
+    free(original_cert_str);
     free(char_array_for_processed_img_sign);
     free(hash_of_processed_raw_file);
     free(processed_img_signature);

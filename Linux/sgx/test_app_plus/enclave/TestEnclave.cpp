@@ -430,9 +430,16 @@ size_t pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number
 	return len_of_str;
 }
 
+int verify_cert(X509* cert_to_verify, EVP_PKEY* pubkey_for_verify)
+{
+    int r= X509_verify(cert_to_verify, cert_to_verify);
+    return r;
+}
+
 void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
 						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
-						void *original_pub_key_str, long original_pub_key_str_len, 
+						void *original_vendor_pub_str, long original_vendor_pub_str_len, 
+						void *original_cert_str, long original_cert_str_len, 
 						void* processed_pixels, void* runtime_result, int size_of_runtime_result, 
 						void* char_array_for_processed_img_sign, int size_of_cafpis, 
 						void* hash_of_processed_image, int size_of_hopi,
@@ -449,13 +456,29 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 	// char* mKey = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t\n8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI\nv1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO\nAMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn\n1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD\nTBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07\nLj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc\n3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b\nyG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV\nSLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c\nHUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto\n0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==\n-----END PUBLIC KEY-----\n";
 	
-	// Convert str to public key
+	// Convert str to public key & cert
+
+	BIO* bo_pub = BIO_new( BIO_s_mem() );
+	BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
+
+	EVP_PKEY* vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, evp_pkey);
+	BIO_free(bo_pub);
+
 	BIO* bo = BIO_new( BIO_s_mem() );
-	BIO_write(bo, (char*)original_pub_key_str, original_pub_key_str_len);
-	// BIO_write(bo, (char*)mKey, strlen(mKey));
-	EVP_PKEY* pukey = 0;
-	PEM_read_bio_PUBKEY(bo, &pukey, 0, 0);
+	BIO_write(bo, (char*)original_cert_str, original_cert_str_len);
+
+	X509* cam_cert = PEM_read_bio_X509(bo, cam_cert, 0, 0);
 	BIO_free(bo);
+
+	int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
+
+	if(result_of_cert_verify != 1){
+		*(int*)runtime_result = 1;
+		return;
+	}
+
+	// BIO_write(bo, (char*)mKey, strlen(mKey));
+	EVP_PKEY* pukey = X509_get_pubkey(cam_cert);
     // printf("Hello from enclave!\n");
 
 

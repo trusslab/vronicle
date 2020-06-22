@@ -432,7 +432,7 @@ size_t pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number
 
 int verify_cert(X509* cert_to_verify, EVP_PKEY* pubkey_for_verify)
 {
-    int r= X509_verify(cert_to_verify, cert_to_verify);
+    int r= X509_verify(cert_to_verify, pubkey_for_verify);
     return r;
 }
 
@@ -461,7 +461,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	BIO* bo_pub = BIO_new( BIO_s_mem() );
 	BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
 
-	EVP_PKEY* vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &evp_pkey);
+	EVP_PKEY* vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &evp_pkey, 0, 0);
 	BIO_free(bo_pub);
 
 	BIO* bo = BIO_new( BIO_s_mem() );

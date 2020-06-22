@@ -458,6 +458,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	
 	// Convert str to public key & cert
 
+	/*
 	BIO* bo_pub = BIO_new( BIO_s_mem() );
 	BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
 
@@ -481,7 +482,6 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	EVP_PKEY* pukey = X509_get_pubkey(cam_cert);
     // printf("Hello from enclave!\n");
 
-
 	// Verify signature
 	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
 	// printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
@@ -489,6 +489,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 		*(int*)runtime_result = 1;
 		return;
 	}
+	*/
 
 	// Process image
 	pixel* img_pixels = (pixel*) image_pixels;

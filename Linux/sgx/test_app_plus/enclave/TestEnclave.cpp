@@ -489,12 +489,14 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	X509* cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, 0);
 	BIO_free(bo);
 
-	// int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
+	int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
 
-	// if(result_of_cert_verify != 1){
-	// 	*(int*)runtime_result = 1;
-	// 	return;
-	// }
+	if(result_of_cert_verify != 1){
+		*(int*)runtime_result = 1;
+		return;
+	}
+
+	printf("Certificate is verified\n");
 
 	// BIO_write(bo, (char*)mKey, strlen(mKey));
 	EVP_PKEY* pukey = X509_get_pubkey(cam_cert);
@@ -509,6 +511,8 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 		*(int*)runtime_result = 1;
 		return;
 	}
+
+	printf("Signature is verified\n");
 
 	// Process image
 	pixel* img_pixels = (pixel*) image_pixels;

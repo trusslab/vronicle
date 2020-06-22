@@ -461,13 +461,13 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	BIO* bo_pub = BIO_new( BIO_s_mem() );
 	BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
 
-	EVP_PKEY* vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, evp_pkey);
+	EVP_PKEY* vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &evp_pkey);
 	BIO_free(bo_pub);
 
 	BIO* bo = BIO_new( BIO_s_mem() );
 	BIO_write(bo, (char*)original_cert_str, original_cert_str_len);
 
-	X509* cam_cert = PEM_read_bio_X509(bo, cam_cert, 0, 0);
+	X509* cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, 0);
 	BIO_free(bo);
 
 	int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);

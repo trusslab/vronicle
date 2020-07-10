@@ -46,6 +46,7 @@ Suppose you have compiled the x86 version
 h264e_test [options] <input[frame_size].yuv> <output.264>
 ```
 
+```
 Frame size can be (default is 720p): WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif
     4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA
 
@@ -62,6 +63,7 @@ Options:
     -psnr           - print psnr statistics
     -fps<n>         - set target fps of the video, default is 30
     -is_yuyv        - if the frames' chroma is in yuyv 4:2:2 format(note that psnr might not work when using yuyv)
+```
 
 
 ## SVC

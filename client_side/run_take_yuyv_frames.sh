@@ -2,7 +2,7 @@
 make clean
 make
 
-# Setup v4l2 cam
+# Setup v4l2 cam (Suppose your webcam is video0)
 v4l2-ctl -d /dev/video0 -c exposure_auto=1
 v4l2-ctl -d /dev/video0 -c brightness=100
 v4l2-ctl -d /dev/video0 -c exposure_absolute=664

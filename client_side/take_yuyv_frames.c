@@ -3,6 +3,7 @@
 #include <linux/videodev2.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -146,7 +147,7 @@ int init_mmap(int fd)
 int capture_frames(int fd, const char* fileName, int num_of_frames)
 {
 
-    int outfd = open(fileName, O_RDWR | O_CREAT);
+    int outfd = open(fileName, O_WRONLY | O_CREAT | O_TRUNC);
 
     for(int i = 0; i < num_of_frames; ++i){
         struct v4l2_buffer buf = {0};

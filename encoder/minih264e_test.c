@@ -7,6 +7,11 @@
 //#define MINIH264_ONLY_SIMD
 #include "minih264e.h"
 
+// OpenSSL related headers
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+
 #define DEFAULT_GOP 20
 #define DEFAULT_QP 33
 #define DEFAULT_DENOISE 0
@@ -24,8 +29,8 @@ H264E_io_yuv_t yuv;
 H264E_io_yuy2_t yuyv;
 uint8_t *buf_in, *buf_save;
 uint8_t *yuyv_buf_in, *temp_buf_in, *p;
-uint8_t *coded_data;
-FILE *fin, *fout;
+uint8_t *coded_data, *all_coded_data;
+FILE *fin, *fout, *fsig;
 int sizeof_coded_data, frame_size, yuyv_frame_size, temp_frame_size, g_w, g_h, _qp;
 
 #ifdef _WIN32
@@ -131,6 +136,47 @@ static int str_equal(const char *pattern, char **p)
     {
         return 0;
     }
+}
+
+int sign (EVP_PKEY* priv_key, void *data_to_be_signed, size_t size_of_data, unsigned char **sig, size_t *size_of_sig)
+{
+	EVP_MD_CTX *mdctx = NULL;
+	
+	/* Create the Message Digest Context */
+	if(!(mdctx = EVP_MD_CTX_create())){
+		printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
+		exit(1);
+	}
+	
+	/* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
+	if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priv_key)){
+		printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
+		exit(1);
+	}
+	
+	/* Call update with the message */
+	if(1 != EVP_DigestSignUpdate(mdctx, data_to_be_signed, size_of_data)){
+		printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
+		exit(1);
+	}
+	
+	/* Finalise the DigestSign operation */
+	/* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
+	* signature. Length is returned in slen */
+	if(1 != EVP_DigestSignFinal(mdctx, NULL, size_of_sig)){
+		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+		exit(1);
+	};
+    *sig = (unsigned char*)malloc(*size_of_sig);
+	if(1 != EVP_DigestSignFinal(mdctx, *sig, size_of_sig)){
+		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+		exit(1);
+	};
+	
+	/* Clean up */
+	if(mdctx) EVP_MD_CTX_destroy(mdctx);
+
+	return 0;
 }
 
 static int read_cmdline_options(int argc, char *argv[])
@@ -437,6 +483,8 @@ int main(int argc, char *argv[])
 {
     int i, frames = 0;
     const char *fnin, *fnout;
+    FILE *fpriv_key;
+    EVP_PKEY *priv_key;
 
     if (!read_cmdline_options(argc, argv))
         return 1;
@@ -467,6 +515,25 @@ int main(int argc, char *argv[])
     if (!fout)
     {
         printf("ERROR: cant open output file %s\n", fnout);
+        return 1;
+    }
+    fsig = fopen("out.sig", "wb");
+    if (!fsig)
+    {
+        printf("ERROR: cant open output file %s\n", "out.sig");
+        return 1;
+    }
+    fpriv_key = fopen("data/encoder_pri", "rb");
+    if (!fpriv_key)
+    {
+        printf("ERROR: cant open input file %s\n", "data/encoder_pri");
+        return 1;
+    }
+    priv_key = EVP_PKEY_new();
+    priv_key = PEM_read_PrivateKey(fpriv_key, &priv_key, NULL, NULL);
+    if (!priv_key)
+    {
+        printf("ERROR: cant read private key\n");
         return 1;
     }
 
@@ -534,6 +601,8 @@ int main(int argc, char *argv[])
         int max_bytes = 0;
         int min_bytes = 10000000;
         int sizeof_persist = 0, sizeof_scratch = 0, error;
+        int total_sizeof_coded_data = 0;
+        unsigned char* total_coded_data = NULL;
         H264E_persist_t *enc = NULL;
         H264E_scratch_t *scratch = NULL;
         if (cmdline->psnr)
@@ -703,8 +772,35 @@ int main(int argc, char *argv[])
             }
             if (cmdline->psnr)
                 psnr_add(buf_save, buf_in, g_w, g_h, sizeof_coded_data);
+            // Collect coded_data and sizeof_coded_data for future signature calculation
+            unsigned char* tmp;
+            tmp = (unsigned char*)realloc(total_coded_data, (size_t)(total_sizeof_coded_data + sizeof_coded_data));
+            memcpy(tmp + total_sizeof_coded_data, coded_data, sizeof_coded_data);
+            total_sizeof_coded_data += sizeof_coded_data;
+            if (tmp)
+                total_coded_data = tmp;
         }
         //fprintf(stderr, "%d avr = %6d  [%6d %6d]\n", qp, sum_bytes/299, min_bytes, max_bytes);
+        if (cmdline->stats)
+            printf("total size of coded data %i\n", total_sizeof_coded_data);
+        if (fsig)
+        {
+            unsigned char *sig = NULL;
+            size_t size_of_sig = 0;
+            sign(priv_key, total_coded_data, total_sizeof_coded_data, &sig, &size_of_sig);
+            if (!fwrite(sig, size_of_sig, 1, fsig))
+            {
+                printf("ERROR writing signature\n");
+                return 1;
+            }
+            if (cmdline->stats)
+	            printf ("{\"sig\":\"");
+	            for (int i = 0; i < (int)size_of_sig; i++) {
+	                printf("%02x", (unsigned char) sig[i]);
+	            }
+	            printf("\"}\n");
+            free(sig);
+        }
 
         if (cmdline->psnr)
             psnr_print(psnr_get());
@@ -713,6 +809,8 @@ int main(int argc, char *argv[])
             free(enc);
         if (scratch)
             free(scratch);
+        if (total_coded_data)
+            free(total_coded_data);
     }
     free(buf_in);
     free(buf_save);
@@ -727,6 +825,10 @@ int main(int argc, char *argv[])
         fclose(fin);
     if (fout)
         fclose(fout);
+    if (fsig)
+        fclose(fsig);
+    if (fpriv_key)
+        fclose(fpriv_key);
 #if H264E_MAX_THREADS
     if (thread_pool)
     {

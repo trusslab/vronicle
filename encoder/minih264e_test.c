@@ -517,13 +517,13 @@ int main(int argc, char *argv[])
         printf("ERROR: cant open output file %s\n", fnout);
         return 1;
     }
-    fsig = fopen("out.sig", "wb");
+    fsig = fopen("out.sig", "w");
     if (!fsig)
     {
         printf("ERROR: cant open output file %s\n", "out.sig");
         return 1;
     }
-    fpriv_key = fopen("data/encoder_pri", "rb");
+    fpriv_key = fopen("data/encoder_pri", "r");
     if (!fpriv_key)
     {
         printf("ERROR: cant open input file %s\n", "data/encoder_pri");
@@ -794,11 +794,13 @@ int main(int argc, char *argv[])
                 return 1;
             }
             if (cmdline->stats)
+            {
 	            printf ("{\"sig\":\"");
 	            for (int i = 0; i < (int)size_of_sig; i++) {
 	                printf("%02x", (unsigned char) sig[i]);
 	            }
 	            printf("\"}\n");
+            }
             free(sig);
         }
 

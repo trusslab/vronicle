@@ -58,7 +58,6 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdlib.h>
-#include <fcntl.h>
 
 #include "decoder/src/h264bsd_decoder.h"
 #include "decoder/src/h264bsd_util.h"

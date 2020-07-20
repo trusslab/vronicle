@@ -70,6 +70,7 @@ endif
 endif
 
 # Added to link with H264 decoder libraries
+DECODER_DIR=$(ENCLAVE_DIR)/decoder
 DECODER_LIB=-lh264bsd
 DECODER_LIB_PATH=$(DECODER_DIR)/lib
 
@@ -149,7 +150,6 @@ test: all
 ######## TestEnclave Objects ########
 
 # Added for H264 Decoder
-DECODER_DIR=$(ENCLAVE_DIR)/decoder
 
 libh264bsd.a: 
 	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*

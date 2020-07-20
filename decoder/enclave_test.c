@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
-#include "../src/h264bsd_decoder.h"
-#include "../src/h264bsd_util.h"
+#include "src/h264bsd_decoder.h"
+#include "src/h264bsd_util.h"
 
 static char* outputPath = NULL;
 static char* comparePath = NULL;

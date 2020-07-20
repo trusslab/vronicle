@@ -145,8 +145,11 @@ test: all
 ######## TestEnclave Objects ########
 
 # Added for H264 Decoder
+DECODER_DIR=$(ENCLAVE_DIR)/decoder
+
 libh264bsd.a: 
-	@echo "fuck!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
+	@echo "GEN => H264 Decoder Shared Library Ready..."
 
 $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
@@ -195,4 +198,5 @@ TestEnclave.signed.so: TestEnclave.so
 
 clean:
 	@rm -f TestEnclave.* $(ENCLAVE_DIR)/TestEnclave_t.* $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+	@rm -r $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib
 

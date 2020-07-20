@@ -181,6 +181,6 @@ void decodeContent (u8* contentBuffer, size_t contentSize) {
 }
 
 int main(int argc, char *argv[]) {
-    printf("Yes, we are running properly!!!\n");
+    printf("Yes, we are runningz properly!!!\n");
     return 0;
 }

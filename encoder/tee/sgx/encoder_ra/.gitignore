@@ -1,0 +1,7 @@
+*.o
+*.a
+.vscode/
+enclave/ra_tls_options.c
+EncoderApp
+EncoderEnclave.so
+EncoderEnclave.signed.so

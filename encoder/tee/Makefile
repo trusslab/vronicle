@@ -40,7 +40,7 @@ all:
 
 clean:
 	$(MAKE) -C sgx/ clean
-	rm -rf $(PACKAGE_LIB)/$(OPENSSL_LIB) $(PACKAGE_INC)/openssl/
+	# rm -rf $(PACKAGE_LIB)/$(OPENSSL_LIB) $(PACKAGE_INC)/openssl/
 test:
 	$(MAKE) -C sgx/ test
 

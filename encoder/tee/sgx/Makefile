@@ -43,7 +43,7 @@ ifeq ($(DEBUG), 1)
 	OPENSSL_CONFIG += debug
 endif
 
-all: $(PACKAGE_LIB)/$(OPENSSL_LIB)
+all: # $(PACKAGE_LIB)/$(OPENSSL_LIB)
 	$(MAKE) -C $(TRUSTED_LIB_DIR) all
 	$(MAKE) -C $(UNTRUSTED_LIB_DIR) all
 

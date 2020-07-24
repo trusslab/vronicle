@@ -112,9 +112,9 @@ EncoderEnclave_C_Files := $(wildcard $(ENCLAVE_DIR)/*.c)
 EncoderEnclave_Cpp_Objects := $(EncoderEnclave_Cpp_Files:.cpp=.o)
 EncoderEnclave_C_Objects := $(EncoderEnclave_C_Files:.c=.o)
 
-EncoderEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC)
+EncoderEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -Icommon
 
-Common_C_Cpp_Flags := -DOS_ID=$(OS_ID) $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpic -fpie -fstack-protector -fno-builtin-printf -Wformat -Wformat-security $(EncoderEnclave_Include_Paths) -include "tsgxsslio.h"
+Common_C_Cpp_Flags := -DOS_ID=$(OS_ID) $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpic -fpie -fstack-protector -fno-builtin-printf -Wformat -Wformat-security $(EncoderEnclave_Include_Paths) -include "tsgxsslio.h" -DH264E_SVC_API=1
 EncoderEnclave_C_Flags := $(Common_C_Cpp_Flags) -Wno-implicit-function-declaration -std=c11
 EncoderEnclave_Cpp_Flags :=  $(Common_C_Cpp_Flags) -std=c++11 -nostdinc++
 

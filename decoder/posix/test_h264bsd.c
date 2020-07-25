@@ -142,6 +142,7 @@ void decodeContent (u8* contentBuffer, size_t contentSize) {
   u32 picId, isIdrPic, numErrMbs;
   u32 top, left, width, height, croppingFlag;
   int totalErrors = 0;
+  int normalModeCounter = 1;
 
   while (len > 0) {
     u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
@@ -150,12 +151,14 @@ void decodeContent (u8* contentBuffer, size_t contentSize) {
 
     switch (result) {
       case H264BSD_PIC_RDY:
+        printf("yes this is the normal mode...%d\n", normalModeCounter++);
         pic = h264bsdNextOutputPicture(&dec, &picId, &isIdrPic, &numErrMbs);
         ++numPics;
         if (outputPath) savePic(pic, width, height, numPics);
         if (comparePath) totalErrors += comparePics(pic, width, height, numPics);
         break;
       case H264BSD_HDRS_RDY:
+        printf("1no this is not the normal mode!!!\n");
         h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
         if (!croppingFlag) {
           width = h264bsdPicWidth(&dec) * 16;
@@ -166,11 +169,14 @@ void decodeContent (u8* contentBuffer, size_t contentSize) {
         printf("Decoded headers. Image size %s%dx%d.\n", cropped, width, height);
         break;
       case H264BSD_RDY:
+        printf("2no this is not the normal mode!!!\n");
         break;
       case H264BSD_ERROR:
+        printf("3no this is not the normal mode!!!\n");
         printf("Error\n");
         exit(1);
       case H264BSD_PARAM_SET_ERROR:
+        printf("4no this is not the normal mode!!!\n");
         printf("Param set error\n");
         exit(1);
     }

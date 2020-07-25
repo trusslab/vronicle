@@ -37,11 +37,12 @@
 #include <fstream>
 #include <bits/stdc++.h> 
 #include <sys/stat.h> 
+#include <sys/types.h>
+#include <time.h>
 
 #include <unistd.h>
 #include <pwd.h>
 #include <libgen.h>
-#include <stdlib.h>
 // #include <pthread.h>
 
 # define MAX_PATH FILENAME_MAX

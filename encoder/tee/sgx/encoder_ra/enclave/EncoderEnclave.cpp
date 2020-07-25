@@ -340,7 +340,7 @@ void print_public_key(EVP_PKEY* enc_priv_key){
     free(buf);
 }
 
-int t_encoder_init (cmdline *cl_in, size_t cl_size, int h, int w)
+int t_encoder_init (cmdline *cl_in, size_t cl_size, int w, int h)
 {
     cl = (cmdline*)malloc(sizeof(cmdline));
     memset(cl, 0, sizeof(cmdline));
@@ -368,7 +368,6 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size, int h, int w)
 
     // Allocate space for yuv420 (the one used for actually process data)
     int frame_size = g_w*g_h*3/2;
-    printf("frame_size: %i\n", frame_size);
     buf_in   = (uint8_t*)malloc(frame_size);
     memset(buf_in, 0, frame_size);
     buf_save = (uint8_t*)malloc(frame_size);
@@ -381,7 +380,6 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size, int h, int w)
         temp_buf_in = (uint8_t*)malloc(temp_frame_size * sizeof(uint8_t));
         memset(temp_buf_in, 0, temp_frame_size);
     }
-    printf("yuyv_frame_size: %i\n", temp_frame_size);
 
     if (!buf_in || !buf_save)
     {
@@ -402,7 +400,6 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size, int h, int w)
         printf("H264E_sizeof error = %d\n", error);
         return 1;
     }
-    printf("sizeof_persist = %d sizeof_scratch = %d\n", sizeof_persist, sizeof_scratch);
     enc     = (H264E_persist_t *)malloc(sizeof_persist);
     memset(enc, 0, sizeof_persist);
     scratch = (H264E_scratch_t *)malloc(sizeof_scratch);
@@ -552,7 +549,6 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
         printf("t_encode_frame: ERROR during encoding\n");
         return res;
     }
-    printf("size of coded data: %i\n", sizeof_coded_data);
 
     if (cl->psnr)
         psnr_add(buf_save, buf_in, g_w, g_h, sizeof_coded_data);

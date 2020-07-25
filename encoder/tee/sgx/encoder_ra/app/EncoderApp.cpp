@@ -703,7 +703,6 @@ int main(int argc, char *argv[], char **env)
         return 1;
     fnin  = input_file;
     fnout = output_file;
-    printf("in: %s, out: %s\n", input_file, output_file);
 
     if (!cl->gen)
     {
@@ -766,7 +765,6 @@ int main(int argc, char *argv[], char **env)
             printf("Finished reading frames\n");
             break;
         }
-        printf("t_encode_frame: %i\n", i);
         t_encode_frame(global_eid, &res, NULL, 0, frame, frame_size);
         if (res)
         {

@@ -7280,7 +7280,6 @@ static void h264e_bs_flush(bs_t *bs)
 static unsigned h264e_bs_get_pos_bits(const bs_t *bs)
 {
     unsigned pos_bits = (unsigned)((bs->buf - bs->origin)*BS_BITS);
-    printf("pos_bits: %u\n", pos_bits);
     pos_bits += BS_BITS - bs->shift;
     assert((int)pos_bits >= 0);
     return pos_bits;
@@ -8823,7 +8822,6 @@ static void nal_end(h264e_enc_t *enc)
 
     U1(1); // stop bit
     bs_bytes = h264e_bs_byte_align(enc->bs) >> 3;
-    printf("bs_buf: %u\n", (unsigned)(enc->bs->buf - enc->bs->origin)*BS_BITS);
     h264e_bs_flush(enc->bs);
 
     // count # of escape bytes to insert

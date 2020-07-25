@@ -49,7 +49,7 @@ from "ra_tls.edl" import *;
 
 
     trusted {
-        public int t_encoder_init([in, size=cl_size] cmdline* cl_in, size_t cl_size, int h, int w);
+        public int t_encoder_init([in, size=cl_size] cmdline* cl_in, size_t cl_size, int w, int h);
         public int t_encode_frame([in, size=frame_sig_size] unsigned char* frame_sig, size_t frame_sig_size,
                                   [in, size=frame_size] uint8_t* frame, size_t frame_size);
         public int t_verify_cert([in, size=vendor_pubkey_str_size] char* vendor_pubkey_str, size_t vendor_pubkey_str_size,

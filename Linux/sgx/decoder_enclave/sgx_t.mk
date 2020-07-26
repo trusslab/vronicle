@@ -211,6 +211,7 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 # 	@echo "LINK =>  $@"
 
 TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+	@echo "LINK =>  $^"
 	$(VCXX) $^ $(DECODER_OBJ_DIR)/* -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 

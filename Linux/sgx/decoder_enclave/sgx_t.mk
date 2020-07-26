@@ -72,6 +72,7 @@ endif
 # Added to link with H264 decoder libraries
 DECODER_DIR=$(ENCLAVE_DIR)/decoder
 DECODER_INCLUDE_PATH=$(DECODER_DIR)/include
+DECODER_OBJ_DIR=$(DECODER_DIR)/obj
 DECODER_SRC_PATH=$(DECODER_DIR)/src
 DECODER_LIB_NAME=h264bsd
 DECODER_LIB_PATH=$(DECODER_DIR)/lib
@@ -205,8 +206,12 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
+# TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+# 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
+# 	@echo "LINK =>  $@"
+
 TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
-	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
+	$(VCXX) $^ $(DECODER_OBJ_DIR)/* -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 
 TestEnclave.signed.so: TestEnclave.so

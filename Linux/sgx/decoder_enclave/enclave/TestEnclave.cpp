@@ -557,62 +557,62 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	*(int*)runtime_result = 0;
 }
 
-// void t_sgxver_decodeContent (void* input_content_buffer, size_t size_of_input_content_buffer) {
-//   u32 status;
-//   storage_t dec;
-//   status = h264bsdInit(&dec, HANTRO_FALSE);
+void t_sgxver_decodeContent (void* input_content_buffer, size_t size_of_input_content_buffer) {
+  u32 status;
+  storage_t dec;
+  status = h264bsdInit(&dec, HANTRO_FALSE);
 
-//   if (status != HANTRO_OK) {
-//     fprintf(stderr, "h264bsdInit failed\n");
-//     exit(1);
-//   }
+  if (status != HANTRO_OK) {
+    fprintf(stderr, "h264bsdInit failed\n");
+    exit(1);
+  }
 
-//   u8* byteStrm = (u8*)input_content_buffer;
-//   u32 readBytes;
-//   u32 len = size_of_input_content_buffer;
-//   int numPics = 0;
-//   u8* pic;
-//   u32 picId, isIdrPic, numErrMbs;
-//   u32 top, left, width, height, croppingFlag;
-//   int totalErrors = 0;
+  u8* byteStrm = (u8*)input_content_buffer;
+  u32 readBytes;
+  u32 len = size_of_input_content_buffer;
+  int numPics = 0;
+  u8* pic;
+  u32 picId, isIdrPic, numErrMbs;
+  u32 top, left, width, height, croppingFlag;
+  int totalErrors = 0;
 
-//   while (len > 0) {
-//     u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
-//     len -= readBytes;
-//     byteStrm += readBytes;
+  while (len > 0) {
+    u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
+    len -= readBytes;
+    byteStrm += readBytes;
 
-//     switch (result) {
-//       case H264BSD_PIC_RDY:
-//         pic = h264bsdNextOutputPicture(&dec, &picId, &isIdrPic, &numErrMbs);
-//         ++numPics;
-//         // if (outputPath) savePic(pic, width, height, numPics);
-// 		// TO-DO processing and saving of the original pic buffer
-//         break;
-//       case H264BSD_HDRS_RDY:
-//         h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
-//         if (!croppingFlag) {
-//           width = h264bsdPicWidth(&dec) * 16;
-//           height = h264bsdPicHeight(&dec) * 16;
-//         }
+    switch (result) {
+      case H264BSD_PIC_RDY:
+        pic = h264bsdNextOutputPicture(&dec, &picId, &isIdrPic, &numErrMbs);
+        ++numPics;
+        // if (outputPath) savePic(pic, width, height, numPics);
+		// TO-DO processing and saving of the original pic buffer
+        break;
+      case H264BSD_HDRS_RDY:
+        h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
+        if (!croppingFlag) {
+          width = h264bsdPicWidth(&dec) * 16;
+          height = h264bsdPicHeight(&dec) * 16;
+        }
 
-//         // char* cropped = croppingFlag ? "(cropped) " : "";
-//         // printf("Decoded headers. Image size %s%dx%d.\n", cropped, width, height);
-//         break;
-//       case H264BSD_RDY:
-//         break;
-//       case H264BSD_ERROR:
-//         printf("Error\n");
-//         exit(1);
-//       case H264BSD_PARAM_SET_ERROR:
-//         printf("Param set error\n");
-//         exit(1);
-//     }
-//   }
+        // char* cropped = croppingFlag ? "(cropped) " : "";
+        // printf("Decoded headers. Image size %s%dx%d.\n", cropped, width, height);
+        break;
+      case H264BSD_RDY:
+        break;
+      case H264BSD_ERROR:
+        printf("Error\n");
+        exit(1);
+      case H264BSD_PARAM_SET_ERROR:
+        printf("Param set error\n");
+        exit(1);
+    }
+  }
 
-//   h264bsdShutdown(&dec);
+  h264bsdShutdown(&dec);
 
-//   // printf("Test file complete. %d pictures decoded.\n", numPics);
-// }
+  // printf("Test file complete. %d pictures decoded.\n", numPics);
+}
 
 void t_sgxssl_call_apis(void* evp_pkey_v)
 {

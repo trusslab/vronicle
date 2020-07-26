@@ -100,7 +100,7 @@ else
 	Quote_Library_Name := sgx_quote_ex
 endif
 
-# Temp solution for sgx_epid and sgx_quote_ex linker problem
+# Temp solution for sgx_epid and sgx_quote_ex linker problem (Added by Myles 07/25/20)
 CUSTOM_SGX_LIB_PATH := /home/sagarwal/downloads/sgx_sdk/linux-sgx/build/linux
 
 Security_Link_Flags := -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -pie

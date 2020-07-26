@@ -149,7 +149,7 @@ TestEnclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nod
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
 	-Wl,--defsym,__ImageBase=0 \
 	-Wl,--version-script=$(ENCLAVE_DIR)/TestEnclave.lds \
-	-L$(DECODER_LIB_PATH) -l$(DECODER_LIB_NAME) 
+	-L$(DECODER_LIB_PATH) -Wl,--whole-archive -l$(DECODER_LIB_NAME) -Wl,--whole-archive
 
 
 .PHONY: all test

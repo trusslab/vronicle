@@ -120,6 +120,8 @@ TestEnclave_C_Files := $(wildcard $(ENCLAVE_DIR)/*.c)
 TestEnclave_Cpp_Objects := $(TestEnclave_Cpp_Files:.cpp=.o)
 TestEnclave_C_Objects := $(TestEnclave_C_Files:.c=.o)
 
+Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
+
 TestEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -I$(DECODER_INCLUDE_PATH) -I$(DECODER_SRC_PATH)
 
 Common_C_Cpp_Flags := -DOS_ID=$(OS_ID) $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpic -fpie -fstack-protector -fno-builtin-printf -Wformat -Wformat-security $(TestEnclave_Include_Paths) -include "tsgxsslio.h"
@@ -206,9 +208,11 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(Decoder_C_Objects)
 	@echo "Cpp Objs => $(TestEnclave_Cpp_Objects)"
 	@echo "C Objs => $(TestEnclave_C_Objects)"
+	@echo "Decoder C Objs => $(Decoder_C_Objects)"
+	@echo "All Objs => $^"
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 

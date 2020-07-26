@@ -92,5 +92,11 @@ void h264bsdConvertToRGBA(u32 width, u32 height, u8* data, u32 *pOutput);
 void h264bsdConvertToBGRA(u32 width, u32 height, u8* data, u32 *pOutput);
 void h264bsdConvertToYCbCrA(u32 width, u32 height, u8* data, u32 *pOutput);
 
+int testIncludeFunc(int test){
+    return test + 1;
+}
+
+int testIncludeFunc2(int test);
+
 #endif /* #ifdef H264SWDEC_DECODER_H */
 

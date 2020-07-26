@@ -206,14 +206,14 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-# TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
-# 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
-# 	@echo "LINK =>  $@"
-
 TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
-	@echo "LINK =>  $^"
-	$(VCXX) $^ $(DECODER_OBJ_DIR)/* -o $@ $(TestEnclave_Link_Flags)
+	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
+
+# TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+# 	@echo "LINK =>  $^"
+# 	$(VCXX) $^ $(DECODER_OBJ_DIR)/* -o $@ $(TestEnclave_Link_Flags)
+# 	@echo "LINK =>  $@"
 
 TestEnclave.signed.so: TestEnclave.so
 	@$(SGX_ENCLAVE_SIGNER) sign -key $(ENCLAVE_DIR)/TestEnclave_private.pem -enclave TestEnclave.so -out $@ -config $(ENCLAVE_DIR)/TestEnclave.config.xml

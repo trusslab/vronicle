@@ -171,9 +171,14 @@ libh264bsd.a:
 
 Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
 
+# $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
+# 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+# 	@echo "GEN  =>  $@"
+
 $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
 	@echo "GEN  =>  $@"
+	Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
 
 $(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_t.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
@@ -212,7 +217,6 @@ TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $
 	@echo "Cpp Objs => $(TestEnclave_Cpp_Objects)"
 	@echo "C Objs => $(TestEnclave_C_Objects)"
 	@echo "The dir we get decoder c objs -> $(DECODER_OBJ_DIR)"
-	@ls $(DECODER_OBJ_DIR)
 	@echo "Decoder C Objs => $(Decoder_C_Objects)"
 	@echo "All Objs => $^"
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)

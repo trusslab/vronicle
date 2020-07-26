@@ -120,8 +120,6 @@ TestEnclave_C_Files := $(wildcard $(ENCLAVE_DIR)/*.c)
 TestEnclave_Cpp_Objects := $(TestEnclave_Cpp_Files:.cpp=.o)
 TestEnclave_C_Objects := $(TestEnclave_C_Files:.c=.o)
 
-Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
-
 TestEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -I$(DECODER_INCLUDE_PATH) -I$(DECODER_SRC_PATH)
 
 Common_C_Cpp_Flags := -DOS_ID=$(OS_ID) $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpic -fpie -fstack-protector -fno-builtin-printf -Wformat -Wformat-security $(TestEnclave_Include_Paths) -include "tsgxsslio.h"
@@ -170,6 +168,8 @@ test: all
 libh264bsd.a: 
 	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 	@echo "GEN => H264 Decoder Shared Library Ready..."
+
+Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
 
 $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)

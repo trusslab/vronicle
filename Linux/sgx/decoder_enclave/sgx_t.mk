@@ -211,11 +211,11 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(Decoder_C_Objects)
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(DECODER_OBJ_DIR)/*.o
 	@echo "Cpp Objs => $(TestEnclave_Cpp_Objects)"
 	@echo "C Objs => $(TestEnclave_C_Objects)"
 	@echo "The dir we get decoder c objs -> $(DECODER_OBJ_DIR)"
-	@echo "Decoder C Objs => $(Decoder_C_Objects)"
+	@echo "Decoder C Objs => $(DECODER_OBJ_DIR)/*.o"
 	@echo "All Objs => $^"
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"

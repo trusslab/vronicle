@@ -87,6 +87,10 @@
 
 ------------------------------------------------------------------------------*/
 
+int testIncludeFunc2(int test){
+    return test + 1;
+}
+
 u32 h264bsdInit(storage_t *pStorage, u32 noOutputReordering)
 {
 

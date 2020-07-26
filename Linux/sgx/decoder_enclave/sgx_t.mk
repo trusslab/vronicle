@@ -176,7 +176,6 @@ libh264bsd.a:
 $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
 	@echo "GEN  =>  $@"
-	Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
 
 $(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_t.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@

@@ -39,6 +39,9 @@
 #include "h264bsd_seq_param_set.h"
 #include "h264bsd_vui.h"
 
+// Added for removing warning
+#include <string.h>
+
 /*------------------------------------------------------------------------------
     2. Module defines
 ------------------------------------------------------------------------------*/

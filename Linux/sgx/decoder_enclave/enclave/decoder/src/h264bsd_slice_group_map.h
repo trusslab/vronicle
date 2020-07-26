@@ -36,6 +36,9 @@
 #include "basetype.h"
 #include "h264bsd_pic_param_set.h"
 
+// Added for removing warning
+#include <string.h>
+
 /*------------------------------------------------------------------------------
     2. Module defines
 ------------------------------------------------------------------------------*/

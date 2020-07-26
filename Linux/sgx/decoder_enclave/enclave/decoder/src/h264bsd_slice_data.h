@@ -39,6 +39,9 @@
 #include "h264bsd_slice_header.h"
 #include "h264bsd_storage.h"
 
+// Added for removing warning
+#include <string.h>
+
 /*------------------------------------------------------------------------------
     2. Module defines
 ------------------------------------------------------------------------------*/

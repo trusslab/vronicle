@@ -563,7 +563,8 @@ void t_sgxver_decodeContent (void* input_content_buffer, size_t size_of_input_co
   status = h264bsdInit(&dec, HANTRO_FALSE);
 
   if (status != HANTRO_OK) {
-    fprintf(stderr, "h264bsdInit failed\n");
+    // fprintf(stderr, "h264bsdInit failed\n");
+	printf("h264bsdInit failed\n");
     exit(1);
   }
 
@@ -574,7 +575,6 @@ void t_sgxver_decodeContent (void* input_content_buffer, size_t size_of_input_co
   u8* pic;
   u32 picId, isIdrPic, numErrMbs;
   u32 top, left, width, height, croppingFlag;
-  int totalErrors = 0;
 
   while (len > 0) {
     u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);

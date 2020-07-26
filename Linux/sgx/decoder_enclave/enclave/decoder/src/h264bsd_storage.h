@@ -44,6 +44,9 @@
 #include "h264bsd_dpb.h"
 #include "h264bsd_pic_order_cnt.h"
 
+// Added for removing warning
+#include <string.h>
+
 /*------------------------------------------------------------------------------
     2. Module defines
 ------------------------------------------------------------------------------*/

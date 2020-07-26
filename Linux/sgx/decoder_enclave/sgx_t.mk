@@ -71,6 +71,7 @@ endif
 
 # Added to link with H264 decoder libraries
 DECODER_DIR=$(ENCLAVE_DIR)/decoder
+DECODER_INCLUDE_PATH=$(DECODER_DIR)/include
 DECODER_LIB_NAME=h264bsd
 DECODER_LIB_PATH=$(DECODER_DIR)/lib
 
@@ -117,7 +118,7 @@ TestEnclave_C_Files := $(wildcard $(ENCLAVE_DIR)/*.c)
 TestEnclave_Cpp_Objects := $(TestEnclave_Cpp_Files:.cpp=.o)
 TestEnclave_C_Objects := $(TestEnclave_C_Files:.c=.o)
 
-TestEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -L$(DECODER_LIB_PATH)
+TestEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -I$(DECODER_INCLUDE_PATH)
 
 Common_C_Cpp_Flags := -DOS_ID=$(OS_ID) $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpic -fpie -fstack-protector -fno-builtin-printf -Wformat -Wformat-security $(TestEnclave_Include_Paths) -include "tsgxsslio.h"
 TestEnclave_C_Flags := $(Common_C_Cpp_Flags) -Wno-implicit-function-declaration -std=c11
@@ -140,7 +141,7 @@ Security_Link_Flags := -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -pie
 TestEnclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles \
 	$(Security_Link_Flags) \
 	$(SgxSSL_Link_Libraries) -L$(SGX_LIBRARY_PATH)\
-	-Wl,--whole-archive -l$(Trts_Library_Name) -l$(DECODER_LIB_NAME) -Wl,--no-whole-archive \
+	-Wl,--whole-archive -l$(Trts_Library_Name) -l$(DECODER_LIB_NAME) -L$(DECODER_LIB_PATH) -Wl,--no-whole-archive \
 	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_tcrypto $(TSETJMP_LIB) -l$(Service_Library_Name) -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \

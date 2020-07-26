@@ -203,7 +203,7 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	@echo "CC  <=  $<"
 
 TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
-	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
+	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags) -l$(DECODER_LIB_NAME) -L$(DECODER_LIB_PATH)
 	@echo "LINK =>  $@"
 
 TestEnclave.signed.so: TestEnclave.so

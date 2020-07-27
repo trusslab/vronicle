@@ -557,7 +557,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	*(int*)runtime_result = 0;
 }
 
-void decodeContent (void* input_content_buffer, size_t size_of_input_content_buffer) {
+void t_sgxver_decode_content(void* input_content_buffer, size_t size_of_input_content_buffer) {
 
 	testIncludeFunc2(2);
 

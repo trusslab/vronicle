@@ -39,6 +39,7 @@
 #include <sys/stat.h> 
 #include <sys/types.h>
 #include <time.h>
+#include <fcntl.h>
 
 #include <unistd.h>
 #include <pwd.h>
@@ -64,7 +65,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/time.h> /* gettimeofday() */
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -753,6 +753,62 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     signature_file.close();
 
     return 0;
+}
+
+void createContentBuffer(char* contentPath, u8** pContentBuffer, size_t* pContentSize) {
+  struct stat sb;
+  if (stat(contentPath, &sb) == -1) {
+    perror("stat failed");
+    exit(1);
+  }
+
+  *pContentSize = sb.st_size;
+  *pContentBuffer = (u8*)malloc(*pContentSize);
+}
+
+void loadContent(char* contentPath, u8* contentBuffer, size_t contentSize) {
+  FILE *input = fopen(contentPath, "r");
+  if (input == NULL) {
+    perror("open failed");
+    exit(1);
+  }
+
+  off_t offset = 0;
+  while (offset < contentSize) {
+    offset += fread(contentBuffer + offset, sizeof(u8), contentSize - offset, input);
+  }
+
+  fclose(input);
+}
+
+static FILE *outputFile = NULL;
+
+void savePic(u8* picData, int width, int height, int picNum) {
+  if(outputFile == NULL) {
+    outputFile = fopen(outputPath, "w");
+    if (outputFile == NULL) {
+      perror("output file open failed");
+      exit(1);
+    }
+  }
+
+  size_t picSize = width * height * 3 / 2;
+  off_t offset = 0;
+  while (offset < picSize) {
+    offset += fwrite(picData + offset, sizeof(u8), picSize - offset, outputFile);
+  }
+}
+
+void do_decoding(
+    int socket_fd,
+	struct sockaddr *saddr_p,
+	socklen_t saddrlen,
+	unsigned char recv_buf[],
+	uint32_t recv_time[],
+    char** argv)
+{
+
+    return;
 }
 
 int verification_reply(

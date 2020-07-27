@@ -219,6 +219,7 @@ TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $
 	@echo "Cpp Objs => $(TestEnclave_Cpp_Objects)"
 	@echo "C Objs => $(TestEnclave_C_Objects)"
 	@echo "The dir we get decoder c objs -> $(DECODER_OBJ_DIR)"
+	@echo "Decoder C Files => $(Decoder_C_Files)"
 	@echo "Decoder C Objs => $(Decoder_C_Objects)"
 	@echo "All Objs => $^"
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)

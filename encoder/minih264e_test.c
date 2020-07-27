@@ -597,9 +597,6 @@ int main(int argc, char *argv[])
     //for (cmdline->qp = 50; cmdline->qp <= 51; cmdline->qp += 2)
     //printf("encoding %s to %s with qp = %d\n", fnin, fnout, cmdline->qp);
     {
-        int sum_bytes = 0;
-        int max_bytes = 0;
-        int min_bytes = 10000000;
         int sizeof_persist = 0, sizeof_scratch = 0, error;
         int total_sizeof_coded_data = 0;
         unsigned char* total_coded_data = NULL;
@@ -614,7 +611,6 @@ int main(int argc, char *argv[])
             printf("H264E_init error = %d\n", error);
             return 0;
         }
-        // printf("sizeof_persist = %d sizeof_scratch = %d\n", sizeof_persist, sizeof_scratch);
         enc     = (H264E_persist_t *)ALIGNED_ALLOC(64, sizeof_persist);
         scratch = (H264E_scratch_t *)ALIGNED_ALLOC(64, sizeof_scratch);
         error = H264E_init(enc, &create_param);
@@ -751,13 +747,6 @@ int main(int argc, char *argv[])
 #endif
             error = H264E_encode(enc, scratch, &run_param, &yuv, &coded_data, &sizeof_coded_data);
             assert(!error);
-
-            if (i)
-            {
-                sum_bytes += sizeof_coded_data - 4;
-                if (min_bytes > sizeof_coded_data - 4) min_bytes = sizeof_coded_data - 4;
-                if (max_bytes < sizeof_coded_data - 4) max_bytes = sizeof_coded_data - 4;
-            }
 
             if (cmdline->stats)
                 printf("frame=%d, bytes=%d\n", frames++, sizeof_coded_data);

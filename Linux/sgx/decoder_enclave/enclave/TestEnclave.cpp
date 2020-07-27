@@ -559,7 +559,6 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 void decodeContent (void* input_content_buffer, size_t size_of_input_content_buffer) {
 
-	testIncludeFunc(1);
 	testIncludeFunc2(2);
 
 	u32 status;

@@ -173,6 +173,10 @@ test: all
 # 	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && $(VCC) -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 # 	@echo "GEN => H264 Decoder Shared Library Ready..."
 
+$(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
+	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
+	@echo "CC  <=  $<"
+
 # $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 # 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
 # 	@echo "GEN  =>  $@"
@@ -210,9 +214,9 @@ $(ENCLAVE_DIR)/%.o: $(ENCLAVE_DIR)/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-$(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
-	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
-	@echo "CC  <=  $<"
+# $(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
+# 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
+# 	@echo "CC  <=  $<"
 
 $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@

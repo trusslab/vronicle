@@ -175,6 +175,8 @@ test: all
 
 $(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ 
+	@echo "Before mkdir"
+	@ls $(DECODER_DIR)
 	@mkdir $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib && cp $(DECODER_SRC_PATH)/*.h $(DECODER_DIR)/include/ && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
 	@echo "CC  <=  $<"
 

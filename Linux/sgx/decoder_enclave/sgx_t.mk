@@ -170,9 +170,9 @@ test: all
 
 # Added for H264 Decoder
 # Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
-# libh264bsd.a: 
-# 	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && $(VCC) -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
-# 	@echo "GEN => H264 Decoder Shared Library Ready..."
+libh264bsd.a: 
+	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && g++ -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
+	@echo "GEN => H264 Decoder Shared Library Ready..."
 
 # $(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
 # 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ 
@@ -237,6 +237,7 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 # 	@echo "LINK =>  $@"
 
 TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+	libh264bsd.a
 	@echo "LINK =>  $^"
 	@echo "VCXX => $(VCXX)"
 	@echo "VCC => $(VCC)"

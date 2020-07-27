@@ -26,6 +26,11 @@
 
 ------------------------------------------------------------------------------*/
 
+// C++ Wraper
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef H264SWDEC_DECODER_H
 #define H264SWDEC_DECODER_H
 
@@ -99,4 +104,8 @@ int testIncludeFunc(int test){
 int testIncludeFunc2(int test);
 
 #endif /* #ifdef H264SWDEC_DECODER_H */
+
+#ifdef __cplusplus
+}
+#endif  /* #ifdef __cplusplus */
 

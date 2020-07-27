@@ -26,6 +26,11 @@
 
 ------------------------------------------------------------------------------*/
 
+// C++ Wraper
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef H264SWDEC_UTIL_H
 #define H264SWDEC_UTIL_H
 
@@ -180,3 +185,7 @@ i32 clip(i32 x, i32 y, i32 z);
 
 #endif /* #ifdef H264SWDEC_UTIL_H */
 
+
+#ifdef __cplusplus
+}
+#endif  /* #ifdef __cplusplus */

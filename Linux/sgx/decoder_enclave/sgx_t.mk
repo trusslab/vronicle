@@ -218,5 +218,5 @@ TestEnclave.signed.so: TestEnclave.so
 
 clean:
 	@rm -f TestEnclave.* $(ENCLAVE_DIR)/TestEnclave_t.* $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
-	@rm -r $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib $(DECODER_DIR)/src/*.o
+	@rm -r $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib
 

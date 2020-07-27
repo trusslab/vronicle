@@ -812,7 +812,7 @@ void do_decoding(
     char** argv)
 {
 
-    char* input_file_path = strtok(recv_buf, "***");
+    char* input_file_path = strtok((char*)recv_buf, "***");
     char* output_file_path = strtok(NULL, "****");
 
     printf("input_file_path: %s, output_file_path: %s\n", input_file_path, output_file_path);

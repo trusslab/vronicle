@@ -122,7 +122,7 @@ Decoder_C_Files := $(wildcard $(DECODER_SRC_PATH)/*.c)
 TestEnclave_Cpp_Objects := $(TestEnclave_Cpp_Files:.cpp=.o)
 TestEnclave_C_Objects := $(TestEnclave_C_Files:.c=.o)
 
-Decoder_C_Objects := $(Decoder_C_Files:src=obj)
+# Decoder_C_Objects := $(Decoder_C_Files:src=obj)
 Decoder_C_Objects := $(Decoder_C_Files:.c=.o)
 
 TestEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -I$(DECODER_INCLUDE_PATH) -I$(DECODER_SRC_PATH)
@@ -171,7 +171,7 @@ test: all
 # Added for H264 Decoder
 Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
 libh264bsd.a: 
-	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
+	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && $(VCC) -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 	@echo "GEN => H264 Decoder Shared Library Ready..."
 
 # $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
@@ -208,6 +208,10 @@ $(ENCLAVE_DIR)/%.o: $(ENCLAVE_DIR)/%.cpp
 	@echo "CXX  <=  $<"
 
 $(ENCLAVE_DIR)/%.o: $(ENCLAVE_DIR)/%.c
+	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
+	@echo "CC  <=  $<"
+
+$(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 

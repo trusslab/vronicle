@@ -117,8 +117,13 @@ endif
 TestEnclave_Cpp_Files := $(wildcard $(ENCLAVE_DIR)/*.cpp)
 TestEnclave_C_Files := $(wildcard $(ENCLAVE_DIR)/*.c)
 
+Decoder_C_Files := $(wildcard $(DECODER_SRC_PATH)/*.c)
+
 TestEnclave_Cpp_Objects := $(TestEnclave_Cpp_Files:.cpp=.o)
 TestEnclave_C_Objects := $(TestEnclave_C_Files:.c=.o)
+
+Decoder_C_Objects := $(Decoder_C_Files:src=obj)
+Decoder_C_Objects := $(Decoder_C_Files:.c=.o)
 
 TestEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -I$(DECODER_INCLUDE_PATH) -I$(DECODER_SRC_PATH)
 
@@ -210,11 +215,11 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(DECODER_OBJ_DIR)/*.o
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(Decoder_C_Objects)
 	@echo "Cpp Objs => $(TestEnclave_Cpp_Objects)"
 	@echo "C Objs => $(TestEnclave_C_Objects)"
 	@echo "The dir we get decoder c objs -> $(DECODER_OBJ_DIR)"
-	@echo "Decoder C Objs => $(DECODER_OBJ_DIR)/*.o"
+	@echo "Decoder C Objs => $(Decoder_C_Objects)"
 	@echo "All Objs => $^"
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"

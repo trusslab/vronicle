@@ -171,7 +171,7 @@ test: all
 # Added for H264 Decoder
 # Decoder_C_Objects := $(wildcard $(DECODER_OBJ_DIR)/*.o)
 libh264bsd.a: 
-	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && g++ -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
+	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 	@echo "GEN => H264 Decoder Shared Library Ready..."
 
 # $(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c

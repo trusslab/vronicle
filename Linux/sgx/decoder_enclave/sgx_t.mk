@@ -70,12 +70,12 @@ endif
 endif
 
 # Added to link with H264 decoder libraries
-DECODER_DIR=$(ENCLAVE_DIR)/decoder
-DECODER_INCLUDE_PATH=$(DECODER_DIR)/include
-DECODER_OBJ_DIR=$(DECODER_DIR)/obj
-DECODER_SRC_PATH=$(DECODER_DIR)/src
-DECODER_LIB_NAME=h264bsd
-DECODER_LIB_PATH=$(DECODER_DIR)/lib
+DECODER_DIR := $(ENCLAVE_DIR)/decoder
+DECODER_INCLUDE_PATH := $(DECODER_DIR)/include
+DECODER_OBJ_DIR := $(DECODER_DIR)/obj
+DECODER_SRC_PATH := $(DECODER_DIR)/src
+DECODER_LIB_NAME := h264bsd
+DECODER_LIB_PATH := $(DECODER_DIR)/lib
 
 # Added to build with SgxSSL libraries
 TSETJMP_LIB := -lsgx_tsetjmp
@@ -154,7 +154,7 @@ TestEnclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nod
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
 	-Wl,--defsym,__ImageBase=0 \
 	-Wl,--version-script=$(ENCLAVE_DIR)/TestEnclave.lds	\
-	-Wl,--whole-archive -L$(DECODER_LIB_PATH) -Wl,--whole-archive -l$(DECODER_LIB_NAME) 
+	-L$(DECODER_LIB_PATH) -Wl,--whole-archive -l$(DECODER_LIB_NAME) -Wl,--whole-archive
 
 
 .PHONY: all test
@@ -238,6 +238,8 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 
 TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
 	@echo "LINK =>  $^"
+	@echo "VCXX => $(VCXX)"
+	@echo "VCC => $(VCC)"
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 

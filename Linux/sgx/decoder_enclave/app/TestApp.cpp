@@ -73,6 +73,8 @@
 
 #include <time.h> /* for time() and ctime() */
 
+#include "basetype.h"
+
 using namespace std;
 
 #include <chrono> 

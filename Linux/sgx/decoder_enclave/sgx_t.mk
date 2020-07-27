@@ -174,7 +174,8 @@ test: all
 # 	@echo "GEN => H264 Decoder Shared Library Ready..."
 
 $(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
-	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
+	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ 
+	@mkdir include obj lib && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
 	@echo "CC  <=  $<"
 
 # $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
@@ -243,5 +244,5 @@ TestEnclave.signed.so: TestEnclave.so
 
 clean:
 	@rm -f TestEnclave.* $(ENCLAVE_DIR)/TestEnclave_t.* $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
-	@rm -r $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib
+	@rm -r $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib $(DECODER_DIR)/src/*.o
 

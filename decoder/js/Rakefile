@@ -1,0 +1,90 @@
+require 'json'
+
+EMCC_FLAGS = ENV["EMCC_FLAGS"] || "-O0 -g4 -D_ASSERT_USED -D_ERROR_PRINT --memory-init-file 0 -s TOTAL_MEMORY=67108864 -s WASM=0" if ENV["DEBUG"]
+EMCC_FLAGS = ENV["EMCC_FLAGS"] || "-O3 -D_ERROR_PRINT --memory-init-file 0 -s TOTAL_MEMORY=67108864 -s WASM=0" unless ENV["DEBUG"]
+
+c_files = FileList["../src/*.c"]
+
+exported_functions = [
+	"_malloc",
+	"_free",
+	"_memcpy",
+	"_h264bsdAlloc",
+	"_h264bsdFree",
+	"_h264bsdInit",
+	"_h264bsdDecode",
+	"_h264bsdShutdown",
+	"_h264bsdNextOutputPicture",
+	"_h264bsdNextOutputPictureRGBA",
+	"_h264bsdPicWidth",
+	"_h264bsdPicHeight",
+	"_h264bsdCroppingParams",
+]
+
+exported_runtime_methods = [
+	'getValue',
+	'setValue'
+]
+
+EXPORT_FLAGS = "-s LINKABLE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS='#{JSON.generate(exported_runtime_methods)}' -s EXPORTED_FUNCTIONS='#{JSON.generate(exported_functions)}'"
+
+file "h264bsd_asm.js" do                                     
+	sh "emcc #{c_files.join(' ')} #{EMCC_FLAGS} #{EXPORT_FLAGS} -o h264bsd_asm.js"
+end
+
+directory "min"
+
+full_source_files = [
+	"h264bsd_asm.js",
+	"h264bsd_decoder.js",
+	"h264bsd_canvas.js"
+]
+
+file "min/h264bsd_full.min.js" => full_source_files + ["min"] do
+	sh "uglifyjs #{full_source_files.join(' ')} -c -m -o min/h264bsd_full.min.js"
+end
+
+canvas_source_files = [
+	"h264bsd_canvas.js"
+]
+
+file "min/h264bsd_canvas.min.js" => canvas_source_files + ["min"] do
+	sh "uglifyjs #{canvas_source_files.join(' ')} -c -m -o min/h264bsd_canvas.min.js"
+end
+
+worker_source_files = [
+	"h264bsd_asm.js",
+	"h264bsd_decoder.js",
+	"h264bsd_worker.js"
+]
+
+file "min/h264bsd_worker.min.js" => worker_source_files + ["min"] do
+	sh "uglifyjs #{worker_source_files.join(' ')} -c -m -o min/h264bsd_worker.min.js"
+end
+
+task :compress => ["min/h264bsd_full.min.js", "min/h264bsd_canvas.min.js", "min/h264bsd_worker.min.js"]
+
+task :clean do
+	FileUtils.rm_f("h264bsd_asm.js")
+	FileUtils.rm_rf("min")
+end
+
+desc "Check for prereq tools"
+task :setup do
+	sh("emcc --version") { |ok, res| fail("Can't find emscripten binaries.") unless ok }
+	sh("uglifyjs --version") { |ok, res| fail("Can't find UglifyJS tool for minification.") unless ok }
+	puts("Ready to go")
+end
+
+task :server do
+	require 'webrick'
+	WEBrick::HTTPServer.new(:Port => 8000, :DocumentRoot => Dir.pwd).start
+end
+
+task :build => [:setup, :compress]
+
+task :test do
+	sh "node test_node.js"
+end
+
+task :default => [:build]

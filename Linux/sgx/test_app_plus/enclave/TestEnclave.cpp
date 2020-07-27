@@ -53,6 +53,15 @@
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 
+// Include for Decoder
+#include <sys/types.h>
+#include <unistd.h>
+#include <time.h>
+#include <stdlib.h>
+
+#include "decoder/src/h264bsd_decoder.h"
+#include "decoder/src/h264bsd_util.h"
+
 #define ADD_ENTROPY_SIZE	32
 
 void exit(int status)

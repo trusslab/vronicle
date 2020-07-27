@@ -153,7 +153,8 @@ TestEnclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nod
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
 	-Wl,--defsym,__ImageBase=0 \
-	-Wl,--version-script=$(ENCLAVE_DIR)/TestEnclave.lds
+	-Wl,--version-script=$(ENCLAVE_DIR)/TestEnclave.lds	\
+	-Wl,--whole-archive -L$(DECODER_LIB_PATH) -Wl,--whole-archive -l$(DECODER_LIB_NAME) 
 
 
 .PHONY: all test
@@ -173,12 +174,12 @@ test: all
 # 	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && $(VCC) -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 # 	@echo "GEN => H264 Decoder Shared Library Ready..."
 
-$(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
-	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ 
-	@echo "Before mkdir"
-	@ls $(DECODER_DIR)
-	@mkdir $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib && cp $(DECODER_SRC_PATH)/*.h $(DECODER_DIR)/include/ && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
-	@echo "CC  <=  $<"
+# $(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
+# 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ 
+# 	@echo "Before mkdir"
+# 	@ls $(DECODER_DIR)
+# 	@mkdir $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib && cp $(DECODER_SRC_PATH)/*.h $(DECODER_DIR)/include/ && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
+# 	@echo "CC  <=  $<"
 
 # $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 # 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
@@ -225,20 +226,20 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(Decoder_C_Objects)
-	@echo "Cpp Objs => $(TestEnclave_Cpp_Objects)"
-	@echo "C Objs => $(TestEnclave_C_Objects)"
-	@echo "The dir we get decoder c objs -> $(DECODER_OBJ_DIR)"
-	@echo "Decoder C Files => $(Decoder_C_Files)"
-	@echo "Decoder C Objs => $(Decoder_C_Objects)"
-	@echo "All Objs => $^"
+# TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(Decoder_C_Objects)
+# 	@echo "Cpp Objs => $(TestEnclave_Cpp_Objects)"
+# 	@echo "C Objs => $(TestEnclave_C_Objects)"
+# 	@echo "The dir we get decoder c objs -> $(DECODER_OBJ_DIR)"
+# 	@echo "Decoder C Files => $(Decoder_C_Files)"
+# 	@echo "Decoder C Objs => $(Decoder_C_Objects)"
+# 	@echo "All Objs => $^"
+# 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
+# 	@echo "LINK =>  $@"
+
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+	@echo "LINK =>  $^"
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
-
-# TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
-# 	@echo "LINK =>  $^"
-# 	$(VCXX) $^ $(DECODER_OBJ_DIR)/* -o $@ $(TestEnclave_Link_Flags)
-# 	@echo "LINK =>  $@"
 
 TestEnclave.signed.so: TestEnclave.so
 	@$(SGX_ENCLAVE_SIGNER) sign -key $(ENCLAVE_DIR)/TestEnclave_private.pem -enclave TestEnclave.so -out $@ -config $(ENCLAVE_DIR)/TestEnclave.config.xml

@@ -783,7 +783,9 @@ void loadContent(char* contentPath, u8* contentBuffer, size_t contentSize) {
   fclose(input);
 }
 
+// TO-DO: move the following two static variables inside
 static FILE *outputFile = NULL;
+static char* outputPath = NULL;
 
 void savePic(u8* picData, int width, int height, int picNum) {
   if(outputFile == NULL) {

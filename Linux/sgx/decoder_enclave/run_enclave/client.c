@@ -130,16 +130,18 @@ int client(const char* server, char* contractId)
 
 	fd = open_connect(server);
 
-	int num_of_frames = atoi(contractId);
-	for(int i = 0; i < num_of_frames; ++i){
-		char current_frame_id[10];
-		sprintf(current_frame_id, "%d", i);
-		printf("Goint to process frame: %d\n", i);
-		request(fd, current_frame_id);
-	}
+	request(fd, contractId);
+
+	// int num_of_frames = atoi(contractId);
+	// for(int i = 0; i < num_of_frames; ++i){
+	// 	char current_frame_id[10];
+	// 	sprintf(current_frame_id, "%d", i);
+	// 	printf("Goint to process frame: %d\n", i);
+	// 	request(fd, current_frame_id);
+	// }
 //	get_reply(fd);
 
-	request(fd, "no_more_frame");
+	// request(fd, "no_more_frame");
 
 	close(fd);
 

@@ -18,13 +18,13 @@ sudo ./TestApp data/camera_pub data/filter1_pri &
 
 # How to run Client Application:
 ```
-./run_enclave/client 127.0.0.1 8
+./run_enclave/client 127.0.0.1 [input_file]***[output_file]
 ```
-If you want to change the num of frames to be passed and rendered to 4 or other num:
+
 ```
-./run_enclave/client 127.0.0.1 4
+./run_enclave/client 127.0.0.1 4 test.h264***test.yuv
 ```
-(You know how to change it now, right? :) )
+(You know how to use it now, right? :) )
 
 # Info about input data:
 "data/camera_pri": Camera's private key (not used)

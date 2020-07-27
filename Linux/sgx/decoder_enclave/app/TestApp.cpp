@@ -812,6 +812,11 @@ void do_decoding(
     char** argv)
 {
 
+    char* input_file_path = strtok(recv_buf, "***");
+    char* output_file_path = strtok(NULL, "****");
+
+    printf("input_file_path: %s, output_file_path: %s\n", input_file_path, output_file_path);
+
     return;
 }
 
@@ -1024,27 +1029,19 @@ void request_process_loop(int fd, char** argv)
 	uint32_t recv_time[2];
 	pid_t pid;
 
-	while (1) {
-		while (recvfrom(fd, buf,
-				48, 0,
-				&src_addr,
-				&src_addrlen)
-			< 48 );  /* invalid request */
+    while (recvfrom(fd, buf,
+            48, 0,
+            &src_addr,
+            &src_addrlen)
+        < 48 );  /* invalid request */
 
-		gettime64(recv_time);
+    gettime64(recv_time);
 
-        if(strcmp((char*) buf, "no_more_frame") == 0){
-            printf("No more frame detected, ending encalve server...\n");
-            break;
-        }
-
-        auto start = high_resolution_clock::now();
-		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
-        auto stop = high_resolution_clock::now();
-        auto duration = duration_cast<microseconds>(stop - start);
-        cout << "Processing frame " << (char*)buf << " takes time: " << duration.count() << endl; 
-
-	}
+    auto start = high_resolution_clock::now();
+    do_decoding(fd, &src_addr , src_addrlen, buf, recv_time, argv);
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "decoding with parameters: " << (char*)buf << " takes time: " << duration.count() << endl; 
 }
 
 

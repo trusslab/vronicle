@@ -175,7 +175,7 @@ test: all
 
 $(DECODER_SRC_PATH)/%.o: $(DECODER_SRC_PATH)/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@ 
-	@mkdir $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib && cp src/*.h include/ && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
+	@mkdir $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib && cp $(DECODER_SRC_PATH)/*.h $(DECODER_DIR)/include/ && ar rcs $(DECODER_LIB_PATH)/libh264bsd.a $@
 	@echo "CC  <=  $<"
 
 # $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl

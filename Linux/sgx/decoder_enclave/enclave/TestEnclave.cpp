@@ -62,6 +62,8 @@
 #include "decoder/src/h264bsd_decoder.h"
 #include "decoder/src/h264bsd_util.h"
 
+#include "yuvconverter.h"
+
 #define ADD_ENTROPY_SIZE	32
 
 void exit(int status)
@@ -557,9 +559,16 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	*(int*)runtime_result = 0;
 }
 
-void t_sgxver_decode_content(void* input_content_buffer, size_t size_of_input_content_buffer) {
+void t_sgxver_decode_content(
+	void* input_content_buffer, size_t size_of_input_content_buffer, 
+	size_t size_of_u32, size_t size_of_int, void* frame_width, void* frame_height, void* num_of_frames, 
+	size_t size_of_u8, void* output_rgb_buffer) {
 
-	testIncludeFunc2(2);
+		// In: void* input_content_buffer
+		// Out: void* frame_width, void* frame_height, void* num_of_frames, void* output_rgb_buffer
+		// Common: size_t size_of_input_content_buffer, size_t size_of_u32, size_t size_of_int, size_of_u8
+
+	// testIncludeFunc2(2);
 
 	u32 status;
 	storage_t dec;
@@ -575,9 +584,13 @@ void t_sgxver_decode_content(void* input_content_buffer, size_t size_of_input_co
 	u32 readBytes;
 	u32 len = size_of_input_content_buffer;
 	int numPics = 0;
+	size_t frame_size_in_rgb = 0;
 	u8* pic;
+	u8* pic_rgb = NULL;
 	u32 picId, isIdrPic, numErrMbs;
 	u32 top, left, width, height, croppingFlag;
+
+	u8* output_rgb_buffer_temp = (u8*)output_rgb_buffer;
 
 	while (len > 0) {
 		u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
@@ -588,6 +601,13 @@ void t_sgxver_decode_content(void* input_content_buffer, size_t size_of_input_co
 		case H264BSD_PIC_RDY:
 			pic = h264bsdNextOutputPicture(&dec, &picId, &isIdrPic, &numErrMbs);
 			++numPics;
+			if(pic_rgb == NULL){
+				printf("No valid video header detected, exiting...\n");
+				exit(1);
+			}
+			yuv420_prog_planar_to_rgb_packed(pic, pic_rgb, width, height);
+			memcpy(output_rgb_buffer_temp, pic_rgb, frame_size_in_rgb);
+			output_rgb_buffer_temp += frame_size_in_rgb;
 			// if (outputPath) savePic(pic, width, height, numPics);
 			// TO-DO processing and saving of the original pic buffer
 			break;
@@ -597,7 +617,11 @@ void t_sgxver_decode_content(void* input_content_buffer, size_t size_of_input_co
 			width = h264bsdPicWidth(&dec) * 16;
 			height = h264bsdPicHeight(&dec) * 16;
 			}
-
+			if(pic_rgb == NULL){
+				frame_size_in_rgb = width * height * 3;
+				pic_rgb = (u8*)malloc(frame_size_in_rgb);
+				InitConvt(width, height);
+			}
 			// char* cropped = croppingFlag ? "(cropped) " : "";
 			// printf("Decoded headers. Image size %s%dx%d.\n", cropped, width, height);
 			break;
@@ -613,6 +637,15 @@ void t_sgxver_decode_content(void* input_content_buffer, size_t size_of_input_co
 	}
 
 	h264bsdShutdown(&dec);
+	// Free other things
+	if(pic_rgb != NULL){
+		free(pic_rgb);
+	}
+
+	// Before we go out of enclave, assign all required output values
+	*(u32*)frame_width = width;
+	*(u32*)frame_height = height;
+	*(int*)num_of_frames = numPics;
 
 	// printf("Test file complete. %d pictures decoded.\n", numPics);
 }

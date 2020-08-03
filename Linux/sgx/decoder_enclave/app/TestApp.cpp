@@ -817,6 +817,37 @@ void do_decoding(
 
     printf("input_file_path: %s, output_file_path: %s\n", input_file_path, output_file_path);
 
+    FILE* rgb_output_file = fopen(output_file_path, "wb");
+
+    // Parameters to be acquired from enclave
+    u32* frame_width = (u32*)malloc(sizeof(u32)); 
+    u32* frame_height = (u32*)malloc(sizeof(u32));
+    int* num_of_frames = (int*)malloc(sizeof(int));
+    size_t total_size_of_raw_rgb_buffer = sizeof(u8) * 1280 * 720 * 60 * 3; // TO-DO: make this more flexible
+    u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
+
+    u8* contentBuffer;
+    size_t contentSize;
+    createContentBuffer(input_file_path, &contentBuffer, &contentSize);
+
+    loadContent(input_file_path, contentBuffer, contentSize);
+    sgx_status_t status = t_sgxver_decode_content(global_eid, contentBuffer, contentSize, 
+                                                    sizeof(u32), sizeof(int), frame_width, frame_height, num_of_frames, 
+                                                    sizeof(u8), output_rgb_buffer);
+
+    printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+        *frame_width, *frame_height, *num_of_frames);
+
+    fwrite(output_rgb_buffer, 1, total_size_of_raw_rgb_buffer, rgb_output_file);
+
+    if(outputFile) fclose(outputFile);
+    if(rgb_output_file) fclose(rgb_output_file);
+
+    // Free everything
+    free(frame_width);
+    free(frame_height);
+    free(num_of_frames);
+
     return;
 }
 
@@ -1025,15 +1056,15 @@ void request_process_loop(int fd, char** argv)
 {
 	struct sockaddr src_addr;
 	socklen_t src_addrlen = sizeof(src_addr);
-	unsigned char buf[48];
+	unsigned char buf[200];
 	uint32_t recv_time[2];
 	pid_t pid;
 
     while (recvfrom(fd, buf,
-            48, 0,
+            200, 0,
             &src_addr,
             &src_addrlen)
-        < 48 );  /* invalid request */
+        < 200 );  /* invalid request */
 
     gettime64(recv_time);
 

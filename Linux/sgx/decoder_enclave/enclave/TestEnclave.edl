@@ -63,6 +63,11 @@ from "ra_tls.edl" import *;
         public void t_create_key_and_x509([out, size=size_of_cert] void* cert, size_t size_of_cert,
                                           [out, size=asoc] void* actual_size_of_cert, size_t asoc);
         public void t_free(void);
+        public void t_sgxver_decode_content([in, size=size_of_input_content_buffer] void* input_content_buffer, size_t size_of_input_content_buffer,
+                                            size_t size_of_u32, size_t size_of_int, 
+                                            [out, size=size_of_u32] void* frame_width, [out, size=size_of_u32] void* frame_height, 
+                                            [out, size=size_of_int] void* num_of_frames, 
+                                            size_t size_of_u8, [user_check] void* output_rgb_buffer);
  
     };
 };

@@ -32,7 +32,7 @@ int die(const char *msg)
 
 int useage(const char *path)
 {
-	printf("Useage:\n\t%s <server address> <contractId>\n", path);
+	printf("Useage:\n\t%s <server address> <input_file_path>***<output_file_path>\n", path);
 	return 1;
 }
 
@@ -63,12 +63,12 @@ int open_connect(const char* server)
 
 void request(int fd, const char* contractID)
 {
-	unsigned char buf[48];
+	unsigned char buf[200];
 	strcpy(buf, (unsigned char*)contractID);
 	uint32_t tts[2]; /* Transmit Timestamp */
 	printf("(Before send to enclave server) contractID: %s, buf: %s\n", contractID, (const char*)buf);
 	/* LI VN MODE = 00 100 011*/
-	if (send(fd, buf, 48, 0) !=48 ) {
+	if (send(fd, buf, 200, 0) !=200 ) {
 		die("Send error\n");
 	}
 }

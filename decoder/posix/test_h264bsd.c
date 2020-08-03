@@ -211,6 +211,8 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
+  clock_t begin = clock();
+
   char *contentPath = argv[argc - 1];
   u8* contentBuffer;
   size_t contentSize;
@@ -228,4 +230,10 @@ int main(int argc, char *argv[]) {
 
   if(outputFile) fclose(outputFile);
   if(compareFile) fclose(compareFile);
+
+  clock_t end = clock();
+  double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+  printf("Time spent on converting and saving is: %f\n", time_spent);
+
 }

@@ -221,6 +221,18 @@ void print_error_message(sgx_status_t ret)
         printf("Error: Unexpected error occurred [0x%x].\n", ret);
 }
 
+static int str_equal(const char *pattern, char **p)
+{
+    if (!strncmp(pattern, *p, strlen(pattern)))
+    {
+        *p += strlen(pattern);
+        return 1;
+    } else
+    {
+        return 0;
+    }
+}
+
 int read_raw_file(const char* file_name){
     // Return 0 on success, return 1 on failure
     // cout << "Going to read raw file: " << file_name << endl;
@@ -809,21 +821,52 @@ void do_decoding(
 	socklen_t saddrlen,
 	unsigned char recv_buf[],
 	uint32_t recv_time[],
+    int argc,
     char** argv)
 {
+
+    // Set up some basic parameters
+    int frame_width_from_input = atoi(argv[1]);
+    int frame_height_from_input = atoi(argv[2]);
+    int num_of_frames_from_input = atoi(argv[3]);
+    int is_output_multi = 0;
+    if(str_equal(("0"), &argv[4])){
+        printf("The output is not multi\n");
+    } else {
+        printf("The output is multi\n");
+        is_output_multi = 1;
+    }
 
     char* input_file_path = strtok((char*)recv_buf, "***");
     char* output_file_path = strtok(NULL, "****");
 
-    printf("input_file_path: %s, output_file_path: %s\n", input_file_path, output_file_path);
+    // Set up parameters for the case where output is multi
+    int current_frame_num = 0;
+    int length_of_base_frame_file_name = (int)strlen(output_file_path);
+    int size_of_current_frame_file_name = 0;
+    char* current_frame_file_name;
+    char* temp_pointer_for_current_frame_file_name;
+    if(is_output_multi){
+        // Assume there are at most 999 frames
+        size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * 3;
+        current_frame_file_name = (char*)malloc(size_of_current_frame_file_name);
+    }
 
-    FILE* rgb_output_file = fopen(output_file_path, "wb");
+    if(!is_output_multi)
+        printf("input_file_path: %s, output_file_path: %s\n", input_file_path, output_file_path);
+    else
+        printf("input_file_path: %s, output_file_base_path: %s\n", input_file_path, output_file_path);
+
+    FILE* rgb_output_file = NULL;
+    if(!is_output_multi)
+        rgb_output_file = fopen(output_file_path, "wb");
 
     // Parameters to be acquired from enclave
     u32* frame_width = (u32*)malloc(sizeof(u32)); 
     u32* frame_height = (u32*)malloc(sizeof(u32));
     int* num_of_frames = (int*)malloc(sizeof(int));
-    size_t total_size_of_raw_rgb_buffer = sizeof(u8) * 1280 * 720 * 60 * 3; // TO-DO: make this more flexible
+    int frame_size = sizeof(u8) * frame_width_from_input * frame_height_from_input * 3;
+    size_t total_size_of_raw_rgb_buffer = frame_size * num_of_frames_from_input;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
 
     u8* contentBuffer;
@@ -838,7 +881,32 @@ void do_decoding(
     printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
         *frame_width, *frame_height, *num_of_frames);
 
-    fwrite(output_rgb_buffer, 1, total_size_of_raw_rgb_buffer, rgb_output_file);
+    if(!is_output_multi)
+        fwrite(output_rgb_buffer, 1, total_size_of_raw_rgb_buffer, rgb_output_file);
+    else {
+        u8* temp_output_rgb_buffer = output_rgb_buffer;
+
+        // To-Do: make the following two lines flexible
+        char* dirname = "../video_data/raw_for_process";
+        mkdir(dirname, 0777);
+
+        for(int i = 0; i < *num_of_frames; ++i){
+            if(rgb_output_file)
+                fclose(rgb_output_file);
+            memset(current_frame_file_name, 0, size_of_current_frame_file_name);
+            temp_pointer_for_current_frame_file_name = current_frame_file_name + sizeof(char) * length_of_base_frame_file_name;
+            memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
+            sprintf(temp_pointer_for_current_frame_file_name, "%d", current_frame_num++);
+            printf("Now writing file: %s\n", current_frame_file_name);
+            rgb_output_file = fopen(current_frame_file_name, "wb");
+            if(!rgb_output_file){
+                printf("Finished writing frames\n");
+                break;
+            }
+            fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
+            temp_output_rgb_buffer += frame_size;
+        }
+    }
 
     if(outputFile) fclose(outputFile);
     if(rgb_output_file) fclose(rgb_output_file);
@@ -1052,7 +1120,7 @@ int verification_reply(
 }
 
 
-void request_process_loop(int fd, char** argv)
+void request_process_loop(int fd, int argc, char** argv)
 {
 	struct sockaddr src_addr;
 	socklen_t src_addrlen = sizeof(src_addr);
@@ -1069,14 +1137,14 @@ void request_process_loop(int fd, char** argv)
     gettime64(recv_time);
 
     auto start = high_resolution_clock::now();
-    do_decoding(fd, &src_addr , src_addrlen, buf, recv_time, argv);
+    do_decoding(fd, &src_addr , src_addrlen, buf, recv_time, argc, argv);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "decoding with parameters: " << (char*)buf << " takes time: " << duration.count() << endl; 
 }
 
 
-void sgx_server(char** argv)
+void sgx_server(int argc, char** argv)
 {
 	int s;
 	struct sockaddr_in sinaddr;
@@ -1101,7 +1169,7 @@ void sgx_server(char** argv)
 			"= Server started, waiting for requests =\n"
 			"========================================\n");
 
-	request_process_loop(s, argv);
+	request_process_loop(s, argc, argv);
 	close(s);
 }
 
@@ -1143,10 +1211,15 @@ void wait_wrapper(int s)
 	wait(&s);
 }
 
-
 /* Application entry */
 int main(int argc, char *argv[], char **env)
 {
+
+    if(argc < 5){
+        printf("Usage: ./TestApp [frame_width] [frame_height] [num_of_frames] [is_output_multi(0/1)]\n");
+        return 1;
+    }
+
 	/* initialize and start the enclave in here */
 	start_enclave(argc, argv);
 
@@ -1161,7 +1234,7 @@ int main(int argc, char *argv[], char **env)
 	/* create the server waiting for the verification request from the client */
 	int s;
 	signal(SIGCHLD,wait_wrapper);
-	sgx_server(argv);
+	sgx_server(argc, argv);
 
     t_free(global_eid);
 

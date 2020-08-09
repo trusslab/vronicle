@@ -209,6 +209,8 @@ struct evp_pkey_st {
 #define DEFAULT_DENOISE 0
 #define DEFAULT_FPS 30
 #define DEFAULT_IS_YUYV 0
+#define DEFAULT_IS_RGB 0
+#define DEFAULT_IS_INPUT_MULTI 0
 
 #define ENABLE_TEMPORAL_SCALABILITY 0
 #define MAX_LONG_TERM_FRAMES        8 // used only if ENABLE_TEMPORAL_SCALABILITY==1
@@ -433,6 +435,8 @@ static int read_cmdline_options(int argc, char *argv[])
     cl->denoise = DEFAULT_DENOISE;
     cl->fps = DEFAULT_FPS;
     cl->is_yuyv = DEFAULT_IS_YUYV;
+    cl->is_rgb = DEFAULT_IS_RGB;
+    cl->is_input_multi = DEFAULT_IS_INPUT_MULTI;
     for (i = 1; i < argc; i++)
     {
         char *p = argv[i];
@@ -475,6 +479,12 @@ static int read_cmdline_options(int argc, char *argv[])
             } else if (str_equal(("is_yuyv"), &p))
             {
                 cl->is_yuyv = 1;
+            } else if (str_equal(("is_rgb"), &p))
+            {
+                cl->is_rgb = 1;
+            } else if (str_equal(("is_input_multi"), &p))
+            {
+                cl->is_input_multi = 1;
             } else
             {
                 printf("ERROR: Unknown option %s\n", p - 1);
@@ -510,7 +520,9 @@ static int read_cmdline_options(int argc, char *argv[])
                "    -stats          - print frame statistics\n"
                "    -psnr           - print psnr statistics\n"
                "    -fps<n>         - set target fps of the video, default is 30\n"
-               "    -is_yuyv        - if the frames' chroma is in yuyv 4:2:2 format(note that psnr might not work when using yuyv)\n");
+               "    -is_yuyv        - if the frames' chroma is in yuyv 4:2:2 packed format(note that psnr might not work when using yuyv)\n"
+               "    -is_rgb         - if the frames' chroma is in rgb packed format(note that psnr might not work when using rgb)\n"
+               "    -is_input_multi - if the frames are split in multiple files, enter a base file name [input_files_base_name], and we will read from [input_files_base_name]0 until no file is found");
         return 0;
     }
     return 1;
@@ -710,11 +722,13 @@ int main(int argc, char *argv[], char **env)
         g_h = 720;
         guess_format_from_name(fnin, &g_w, &g_h);
         printf("The video resolution will be %d x %d\n", g_w, g_h);
-        fin = fopen(fnin, "rb");
-        if (!fin)
-        {
-            printf("ERROR: cant open input file %s\n", fnin);
-            return 1;
+        if(!cl->is_input_multi){
+            fin = fopen(fnin, "rb");
+            if (!fin)
+            {
+                printf("ERROR: cant open input file %s\n", fnin);
+                return 1;
+            }
         }
     } else
     {
@@ -751,14 +765,47 @@ int main(int argc, char *argv[], char **env)
     int frame_size = 0;
     if (cl->is_yuyv)
         frame_size = g_w * g_h * 2;
+    else if (cl->is_rgb){
+        // printf("frame size is rgb\n");
+        frame_size = g_w * g_h * 3;
+    }
     else
         frame_size = g_w * g_h * 3/2;
+
+    // Set up parameters for the case each frame is in a single file
+    int current_frame_num = 0;
+    int length_of_base_frame_file_name = (int)strlen(input_file);
+    int size_of_current_frame_file_name = 0;
+    char* current_frame_file_name;
+    char* temp_pointer_for_current_frame_file_name;
+    if(cl->is_input_multi){
+        // Assume there are at most 999 frames
+        size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * 3;
+        current_frame_file_name = (char*)malloc(size_of_current_frame_file_name);
+    }
 
     // Encode frames
     uint8_t* frame = new uint8_t [frame_size];
     for (i = 0; cl->max_frames; i++)
     {
         // printf("processing frame: %d; with maxframes: %d\n", i, cl->max_frames);
+
+        if(cl->is_input_multi){
+            if(fin)
+                fclose(fin);
+            memset(current_frame_file_name, 0, size_of_current_frame_file_name);
+            temp_pointer_for_current_frame_file_name = current_frame_file_name + sizeof(char) * length_of_base_frame_file_name;
+            memcpy(current_frame_file_name, input_file, sizeof(char) * length_of_base_frame_file_name);
+            sprintf(temp_pointer_for_current_frame_file_name, "%d", current_frame_num++);
+            printf("Now reading file: %s\n", current_frame_file_name);
+            fin = fopen(current_frame_file_name, "rb");
+            if(!fin){
+                printf("Finished reading frames\n");
+                break;
+            }
+            fseek(fin, 0, SEEK_SET);
+        }
+
         memset(frame, 0, frame_size);
         if (!fread(frame, frame_size, 1, fin))
         {

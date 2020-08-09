@@ -1,4 +1,4 @@
-#include "EncoderEnclave_t.h"
+#include "TestEnclave_t.h"
 
 #include "sgx_trts.h" /* for sgx_ocalloc, sgx_is_outside_enclave */
 #include "sgx_lfence.h" /* for sgx_lfence */
@@ -23,47 +23,35 @@
 } while (0)
 
 
-typedef struct ms_t_encoder_init_t {
-	int ms_retval;
-	cmdline* ms_cl_in;
-	size_t ms_cl_size;
-	int ms_w;
-	int ms_h;
-} ms_t_encoder_init_t;
+typedef struct ms_t_sgxssl_call_apis_t {
+	void* ms_evp_pkey_v;
+} ms_t_sgxssl_call_apis_t;
 
-typedef struct ms_t_encode_frame_t {
-	int ms_retval;
-	unsigned char* ms_frame_sig;
-	size_t ms_frame_sig_size;
-	uint8_t* ms_frame;
-	size_t ms_frame_size;
-} ms_t_encode_frame_t;
-
-typedef struct ms_t_verify_cert_t {
-	int ms_retval;
-	char* ms_vendor_pubkey_str;
-	size_t ms_vendor_pubkey_str_size;
-	char* ms_cert_str;
-	size_t ms_cert_str_size;
-} ms_t_verify_cert_t;
-
-typedef struct ms_t_get_sig_size_t {
-	size_t* ms_sig_size;
-} ms_t_get_sig_size_t;
-
-typedef struct ms_t_get_sig_t {
-	unsigned char* ms_sig;
-	size_t ms_sig_size;
-} ms_t_get_sig_t;
-
-typedef struct ms_t_get_encoded_video_size_t {
-	size_t* ms_video_size;
-} ms_t_get_encoded_video_size_t;
-
-typedef struct ms_t_get_encoded_video_t {
-	unsigned char* ms_video;
-	size_t ms_video_size;
-} ms_t_get_encoded_video_t;
+typedef struct ms_t_sgxver_call_apis_t {
+	void* ms_image_pixels;
+	size_t ms_size_of_image_pixels;
+	int ms_image_width;
+	int ms_image_height;
+	void* ms_hash_of_original_image;
+	int ms_size_of_hooi;
+	void* ms_signature;
+	size_t ms_size_of_actual_signature;
+	void* ms_original_vendor_pub_str;
+	long int ms_original_vendor_pub_str_len;
+	void* ms_original_cert_str;
+	long int ms_original_cert_str_len;
+	void* ms_processed_pixels;
+	void* ms_runtime_result;
+	int ms_size_of_runtime_result;
+	void* ms_char_array_for_processed_img_sign;
+	int ms_size_of_cafpis;
+	void* ms_hash_of_processed_image;
+	int ms_size_of_hopi;
+	void* ms_processed_img_signautre;
+	size_t ms_size_of_pis;
+	void* ms_size_of_actual_processed_img_signature;
+	size_t ms_sizeof_soapis;
+} ms_t_sgxver_call_apis_t;
 
 typedef struct ms_t_create_key_and_x509_t {
 	void* ms_cert;
@@ -71,6 +59,18 @@ typedef struct ms_t_create_key_and_x509_t {
 	void* ms_actual_size_of_cert;
 	size_t ms_asoc;
 } ms_t_create_key_and_x509_t;
+
+typedef struct ms_t_sgxver_decode_content_t {
+	void* ms_input_content_buffer;
+	size_t ms_size_of_input_content_buffer;
+	size_t ms_size_of_u32;
+	size_t ms_size_of_int;
+	void* ms_frame_width;
+	void* ms_frame_height;
+	void* ms_num_of_frames;
+	size_t ms_size_of_u8;
+	void* ms_output_rgb_buffer;
+} ms_t_sgxver_decode_content_t;
 
 typedef struct ms_uprint_t {
 	const char* ms_str;
@@ -123,331 +123,251 @@ typedef struct ms_ocall_remote_attestation_t {
 	attestation_verification_report_t* ms_attn_report;
 } ms_ocall_remote_attestation_t;
 
-static sgx_status_t SGX_CDECL sgx_t_encoder_init(void* pms)
+static sgx_status_t SGX_CDECL sgx_t_sgxssl_call_apis(void* pms)
 {
-	CHECK_REF_POINTER(pms, sizeof(ms_t_encoder_init_t));
+	CHECK_REF_POINTER(pms, sizeof(ms_t_sgxssl_call_apis_t));
 	//
 	// fence after pointer checks
 	//
 	sgx_lfence();
-	ms_t_encoder_init_t* ms = SGX_CAST(ms_t_encoder_init_t*, pms);
+	ms_t_sgxssl_call_apis_t* ms = SGX_CAST(ms_t_sgxssl_call_apis_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
-	cmdline* _tmp_cl_in = ms->ms_cl_in;
-	size_t _tmp_cl_size = ms->ms_cl_size;
-	size_t _len_cl_in = _tmp_cl_size;
-	cmdline* _in_cl_in = NULL;
+	void* _tmp_evp_pkey_v = ms->ms_evp_pkey_v;
 
-	CHECK_UNIQUE_POINTER(_tmp_cl_in, _len_cl_in);
 
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
 
-	if (_tmp_cl_in != NULL && _len_cl_in != 0) {
-		_in_cl_in = (cmdline*)malloc(_len_cl_in);
-		if (_in_cl_in == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
+	t_sgxssl_call_apis(_tmp_evp_pkey_v);
 
-		if (memcpy_s(_in_cl_in, _len_cl_in, _tmp_cl_in, _len_cl_in)) {
-			status = SGX_ERROR_UNEXPECTED;
-			goto err;
-		}
-
-	}
-
-	ms->ms_retval = t_encoder_init(_in_cl_in, _tmp_cl_size, ms->ms_w, ms->ms_h);
-err:
-	if (_in_cl_in) free(_in_cl_in);
 
 	return status;
 }
 
-static sgx_status_t SGX_CDECL sgx_t_encode_frame(void* pms)
+static sgx_status_t SGX_CDECL sgx_t_sgxver_call_apis(void* pms)
 {
-	CHECK_REF_POINTER(pms, sizeof(ms_t_encode_frame_t));
+	CHECK_REF_POINTER(pms, sizeof(ms_t_sgxver_call_apis_t));
 	//
 	// fence after pointer checks
 	//
 	sgx_lfence();
-	ms_t_encode_frame_t* ms = SGX_CAST(ms_t_encode_frame_t*, pms);
+	ms_t_sgxver_call_apis_t* ms = SGX_CAST(ms_t_sgxver_call_apis_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
-	unsigned char* _tmp_frame_sig = ms->ms_frame_sig;
-	size_t _tmp_frame_sig_size = ms->ms_frame_sig_size;
-	size_t _len_frame_sig = _tmp_frame_sig_size;
-	unsigned char* _in_frame_sig = NULL;
-	uint8_t* _tmp_frame = ms->ms_frame;
-	size_t _tmp_frame_size = ms->ms_frame_size;
-	size_t _len_frame = _tmp_frame_size;
-	uint8_t* _in_frame = NULL;
+	void* _tmp_image_pixels = ms->ms_image_pixels;
+	size_t _tmp_size_of_image_pixels = ms->ms_size_of_image_pixels;
+	size_t _len_image_pixels = _tmp_size_of_image_pixels;
+	void* _in_image_pixels = NULL;
+	void* _tmp_hash_of_original_image = ms->ms_hash_of_original_image;
+	int _tmp_size_of_hooi = ms->ms_size_of_hooi;
+	size_t _len_hash_of_original_image = _tmp_size_of_hooi;
+	void* _in_hash_of_original_image = NULL;
+	void* _tmp_signature = ms->ms_signature;
+	size_t _tmp_size_of_actual_signature = ms->ms_size_of_actual_signature;
+	size_t _len_signature = _tmp_size_of_actual_signature;
+	void* _in_signature = NULL;
+	void* _tmp_original_vendor_pub_str = ms->ms_original_vendor_pub_str;
+	long int _tmp_original_vendor_pub_str_len = ms->ms_original_vendor_pub_str_len;
+	size_t _len_original_vendor_pub_str = _tmp_original_vendor_pub_str_len;
+	void* _in_original_vendor_pub_str = NULL;
+	void* _tmp_original_cert_str = ms->ms_original_cert_str;
+	long int _tmp_original_cert_str_len = ms->ms_original_cert_str_len;
+	size_t _len_original_cert_str = _tmp_original_cert_str_len;
+	void* _in_original_cert_str = NULL;
+	void* _tmp_processed_pixels = ms->ms_processed_pixels;
+	size_t _len_processed_pixels = _tmp_size_of_image_pixels;
+	void* _in_processed_pixels = NULL;
+	void* _tmp_runtime_result = ms->ms_runtime_result;
+	int _tmp_size_of_runtime_result = ms->ms_size_of_runtime_result;
+	size_t _len_runtime_result = _tmp_size_of_runtime_result;
+	void* _in_runtime_result = NULL;
+	void* _tmp_char_array_for_processed_img_sign = ms->ms_char_array_for_processed_img_sign;
+	int _tmp_size_of_cafpis = ms->ms_size_of_cafpis;
+	size_t _len_char_array_for_processed_img_sign = _tmp_size_of_cafpis;
+	void* _in_char_array_for_processed_img_sign = NULL;
+	void* _tmp_hash_of_processed_image = ms->ms_hash_of_processed_image;
+	int _tmp_size_of_hopi = ms->ms_size_of_hopi;
+	size_t _len_hash_of_processed_image = _tmp_size_of_hopi;
+	void* _in_hash_of_processed_image = NULL;
+	void* _tmp_processed_img_signautre = ms->ms_processed_img_signautre;
+	size_t _tmp_size_of_pis = ms->ms_size_of_pis;
+	size_t _len_processed_img_signautre = _tmp_size_of_pis;
+	void* _in_processed_img_signautre = NULL;
+	void* _tmp_size_of_actual_processed_img_signature = ms->ms_size_of_actual_processed_img_signature;
+	size_t _tmp_sizeof_soapis = ms->ms_sizeof_soapis;
+	size_t _len_size_of_actual_processed_img_signature = _tmp_sizeof_soapis;
+	void* _in_size_of_actual_processed_img_signature = NULL;
 
-	CHECK_UNIQUE_POINTER(_tmp_frame_sig, _len_frame_sig);
-	CHECK_UNIQUE_POINTER(_tmp_frame, _len_frame);
+	CHECK_UNIQUE_POINTER(_tmp_image_pixels, _len_image_pixels);
+	CHECK_UNIQUE_POINTER(_tmp_hash_of_original_image, _len_hash_of_original_image);
+	CHECK_UNIQUE_POINTER(_tmp_signature, _len_signature);
+	CHECK_UNIQUE_POINTER(_tmp_original_vendor_pub_str, _len_original_vendor_pub_str);
+	CHECK_UNIQUE_POINTER(_tmp_original_cert_str, _len_original_cert_str);
+	CHECK_UNIQUE_POINTER(_tmp_processed_pixels, _len_processed_pixels);
+	CHECK_UNIQUE_POINTER(_tmp_runtime_result, _len_runtime_result);
+	CHECK_UNIQUE_POINTER(_tmp_char_array_for_processed_img_sign, _len_char_array_for_processed_img_sign);
+	CHECK_UNIQUE_POINTER(_tmp_hash_of_processed_image, _len_hash_of_processed_image);
+	CHECK_UNIQUE_POINTER(_tmp_processed_img_signautre, _len_processed_img_signautre);
+	CHECK_UNIQUE_POINTER(_tmp_size_of_actual_processed_img_signature, _len_size_of_actual_processed_img_signature);
 
 	//
 	// fence after pointer checks
 	//
 	sgx_lfence();
 
-	if (_tmp_frame_sig != NULL && _len_frame_sig != 0) {
-		_in_frame_sig = (unsigned char*)malloc(_len_frame_sig);
-		if (_in_frame_sig == NULL) {
+	if (_tmp_image_pixels != NULL && _len_image_pixels != 0) {
+		_in_image_pixels = (void*)malloc(_len_image_pixels);
+		if (_in_image_pixels == NULL) {
 			status = SGX_ERROR_OUT_OF_MEMORY;
 			goto err;
 		}
 
-		if (memcpy_s(_in_frame_sig, _len_frame_sig, _tmp_frame_sig, _len_frame_sig)) {
+		if (memcpy_s(_in_image_pixels, _len_image_pixels, _tmp_image_pixels, _len_image_pixels)) {
 			status = SGX_ERROR_UNEXPECTED;
 			goto err;
 		}
 
 	}
-	if (_tmp_frame != NULL && _len_frame != 0) {
-		_in_frame = (uint8_t*)malloc(_len_frame);
-		if (_in_frame == NULL) {
+	if (_tmp_hash_of_original_image != NULL && _len_hash_of_original_image != 0) {
+		_in_hash_of_original_image = (void*)malloc(_len_hash_of_original_image);
+		if (_in_hash_of_original_image == NULL) {
 			status = SGX_ERROR_OUT_OF_MEMORY;
 			goto err;
 		}
 
-		if (memcpy_s(_in_frame, _len_frame, _tmp_frame, _len_frame)) {
+		if (memcpy_s(_in_hash_of_original_image, _len_hash_of_original_image, _tmp_hash_of_original_image, _len_hash_of_original_image)) {
 			status = SGX_ERROR_UNEXPECTED;
 			goto err;
 		}
 
 	}
+	if (_tmp_signature != NULL && _len_signature != 0) {
+		_in_signature = (void*)malloc(_len_signature);
+		if (_in_signature == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
 
-	ms->ms_retval = t_encode_frame(_in_frame_sig, _tmp_frame_sig_size, _in_frame, _tmp_frame_size);
+		if (memcpy_s(_in_signature, _len_signature, _tmp_signature, _len_signature)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_original_vendor_pub_str != NULL && _len_original_vendor_pub_str != 0) {
+		_in_original_vendor_pub_str = (void*)malloc(_len_original_vendor_pub_str);
+		if (_in_original_vendor_pub_str == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_original_vendor_pub_str, _len_original_vendor_pub_str, _tmp_original_vendor_pub_str, _len_original_vendor_pub_str)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_original_cert_str != NULL && _len_original_cert_str != 0) {
+		_in_original_cert_str = (void*)malloc(_len_original_cert_str);
+		if (_in_original_cert_str == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_original_cert_str, _len_original_cert_str, _tmp_original_cert_str, _len_original_cert_str)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_processed_pixels != NULL && _len_processed_pixels != 0) {
+		if ((_in_processed_pixels = (void*)malloc(_len_processed_pixels)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_processed_pixels, 0, _len_processed_pixels);
+	}
+	if (_tmp_runtime_result != NULL && _len_runtime_result != 0) {
+		if ((_in_runtime_result = (void*)malloc(_len_runtime_result)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_runtime_result, 0, _len_runtime_result);
+	}
+	if (_tmp_char_array_for_processed_img_sign != NULL && _len_char_array_for_processed_img_sign != 0) {
+		if ((_in_char_array_for_processed_img_sign = (void*)malloc(_len_char_array_for_processed_img_sign)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_char_array_for_processed_img_sign, 0, _len_char_array_for_processed_img_sign);
+	}
+	if (_tmp_hash_of_processed_image != NULL && _len_hash_of_processed_image != 0) {
+		if ((_in_hash_of_processed_image = (void*)malloc(_len_hash_of_processed_image)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_hash_of_processed_image, 0, _len_hash_of_processed_image);
+	}
+	if (_tmp_processed_img_signautre != NULL && _len_processed_img_signautre != 0) {
+		if ((_in_processed_img_signautre = (void*)malloc(_len_processed_img_signautre)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_processed_img_signautre, 0, _len_processed_img_signautre);
+	}
+	if (_tmp_size_of_actual_processed_img_signature != NULL && _len_size_of_actual_processed_img_signature != 0) {
+		if ((_in_size_of_actual_processed_img_signature = (void*)malloc(_len_size_of_actual_processed_img_signature)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_size_of_actual_processed_img_signature, 0, _len_size_of_actual_processed_img_signature);
+	}
+
+	t_sgxver_call_apis(_in_image_pixels, _tmp_size_of_image_pixels, ms->ms_image_width, ms->ms_image_height, _in_hash_of_original_image, _tmp_size_of_hooi, _in_signature, _tmp_size_of_actual_signature, _in_original_vendor_pub_str, _tmp_original_vendor_pub_str_len, _in_original_cert_str, _tmp_original_cert_str_len, _in_processed_pixels, _in_runtime_result, _tmp_size_of_runtime_result, _in_char_array_for_processed_img_sign, _tmp_size_of_cafpis, _in_hash_of_processed_image, _tmp_size_of_hopi, _in_processed_img_signautre, _tmp_size_of_pis, _in_size_of_actual_processed_img_signature, _tmp_sizeof_soapis);
 err:
-	if (_in_frame_sig) free(_in_frame_sig);
-	if (_in_frame) free(_in_frame);
-
-	return status;
-}
-
-static sgx_status_t SGX_CDECL sgx_t_verify_cert(void* pms)
-{
-	CHECK_REF_POINTER(pms, sizeof(ms_t_verify_cert_t));
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-	ms_t_verify_cert_t* ms = SGX_CAST(ms_t_verify_cert_t*, pms);
-	sgx_status_t status = SGX_SUCCESS;
-	char* _tmp_vendor_pubkey_str = ms->ms_vendor_pubkey_str;
-	size_t _tmp_vendor_pubkey_str_size = ms->ms_vendor_pubkey_str_size;
-	size_t _len_vendor_pubkey_str = _tmp_vendor_pubkey_str_size;
-	char* _in_vendor_pubkey_str = NULL;
-	char* _tmp_cert_str = ms->ms_cert_str;
-	size_t _tmp_cert_str_size = ms->ms_cert_str_size;
-	size_t _len_cert_str = _tmp_cert_str_size;
-	char* _in_cert_str = NULL;
-
-	CHECK_UNIQUE_POINTER(_tmp_vendor_pubkey_str, _len_vendor_pubkey_str);
-	CHECK_UNIQUE_POINTER(_tmp_cert_str, _len_cert_str);
-
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-
-	if (_tmp_vendor_pubkey_str != NULL && _len_vendor_pubkey_str != 0) {
-		_in_vendor_pubkey_str = (char*)malloc(_len_vendor_pubkey_str);
-		if (_in_vendor_pubkey_str == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
-
-		if (memcpy_s(_in_vendor_pubkey_str, _len_vendor_pubkey_str, _tmp_vendor_pubkey_str, _len_vendor_pubkey_str)) {
-			status = SGX_ERROR_UNEXPECTED;
-			goto err;
-		}
-
-	}
-	if (_tmp_cert_str != NULL && _len_cert_str != 0) {
-		_in_cert_str = (char*)malloc(_len_cert_str);
-		if (_in_cert_str == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
-
-		if (memcpy_s(_in_cert_str, _len_cert_str, _tmp_cert_str, _len_cert_str)) {
-			status = SGX_ERROR_UNEXPECTED;
-			goto err;
-		}
-
-	}
-
-	ms->ms_retval = t_verify_cert(_in_vendor_pubkey_str, _tmp_vendor_pubkey_str_size, _in_cert_str, _tmp_cert_str_size);
-err:
-	if (_in_vendor_pubkey_str) free(_in_vendor_pubkey_str);
-	if (_in_cert_str) free(_in_cert_str);
-
-	return status;
-}
-
-static sgx_status_t SGX_CDECL sgx_t_get_sig_size(void* pms)
-{
-	CHECK_REF_POINTER(pms, sizeof(ms_t_get_sig_size_t));
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-	ms_t_get_sig_size_t* ms = SGX_CAST(ms_t_get_sig_size_t*, pms);
-	sgx_status_t status = SGX_SUCCESS;
-	size_t* _tmp_sig_size = ms->ms_sig_size;
-	size_t _len_sig_size = sizeof(size_t);
-	size_t* _in_sig_size = NULL;
-
-	CHECK_UNIQUE_POINTER(_tmp_sig_size, _len_sig_size);
-
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-
-	if (_tmp_sig_size != NULL && _len_sig_size != 0) {
-		if ((_in_sig_size = (size_t*)malloc(_len_sig_size)) == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
-
-		memset((void*)_in_sig_size, 0, _len_sig_size);
-	}
-
-	t_get_sig_size(_in_sig_size);
-err:
-	if (_in_sig_size) {
-		if (memcpy_s(_tmp_sig_size, _len_sig_size, _in_sig_size, _len_sig_size)) {
+	if (_in_image_pixels) free(_in_image_pixels);
+	if (_in_hash_of_original_image) free(_in_hash_of_original_image);
+	if (_in_signature) free(_in_signature);
+	if (_in_original_vendor_pub_str) free(_in_original_vendor_pub_str);
+	if (_in_original_cert_str) free(_in_original_cert_str);
+	if (_in_processed_pixels) {
+		if (memcpy_s(_tmp_processed_pixels, _len_processed_pixels, _in_processed_pixels, _len_processed_pixels)) {
 			status = SGX_ERROR_UNEXPECTED;
 		}
-		free(_in_sig_size);
+		free(_in_processed_pixels);
 	}
-
-	return status;
-}
-
-static sgx_status_t SGX_CDECL sgx_t_get_sig(void* pms)
-{
-	CHECK_REF_POINTER(pms, sizeof(ms_t_get_sig_t));
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-	ms_t_get_sig_t* ms = SGX_CAST(ms_t_get_sig_t*, pms);
-	sgx_status_t status = SGX_SUCCESS;
-	unsigned char* _tmp_sig = ms->ms_sig;
-	size_t _tmp_sig_size = ms->ms_sig_size;
-	size_t _len_sig = _tmp_sig_size;
-	unsigned char* _in_sig = NULL;
-
-	CHECK_UNIQUE_POINTER(_tmp_sig, _len_sig);
-
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-
-	if (_tmp_sig != NULL && _len_sig != 0) {
-		if ((_in_sig = (unsigned char*)malloc(_len_sig)) == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
-
-		memset((void*)_in_sig, 0, _len_sig);
-	}
-
-	t_get_sig(_in_sig, _tmp_sig_size);
-err:
-	if (_in_sig) {
-		if (memcpy_s(_tmp_sig, _len_sig, _in_sig, _len_sig)) {
+	if (_in_runtime_result) {
+		if (memcpy_s(_tmp_runtime_result, _len_runtime_result, _in_runtime_result, _len_runtime_result)) {
 			status = SGX_ERROR_UNEXPECTED;
 		}
-		free(_in_sig);
+		free(_in_runtime_result);
 	}
-
-	return status;
-}
-
-static sgx_status_t SGX_CDECL sgx_t_get_encoded_video_size(void* pms)
-{
-	CHECK_REF_POINTER(pms, sizeof(ms_t_get_encoded_video_size_t));
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-	ms_t_get_encoded_video_size_t* ms = SGX_CAST(ms_t_get_encoded_video_size_t*, pms);
-	sgx_status_t status = SGX_SUCCESS;
-	size_t* _tmp_video_size = ms->ms_video_size;
-	size_t _len_video_size = sizeof(size_t);
-	size_t* _in_video_size = NULL;
-
-	CHECK_UNIQUE_POINTER(_tmp_video_size, _len_video_size);
-
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-
-	if (_tmp_video_size != NULL && _len_video_size != 0) {
-		if ((_in_video_size = (size_t*)malloc(_len_video_size)) == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
-
-		memset((void*)_in_video_size, 0, _len_video_size);
-	}
-
-	t_get_encoded_video_size(_in_video_size);
-err:
-	if (_in_video_size) {
-		if (memcpy_s(_tmp_video_size, _len_video_size, _in_video_size, _len_video_size)) {
+	if (_in_char_array_for_processed_img_sign) {
+		if (memcpy_s(_tmp_char_array_for_processed_img_sign, _len_char_array_for_processed_img_sign, _in_char_array_for_processed_img_sign, _len_char_array_for_processed_img_sign)) {
 			status = SGX_ERROR_UNEXPECTED;
 		}
-		free(_in_video_size);
+		free(_in_char_array_for_processed_img_sign);
 	}
-
-	return status;
-}
-
-static sgx_status_t SGX_CDECL sgx_t_get_encoded_video(void* pms)
-{
-	CHECK_REF_POINTER(pms, sizeof(ms_t_get_encoded_video_t));
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-	ms_t_get_encoded_video_t* ms = SGX_CAST(ms_t_get_encoded_video_t*, pms);
-	sgx_status_t status = SGX_SUCCESS;
-	unsigned char* _tmp_video = ms->ms_video;
-	size_t _tmp_video_size = ms->ms_video_size;
-	size_t _len_video = _tmp_video_size;
-	unsigned char* _in_video = NULL;
-
-	CHECK_UNIQUE_POINTER(_tmp_video, _len_video);
-
-	//
-	// fence after pointer checks
-	//
-	sgx_lfence();
-
-	if (_tmp_video != NULL && _len_video != 0) {
-		if ((_in_video = (unsigned char*)malloc(_len_video)) == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
-
-		memset((void*)_in_video, 0, _len_video);
-	}
-
-	t_get_encoded_video(_in_video, _tmp_video_size);
-err:
-	if (_in_video) {
-		if (memcpy_s(_tmp_video, _len_video, _in_video, _len_video)) {
+	if (_in_hash_of_processed_image) {
+		if (memcpy_s(_tmp_hash_of_processed_image, _len_hash_of_processed_image, _in_hash_of_processed_image, _len_hash_of_processed_image)) {
 			status = SGX_ERROR_UNEXPECTED;
 		}
-		free(_in_video);
+		free(_in_hash_of_processed_image);
+	}
+	if (_in_processed_img_signautre) {
+		if (memcpy_s(_tmp_processed_img_signautre, _len_processed_img_signautre, _in_processed_img_signautre, _len_processed_img_signautre)) {
+			status = SGX_ERROR_UNEXPECTED;
+		}
+		free(_in_processed_img_signautre);
+	}
+	if (_in_size_of_actual_processed_img_signature) {
+		if (memcpy_s(_tmp_size_of_actual_processed_img_signature, _len_size_of_actual_processed_img_signature, _in_size_of_actual_processed_img_signature, _len_size_of_actual_processed_img_signature)) {
+			status = SGX_ERROR_UNEXPECTED;
+		}
+		free(_in_size_of_actual_processed_img_signature);
 	}
 
 	return status;
@@ -522,6 +442,105 @@ static sgx_status_t SGX_CDECL sgx_t_free(void* pms)
 	return status;
 }
 
+static sgx_status_t SGX_CDECL sgx_t_sgxver_decode_content(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_t_sgxver_decode_content_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_t_sgxver_decode_content_t* ms = SGX_CAST(ms_t_sgxver_decode_content_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	void* _tmp_input_content_buffer = ms->ms_input_content_buffer;
+	size_t _tmp_size_of_input_content_buffer = ms->ms_size_of_input_content_buffer;
+	size_t _len_input_content_buffer = _tmp_size_of_input_content_buffer;
+	void* _in_input_content_buffer = NULL;
+	void* _tmp_frame_width = ms->ms_frame_width;
+	size_t _tmp_size_of_u32 = ms->ms_size_of_u32;
+	size_t _len_frame_width = _tmp_size_of_u32;
+	void* _in_frame_width = NULL;
+	void* _tmp_frame_height = ms->ms_frame_height;
+	size_t _len_frame_height = _tmp_size_of_u32;
+	void* _in_frame_height = NULL;
+	void* _tmp_num_of_frames = ms->ms_num_of_frames;
+	size_t _tmp_size_of_int = ms->ms_size_of_int;
+	size_t _len_num_of_frames = _tmp_size_of_int;
+	void* _in_num_of_frames = NULL;
+	void* _tmp_output_rgb_buffer = ms->ms_output_rgb_buffer;
+
+	CHECK_UNIQUE_POINTER(_tmp_input_content_buffer, _len_input_content_buffer);
+	CHECK_UNIQUE_POINTER(_tmp_frame_width, _len_frame_width);
+	CHECK_UNIQUE_POINTER(_tmp_frame_height, _len_frame_height);
+	CHECK_UNIQUE_POINTER(_tmp_num_of_frames, _len_num_of_frames);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_input_content_buffer != NULL && _len_input_content_buffer != 0) {
+		_in_input_content_buffer = (void*)malloc(_len_input_content_buffer);
+		if (_in_input_content_buffer == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_input_content_buffer, _len_input_content_buffer, _tmp_input_content_buffer, _len_input_content_buffer)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+	if (_tmp_frame_width != NULL && _len_frame_width != 0) {
+		if ((_in_frame_width = (void*)malloc(_len_frame_width)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_frame_width, 0, _len_frame_width);
+	}
+	if (_tmp_frame_height != NULL && _len_frame_height != 0) {
+		if ((_in_frame_height = (void*)malloc(_len_frame_height)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_frame_height, 0, _len_frame_height);
+	}
+	if (_tmp_num_of_frames != NULL && _len_num_of_frames != 0) {
+		if ((_in_num_of_frames = (void*)malloc(_len_num_of_frames)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_num_of_frames, 0, _len_num_of_frames);
+	}
+
+	t_sgxver_decode_content(_in_input_content_buffer, _tmp_size_of_input_content_buffer, _tmp_size_of_u32, _tmp_size_of_int, _in_frame_width, _in_frame_height, _in_num_of_frames, ms->ms_size_of_u8, _tmp_output_rgb_buffer);
+err:
+	if (_in_input_content_buffer) free(_in_input_content_buffer);
+	if (_in_frame_width) {
+		if (memcpy_s(_tmp_frame_width, _len_frame_width, _in_frame_width, _len_frame_width)) {
+			status = SGX_ERROR_UNEXPECTED;
+		}
+		free(_in_frame_width);
+	}
+	if (_in_frame_height) {
+		if (memcpy_s(_tmp_frame_height, _len_frame_height, _in_frame_height, _len_frame_height)) {
+			status = SGX_ERROR_UNEXPECTED;
+		}
+		free(_in_frame_height);
+	}
+	if (_in_num_of_frames) {
+		if (memcpy_s(_tmp_num_of_frames, _len_num_of_frames, _in_num_of_frames, _len_num_of_frames)) {
+			status = SGX_ERROR_UNEXPECTED;
+		}
+		free(_in_num_of_frames);
+	}
+
+	return status;
+}
+
 static sgx_status_t SGX_CDECL sgx_dummy(void* pms)
 {
 	sgx_status_t status = SGX_SUCCESS;
@@ -532,39 +551,35 @@ static sgx_status_t SGX_CDECL sgx_dummy(void* pms)
 
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv;} ecall_table[10];
+	struct {void* ecall_addr; uint8_t is_priv;} ecall_table[6];
 } g_ecall_table = {
-	10,
+	6,
 	{
-		{(void*)(uintptr_t)sgx_t_encoder_init, 0},
-		{(void*)(uintptr_t)sgx_t_encode_frame, 0},
-		{(void*)(uintptr_t)sgx_t_verify_cert, 0},
-		{(void*)(uintptr_t)sgx_t_get_sig_size, 0},
-		{(void*)(uintptr_t)sgx_t_get_sig, 0},
-		{(void*)(uintptr_t)sgx_t_get_encoded_video_size, 0},
-		{(void*)(uintptr_t)sgx_t_get_encoded_video, 0},
+		{(void*)(uintptr_t)sgx_t_sgxssl_call_apis, 0},
+		{(void*)(uintptr_t)sgx_t_sgxver_call_apis, 0},
 		{(void*)(uintptr_t)sgx_t_create_key_and_x509, 0},
 		{(void*)(uintptr_t)sgx_t_free, 0},
+		{(void*)(uintptr_t)sgx_t_sgxver_decode_content, 0},
 		{(void*)(uintptr_t)sgx_dummy, 0},
 	}
 };
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[10][10];
+	uint8_t entry_table[10][6];
 } g_dyn_entry_table = {
 	10,
 	{
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, 0, },
 	}
 };
 

@@ -53,6 +53,8 @@
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 
+#include "yuvconverter.h"
+
 #define ADD_ENTROPY_SIZE    32
 #define MINIH264_IMPLEMENTATION
 
@@ -379,6 +381,19 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size, int w, int h)
         temp_frame_size = g_w * g_h * 2;
         temp_buf_in = (uint8_t*)malloc(temp_frame_size * sizeof(uint8_t));
         memset(temp_buf_in, 0, temp_frame_size);
+        // printf("yuyv detected\n");
+    }
+
+    // If rgb frames are used, allocate space for both the src and temp space for converting chroma format
+    if(cl->is_rgb){
+        // Allocate space for temp space of dest (yuv 4:2:0 planar)
+        // Update: Probably no longer needed
+        // temp_frame_size = g_w * g_h * 3 / 2;
+        // temp_buf_in = (uint8_t*)malloc(temp_frame_size * sizeof(uint8_t));
+        // memset(temp_buf_in, 0, temp_frame_size);
+        // printf("rgb detected, init with width: %d, height: %d\n", g_w, g_h);
+        // Init rgbToYuv conversion
+        InitConvt(g_w, g_h);
     }
 
     if (!buf_in || !buf_save)
@@ -485,6 +500,12 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
         yuv.yuv[0] = buf_in;
         yuv.yuv[1] = buf_in + g_w*g_h;
         yuv.yuv[2] = buf_in + g_w*g_h*5/4;
+    } else if (cl->is_rgb) {
+        // printf("Processing rgb frame with frame size: %d...\n", frame_size);
+        rgb_packed_to_yuv420_prog_planar(frame, buf_in, g_w, g_h);
+        yuv.yuv[0] = buf_in; yuv.stride[0] = g_w;
+        yuv.yuv[1] = buf_in + g_w*g_h; yuv.stride[1] = g_w/2;
+        yuv.yuv[2] = buf_in + g_w*g_h*5/4; yuv.stride[2] = g_w/2;
     } else {
         buf_in = frame;
         yuv.yuv[0] = buf_in; yuv.stride[0] = g_w;
@@ -665,9 +686,21 @@ void t_free(void)
 
     // Need to free more if yuyv frames are src
     if (cl->is_yuyv) {
-        if (temp_buf_in)
+        if (temp_buf_in){
+            printf("free memory for yuyv\n");
             free(temp_buf_in);
+        }
     }
+
+    // Need to free more if yuyv frames are src
+    // Update: Probably no longer needed
+    // if (cl->is_rgb) {
+    //     if (temp_buf_in){
+    //         printf("free memory for rgb\n");
+    //         free(temp_buf_in);
+    //     }
+    // }
+
     if (cl)
         free(cl);
 }

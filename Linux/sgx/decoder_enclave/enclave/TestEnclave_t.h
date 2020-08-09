@@ -1,12 +1,11 @@
-#ifndef ENCODERENCLAVE_T_H__
-#define ENCODERENCLAVE_T_H__
+#ifndef TESTENCLAVE_T_H__
+#define TESTENCLAVE_T_H__
 
 #include <stdint.h>
 #include <wchar.h>
 #include <stddef.h>
 #include "sgx_edger8r.h" /* for sgx_ocall etc. */
 
-#include "common.h"
 #include "ra.h"
 #include "ra-attester.h"
 #include "sgx_report.h"
@@ -19,15 +18,11 @@
 extern "C" {
 #endif
 
-int t_encoder_init(cmdline* cl_in, size_t cl_size, int w, int h);
-int t_encode_frame(unsigned char* frame_sig, size_t frame_sig_size, uint8_t* frame, size_t frame_size);
-int t_verify_cert(char* vendor_pubkey_str, size_t vendor_pubkey_str_size, char* cert_str, size_t cert_str_size);
-void t_get_sig_size(size_t* sig_size);
-void t_get_sig(unsigned char* sig, size_t sig_size);
-void t_get_encoded_video_size(size_t* video_size);
-void t_get_encoded_video(unsigned char* video, size_t video_size);
+void t_sgxssl_call_apis(void* evp_pkey_v);
+void t_sgxver_call_apis(void* image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void* hash_of_original_image, int size_of_hooi, void* signature, size_t size_of_actual_signature, void* original_vendor_pub_str, long int original_vendor_pub_str_len, void* original_cert_str, long int original_cert_str_len, void* processed_pixels, void* runtime_result, int size_of_runtime_result, void* char_array_for_processed_img_sign, int size_of_cafpis, void* hash_of_processed_image, int size_of_hopi, void* processed_img_signautre, size_t size_of_pis, void* size_of_actual_processed_img_signature, size_t sizeof_soapis);
 void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of_cert, size_t asoc);
 void t_free(void);
+void t_sgxver_decode_content(void* input_content_buffer, size_t size_of_input_content_buffer, size_t size_of_u32, size_t size_of_int, void* frame_width, void* frame_height, void* num_of_frames, size_t size_of_u8, void* output_rgb_buffer);
 void dummy(void);
 
 sgx_status_t SGX_CDECL uprint(const char* str);

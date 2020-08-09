@@ -476,51 +476,52 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// size_of_actual_processed_img_signature, 
 	// ===========================================
 
-	// char* mKey = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAopF5nggjEqgP3INF663t\n8+HPt90WZ8z5g6NYr228TfKGywfnmpmLuzt+rc2zMK229lXSNYCnKMvF0ge4gYHI\nv1rjsQiDIZmGVGNsudIMm02qlBLeLtegFjVNTc5562D561pV96t4dIPHsykpzjZO\nAMXP8BUuHJeeNdPZFekbfID0ec5NTumLnZGrSxh/PngHEkmWhn6mjUmooVxvliyn\n1dqbgwOiLSpxf+xmIFPCgXPBJDGhX3jc/j6jEh6ydR3nYw9q4LdC18REmHl6EUmD\nTBW6KyTHCS1RKEXpWtGgR17o4ahqfELIQKXyQEcOhyOBy8HdIdLsHA4gxVPXYq07\nLj8M4RZbtFdtlJlMZuqY1b7wm3GpUGpcPelGaYfeftneQh9VTAfEr3Mx4XbNCCqc\n3y6YRJacaZcZHaF7hAz/lRPCXIQIE3nG8fQq5wcCkvAJ8hqVxbU6YNe0MswSO72b\nyG0h6gC/epbiJSUEcPZY5bgoOkcEgveH+u7mC0NCfPh5IrxTGTXmi5qs/vZ/f3nV\nSLD/oGCuA6Vhe1dt4Ws5e+fVG+0mNI7RZRty2rAY0AYeQOzMEyjKhp9cl6HaHF2c\nHUaxu/wSQ3D8HFyYmeVjXi0VFTDpu/qmiH36ryncqilBCeeju75Vm4UqH3/0vRto\n0/89p9eFt0wh+1y+BaN/slcCAwEAAQ==\n-----END PUBLIC KEY-----\n";
-	
 	// Convert str to public key & cert
 
-	BIO* bo_pub = BIO_new( BIO_s_mem() );
-	BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
+	// BIO* bo_pub = BIO_new( BIO_s_mem() );
+	// BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
 
-	EVP_PKEY* vendor_pubkey = EVP_PKEY_new();
-	vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &vendor_pubkey, 0, 0);
-	BIO_free(bo_pub);
+	// EVP_PKEY* vendor_pubkey = EVP_PKEY_new();
+	// vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &vendor_pubkey, 0, 0);
+	// BIO_free(bo_pub);
 
-	BIO* bo = BIO_new( BIO_s_mem() );
-	BIO_write(bo, (char*)original_cert_str, original_cert_str_len);
+	// BIO* bo = BIO_new( BIO_s_mem() );
+	// BIO_write(bo, (char*)original_cert_str, original_cert_str_len);
 
-    X509* cam_cert;
-    cam_cert = X509_new();
-	cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, NULL);
-	BIO_free(bo);
+    // X509* cam_cert;
+    // cam_cert = X509_new();
+	// cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, NULL);
+	// BIO_free(bo);
 
-	int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
+	// int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
 
-	if(result_of_cert_verify != 1){
-		*(int*)runtime_result = 1;
-		return;
-	}
-	EVP_PKEY_free(vendor_pubkey);
+	// if(result_of_cert_verify != 1){
+	// 	*(int*)runtime_result = 1;
+	// 	return;
+	// }
+	// EVP_PKEY_free(vendor_pubkey);
 
-	printf("Certificate is verified\n");
+	// printf("Certificate is verified\n");
 
-	// BIO_write(bo, (char*)mKey, strlen(mKey));
-	EVP_PKEY* pukey = EVP_PKEY_new();
-	pukey = X509_get_pubkey(cam_cert);
-    // printf("Hello from enclave!\n");
+	// // BIO_write(bo, (char*)mKey, strlen(mKey));
+	// EVP_PKEY* pukey = EVP_PKEY_new();
+	// pukey = X509_get_pubkey(cam_cert);
+    // // printf("Hello from enclave!\n");
 
-	print_public_key(pukey);
+	// print_public_key(pukey);
 
-	// Verify signature
-	bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
-	// printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
-	if(result_of_verification != 1){
-		*(int*)runtime_result = 1;
-		return;
-	}
+	// // Verify signature
+	// bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
+	// // printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
+	// if(result_of_verification != 1){
+	// 	*(int*)runtime_result = 1;
+	// 	return;
+	// }
 
-	printf("Signature is verified\n");
+	// printf("Signature is verified\n");
+	// printf("size of image_pixels is: %d\n", size_of_image_pixels);
+	if(!image_pixels)
+		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
 
 	// Process image
 	pixel* img_pixels = (pixel*) image_pixels;
@@ -533,7 +534,7 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	//pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
 	size_t len_of_processed_image_str = pixels_to_linked_pure_str((pixel*)processed_pixels, image_width * image_height, (char*)char_array_for_processed_img_sign);
 
-	// Generate hash of processed image
+	// Generate hash of processed image (probably no longer needed)
 	// printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
 	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
 	// str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
@@ -541,18 +542,19 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Generate signature
-	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	int result_of_filter_signing = sign_hash(enc_priv_key, char_array_for_processed_img_sign, len_of_processed_image_str, processed_img_signautre, size_of_actual_processed_img_signature);
-	if(result_of_filter_signing != 0){
-		*(int*)runtime_result = 2;
-		EVP_PKEY_free(pukey);
-		X509_free(cam_cert);
-		return;
-	}
+	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
+	// int result_of_filter_signing = sign_hash(enc_priv_key, char_array_for_processed_img_sign, len_of_processed_image_str, processed_img_signautre, size_of_actual_processed_img_signature);
+	// if(result_of_filter_signing != 0){
+	// 	*(int*)runtime_result = 2;
+	// 	EVP_PKEY_free(pukey);
+	// 	X509_free(cam_cert);
+	// 	return;
+	// }
 
 	// Free Memory
-	EVP_PKEY_free(pukey);
-	X509_free(cam_cert);
+	// if(pukey)
+	// 	EVP_PKEY_free(pukey);
+	// X509_free(cam_cert);
 
 	*(int*)runtime_result = 0;
 }

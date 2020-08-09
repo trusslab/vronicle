@@ -266,6 +266,26 @@ int read_raw_file(const char* file_name){
     return 0;
 }
 
+int read_raw_file_b(const char* file_name, int frame_size){
+    // Return 0 on success, return 1 on failure
+    // cout << "Going to read raw file: " << file_name << endl;
+
+    FILE* input_raw_file = fopen(file_name, "rb");
+    if(input_raw_file == NULL){
+        return 1;
+    }
+    fseek(input_raw_file, 0, SEEK_SET);
+
+    image_pixels = (pixel*)malloc(frame_size);
+    memset(image_pixels, 0, frame_size);
+
+    if(!fread(image_pixels, frame_size, 1, input_raw_file)){
+        return 1;
+    }
+
+    return 0;
+}
+
 /* Initialize the enclave:
  *   Step 1: retrive the launch token saved by last transaction
  *   Step 2: call sgx_create_enclave to initialize an enclave instance
@@ -398,14 +418,14 @@ void log_ntp_event(char *msg)
 int save_processed_frame(pixel* processed_pixels, char* frame_id){
     // Return 0 on success; otherwise, return 1
     // First create the folder if not created
-    char* dirname = "data/processed_raw";
+    char* dirname = "../video_data/processed_raw";
     mkdir(dirname, 0777);
     
     // Save data
     int total_number_of_rgb_values = image_width * image_height * 3;
 
     char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
+    snprintf(processed_raw_file_name, 50, "../video_data/processed_raw/processed_raw_%s", frame_id);
 
     FILE* output_file = fopen(processed_raw_file_name, "w+");
     if(output_file == NULL){
@@ -425,13 +445,34 @@ int save_processed_frame(pixel* processed_pixels, char* frame_id){
     return 0;
 }
 
+int save_processed_frame_b(pixel* processed_pixels, int frame_size, char* path_to_save){
+    // Return 0 on success; otherwise, return 1
+    // First create the folder if not created
+
+    // To-Do: delete the following two lines after making path_to_save flexible
+    char* dirname = "../video_data/processed_raw";
+    mkdir(dirname, 0777);
+    
+    // Save data
+    FILE* output_file = fopen(path_to_save, "wb");
+    if(output_file == NULL){
+        return 1;
+    }
+    
+    fwrite(processed_pixels, frame_size, 1, output_file);
+
+    fclose(output_file);
+
+    return 0;
+}
+
 int save_char_array_to_file(char* str_to_save, char* frame_id){
     // Return 0 on success; otherwise, return 1
-    char* dirname = "data/processed_raw_str_enclave";
+    char* dirname = "../video_data/processed_raw_str_enclave";
     mkdir(dirname, 0777);
 
     char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "data/processed_raw_str_enclave/processed_raw_%s", frame_id);
+    snprintf(processed_raw_file_name, 50, "../video_data/processed_raw_str_enclave/processed_raw_%s", frame_id);
 
     FILE* output_file = fopen(processed_raw_file_name, "w+");
     if(output_file == NULL){
@@ -738,11 +779,11 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", strlen(base64_signature), len_of_sign, base64_signature);
     // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", len_of_base64encoded_str, len_of_sign, base64_signature);
 
-    char* dirname = "data/processed_raw_sign";
+    char* dirname = "../video_data/processed_raw_sign";
     mkdir(dirname, 0777);
 
     char processed_raw_sign_file_name[50];
-    snprintf(processed_raw_sign_file_name, 50, "data/processed_raw_sign/processed_raw_sign_%s", frame_id);
+    snprintf(processed_raw_sign_file_name, 50, "../video_data/processed_raw_sign/processed_raw_sign_%s", frame_id);
 
     ofstream signature_file;
     signature_file.open(processed_raw_sign_file_name);
@@ -769,7 +810,7 @@ int verification_reply(
 
     auto start_of_reading_public_key = high_resolution_clock::now();
 
-    // Read Public Key
+    // Read Public Key (no longer used)
     /*
     char absolutePath[MAX_PATH];
     char *ptr = NULL;
@@ -788,6 +829,10 @@ int verification_reply(
 
     auto start_of_reading_signature = high_resolution_clock::now();
     */
+
+    // Set up some basic parameters
+    // TO-DO: make frame_size flexible
+    int frame_size = 1280 * 720 * 3 * sizeof(unsigned char);
 
     // Read Certificate and its vendor public key
     char absolutePath[MAX_PATH];
@@ -815,7 +860,7 @@ int verification_reply(
     size_t raw_signature_length;
 
     char raw_file_signature_name[50];
-    snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
+    snprintf(raw_file_signature_name, 50, "../video_data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
 
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
     // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
@@ -828,12 +873,15 @@ int verification_reply(
     auto start_of_reading_raw_img = high_resolution_clock::now();
 
     // Read Raw Image
-    char raw_file_name[50];
-    snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
+    // TO-DO: make the base file name flexible
+    char raw_file_name[200];
+    snprintf(raw_file_name, 200, "../video_data/raw_for_process/raw_for_process_%s", (char*)recv_buf);
 
-    int result_of_reading_raw_file = read_raw_file(raw_file_name);
+    int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size);
+    image_width = atoi(argv[3]);
+    image_height = atoi(argv[4]);
     // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
-
+    
     auto end_of_reading_raw_img = high_resolution_clock::now();
     auto raw_img_read_duration = duration_cast<microseconds>(end_of_reading_raw_img - start_of_reading_raw_img);
     cout << "Processing frame " << (char*)recv_buf << " read raw img take time: " << raw_img_read_duration.count() << endl; 
@@ -873,6 +921,8 @@ int verification_reply(
     auto allocation_duration = duration_cast<microseconds>(end_of_allocation - start_of_allocation);
     cout << "Processing frame " << (char*)recv_buf << " allocation take time: " << allocation_duration.count() << endl; 
 
+    // printf("The very first pixel(Before processed by filter): R: %d; G: %d; B: %d\n", (int)image_pixels[100].r, (int)image_pixels[100].g, (int)image_pixels[100].b);
+
     // Going to get into enclave
     int runtime_result = -1;
     auto start = high_resolution_clock::now();
@@ -907,7 +957,9 @@ int verification_reply(
     auto start_of_saving_frame = high_resolution_clock::now();
 
     // Save processed frame
-    int result_of_frame_saving = save_processed_frame(processed_pixels, (char*) recv_buf);
+    char processed_raw_file_name[50];
+    snprintf(processed_raw_file_name, 50, "../video_data/processed_raw/processed_raw_%s", (char*) recv_buf);
+    int result_of_frame_saving = save_processed_frame_b(processed_pixels, frame_size, processed_raw_file_name);
     if(result_of_frame_saving != 0){
         return 1;
     }
@@ -937,16 +989,26 @@ int verification_reply(
     auto start_of_freeing = high_resolution_clock::now();
 
     // Free Everything (for video_provenance project)
-    free(image_pixels);
-    free(processed_pixels);
-    free(image_buffer);
-    free(hash_of_original_raw_file);
-    free(raw_signature);
-    free(original_vendor_pub_str);
-    free(original_cert_str);
-    free(char_array_for_processed_img_sign);
-    free(hash_of_processed_raw_file);
-    free(processed_img_signature);
+    if(image_pixels)
+        free(image_pixels);
+    if(processed_pixels)
+        free(processed_pixels);
+    if(image_buffer)
+        free(image_buffer);
+    if(hash_of_original_raw_file)
+        free(hash_of_original_raw_file);
+    if(raw_signature)
+        free(raw_signature);
+    if(original_vendor_pub_str)
+        free(original_vendor_pub_str);
+    if(original_cert_str)
+        free(original_cert_str);
+    if(char_array_for_processed_img_sign)
+        free(char_array_for_processed_img_sign);
+    if(hash_of_processed_raw_file)
+        free(hash_of_processed_raw_file);
+    if(processed_img_signature)
+        free(processed_img_signature);
 
     auto end_of_freeing = high_resolution_clock::now();
     auto freeing_duration = duration_cast<microseconds>(end_of_freeing - start_of_freeing);
@@ -1059,6 +1121,12 @@ void wait_wrapper(int s)
 /* Application entry */
 int main(int argc, char *argv[], char **env)
 {
+
+    if(argc < 5){
+        printf("Usage: ./TestApp [vender_public_key_file] [camera_certificate_file] [frame_width] [frame_height]\n");
+        return 1;
+    }
+    
 	/* initialize and start the enclave in here */
 	start_enclave(argc, argv);
 

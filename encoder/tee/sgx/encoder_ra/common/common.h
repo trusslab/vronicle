@@ -1,6 +1,6 @@
 typedef struct
 {
-    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr, fps, is_yuyv;
+    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr, fps, is_yuyv, is_rgb, is_input_multi;
 } cmdline;
 
 // PSNR estimation results

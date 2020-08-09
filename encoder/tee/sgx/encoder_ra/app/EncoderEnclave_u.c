@@ -1,35 +1,47 @@
 #include "EncoderEnclave_u.h"
 #include <errno.h>
 
-typedef struct ms_t_sgxssl_call_apis_t {
-	void* ms_evp_pkey_v;
-} ms_t_sgxssl_call_apis_t;
+typedef struct ms_t_encoder_init_t {
+	int ms_retval;
+	cmdline* ms_cl_in;
+	size_t ms_cl_size;
+	int ms_w;
+	int ms_h;
+} ms_t_encoder_init_t;
 
-typedef struct ms_t_sgxver_call_apis_t {
-	void* ms_image_pixels;
-	size_t ms_size_of_image_pixels;
-	int ms_image_width;
-	int ms_image_height;
-	void* ms_hash_of_original_image;
-	int ms_size_of_hooi;
-	void* ms_signature;
-	size_t ms_size_of_actual_signature;
-	void* ms_original_vendor_pub_str;
-	long int ms_original_vendor_pub_str_len;
-	void* ms_original_cert_str;
-	long int ms_original_cert_str_len;
-	void* ms_processed_pixels;
-	void* ms_runtime_result;
-	int ms_size_of_runtime_result;
-	void* ms_char_array_for_processed_img_sign;
-	int ms_size_of_cafpis;
-	void* ms_hash_of_processed_image;
-	int ms_size_of_hopi;
-	void* ms_processed_img_signautre;
-	size_t ms_size_of_pis;
-	void* ms_size_of_actual_processed_img_signature;
-	size_t ms_sizeof_soapis;
-} ms_t_sgxver_call_apis_t;
+typedef struct ms_t_encode_frame_t {
+	int ms_retval;
+	unsigned char* ms_frame_sig;
+	size_t ms_frame_sig_size;
+	uint8_t* ms_frame;
+	size_t ms_frame_size;
+} ms_t_encode_frame_t;
+
+typedef struct ms_t_verify_cert_t {
+	int ms_retval;
+	char* ms_vendor_pubkey_str;
+	size_t ms_vendor_pubkey_str_size;
+	char* ms_cert_str;
+	size_t ms_cert_str_size;
+} ms_t_verify_cert_t;
+
+typedef struct ms_t_get_sig_size_t {
+	size_t* ms_sig_size;
+} ms_t_get_sig_size_t;
+
+typedef struct ms_t_get_sig_t {
+	unsigned char* ms_sig;
+	size_t ms_sig_size;
+} ms_t_get_sig_t;
+
+typedef struct ms_t_get_encoded_video_size_t {
+	size_t* ms_video_size;
+} ms_t_get_encoded_video_size_t;
+
+typedef struct ms_t_get_encoded_video_t {
+	unsigned char* ms_video;
+	size_t ms_video_size;
+} ms_t_get_encoded_video_t;
 
 typedef struct ms_t_create_key_and_x509_t {
 	void* ms_cert;
@@ -187,43 +199,80 @@ static const struct {
 		(void*)EncoderEnclave_ocall_remote_attestation,
 	}
 };
-sgx_status_t t_sgxssl_call_apis(sgx_enclave_id_t eid, void* evp_pkey_v)
+sgx_status_t t_encoder_init(sgx_enclave_id_t eid, int* retval, cmdline* cl_in, size_t cl_size, int w, int h)
 {
 	sgx_status_t status;
-	ms_t_sgxssl_call_apis_t ms;
-	ms.ms_evp_pkey_v = evp_pkey_v;
+	ms_t_encoder_init_t ms;
+	ms.ms_cl_in = cl_in;
+	ms.ms_cl_size = cl_size;
+	ms.ms_w = w;
+	ms.ms_h = h;
 	status = sgx_ecall(eid, 0, &ocall_table_EncoderEnclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 
-sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, void* image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void* hash_of_original_image, int size_of_hooi, void* signature, size_t size_of_actual_signature, void* original_vendor_pub_str, long int original_vendor_pub_str_len, void* original_cert_str, long int original_cert_str_len, void* processed_pixels, void* runtime_result, int size_of_runtime_result, void* char_array_for_processed_img_sign, int size_of_cafpis, void* hash_of_processed_image, int size_of_hopi, void* processed_img_signautre, size_t size_of_pis, void* size_of_actual_processed_img_signature, size_t sizeof_soapis)
+sgx_status_t t_encode_frame(sgx_enclave_id_t eid, int* retval, unsigned char* frame_sig, size_t frame_sig_size, uint8_t* frame, size_t frame_size)
 {
 	sgx_status_t status;
-	ms_t_sgxver_call_apis_t ms;
-	ms.ms_image_pixels = image_pixels;
-	ms.ms_size_of_image_pixels = size_of_image_pixels;
-	ms.ms_image_width = image_width;
-	ms.ms_image_height = image_height;
-	ms.ms_hash_of_original_image = hash_of_original_image;
-	ms.ms_size_of_hooi = size_of_hooi;
-	ms.ms_signature = signature;
-	ms.ms_size_of_actual_signature = size_of_actual_signature;
-	ms.ms_original_vendor_pub_str = original_vendor_pub_str;
-	ms.ms_original_vendor_pub_str_len = original_vendor_pub_str_len;
-	ms.ms_original_cert_str = original_cert_str;
-	ms.ms_original_cert_str_len = original_cert_str_len;
-	ms.ms_processed_pixels = processed_pixels;
-	ms.ms_runtime_result = runtime_result;
-	ms.ms_size_of_runtime_result = size_of_runtime_result;
-	ms.ms_char_array_for_processed_img_sign = char_array_for_processed_img_sign;
-	ms.ms_size_of_cafpis = size_of_cafpis;
-	ms.ms_hash_of_processed_image = hash_of_processed_image;
-	ms.ms_size_of_hopi = size_of_hopi;
-	ms.ms_processed_img_signautre = processed_img_signautre;
-	ms.ms_size_of_pis = size_of_pis;
-	ms.ms_size_of_actual_processed_img_signature = size_of_actual_processed_img_signature;
-	ms.ms_sizeof_soapis = sizeof_soapis;
+	ms_t_encode_frame_t ms;
+	ms.ms_frame_sig = frame_sig;
+	ms.ms_frame_sig_size = frame_sig_size;
+	ms.ms_frame = frame;
+	ms.ms_frame_size = frame_size;
 	status = sgx_ecall(eid, 1, &ocall_table_EncoderEnclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t t_verify_cert(sgx_enclave_id_t eid, int* retval, char* vendor_pubkey_str, size_t vendor_pubkey_str_size, char* cert_str, size_t cert_str_size)
+{
+	sgx_status_t status;
+	ms_t_verify_cert_t ms;
+	ms.ms_vendor_pubkey_str = vendor_pubkey_str;
+	ms.ms_vendor_pubkey_str_size = vendor_pubkey_str_size;
+	ms.ms_cert_str = cert_str;
+	ms.ms_cert_str_size = cert_str_size;
+	status = sgx_ecall(eid, 2, &ocall_table_EncoderEnclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t t_get_sig_size(sgx_enclave_id_t eid, size_t* sig_size)
+{
+	sgx_status_t status;
+	ms_t_get_sig_size_t ms;
+	ms.ms_sig_size = sig_size;
+	status = sgx_ecall(eid, 3, &ocall_table_EncoderEnclave, &ms);
+	return status;
+}
+
+sgx_status_t t_get_sig(sgx_enclave_id_t eid, unsigned char* sig, size_t sig_size)
+{
+	sgx_status_t status;
+	ms_t_get_sig_t ms;
+	ms.ms_sig = sig;
+	ms.ms_sig_size = sig_size;
+	status = sgx_ecall(eid, 4, &ocall_table_EncoderEnclave, &ms);
+	return status;
+}
+
+sgx_status_t t_get_encoded_video_size(sgx_enclave_id_t eid, size_t* video_size)
+{
+	sgx_status_t status;
+	ms_t_get_encoded_video_size_t ms;
+	ms.ms_video_size = video_size;
+	status = sgx_ecall(eid, 5, &ocall_table_EncoderEnclave, &ms);
+	return status;
+}
+
+sgx_status_t t_get_encoded_video(sgx_enclave_id_t eid, unsigned char* video, size_t video_size)
+{
+	sgx_status_t status;
+	ms_t_get_encoded_video_t ms;
+	ms.ms_video = video;
+	ms.ms_video_size = video_size;
+	status = sgx_ecall(eid, 6, &ocall_table_EncoderEnclave, &ms);
 	return status;
 }
 
@@ -235,21 +284,21 @@ sgx_status_t t_create_key_and_x509(sgx_enclave_id_t eid, void* cert, size_t size
 	ms.ms_size_of_cert = size_of_cert;
 	ms.ms_actual_size_of_cert = actual_size_of_cert;
 	ms.ms_asoc = asoc;
-	status = sgx_ecall(eid, 2, &ocall_table_EncoderEnclave, &ms);
+	status = sgx_ecall(eid, 7, &ocall_table_EncoderEnclave, &ms);
 	return status;
 }
 
 sgx_status_t t_free(sgx_enclave_id_t eid)
 {
 	sgx_status_t status;
-	status = sgx_ecall(eid, 3, &ocall_table_EncoderEnclave, NULL);
+	status = sgx_ecall(eid, 8, &ocall_table_EncoderEnclave, NULL);
 	return status;
 }
 
 sgx_status_t dummy(sgx_enclave_id_t eid)
 {
 	sgx_status_t status;
-	status = sgx_ecall(eid, 4, &ocall_table_EncoderEnclave, NULL);
+	status = sgx_ecall(eid, 9, &ocall_table_EncoderEnclave, NULL);
 	return status;
 }
 

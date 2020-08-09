@@ -90,20 +90,28 @@ App_Include_Paths := -I$(UNTRUSTED_DIR) -I$(SGX_SDK_INC)
 App_C_Flags := $(SGX_COMMON_CFLAGS) -fpic -fpie -fstack-protector -Wformat -Wformat-security -Wno-attributes $(App_Include_Paths) -lcurl
 App_Cpp_Flags := $(App_C_Flags) -std=c++11 -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/
 
+# ifneq ($(SGX_MODE), HW)
+# 	Urts_Library_Name := sgx_urts_sim
+# 	Epid_Library_Name := sgx_epid_sim
+# 	Quote_Library_Name := sgx_quote_ex_sim
+# else
+# 	Urts_Library_Name := sgx_urts
+# 	Epid_Library_Name := sgx_epid
+# 	Quote_Library_Name := sgx_quote_ex
+# endif
+
 ifneq ($(SGX_MODE), HW)
 	Urts_Library_Name := sgx_urts_sim
-	Epid_Library_Name := sgx_epid_sim
-	Quote_Library_Name := sgx_quote_ex_sim
+	UaeService_Library_Name := sgx_uae_service_sim
 else
 	Urts_Library_Name := sgx_urts
-	Epid_Library_Name := sgx_epid
-	Quote_Library_Name := sgx_quote_ex
+	UaeService_Library_Name := sgx_uae_service
 endif
 
 
 Security_Link_Flags := -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -pie
 
-App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(Epid_Library_Name) -l$(Quote_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread -lcurl
+App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(UaeService_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread -lcurl
 
 
 .PHONY: all test

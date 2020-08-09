@@ -564,9 +564,9 @@ void t_sgxver_decode_content(
 	size_t size_of_u32, size_t size_of_int, void* frame_width, void* frame_height, void* num_of_frames, 
 	size_t size_of_u8, void* output_rgb_buffer) {
 
-		// In: void* input_content_buffer
-		// Out: void* frame_width, void* frame_height, void* num_of_frames, void* output_rgb_buffer
-		// Common: size_t size_of_input_content_buffer, size_t size_of_u32, size_t size_of_int, size_of_u8
+	// In: void* input_content_buffer
+	// Out: void* frame_width, void* frame_height, void* num_of_frames, void* output_rgb_buffer
+	// Common: size_t size_of_input_content_buffer, size_t size_of_u32, size_t size_of_int, size_of_u8
 
 	// testIncludeFunc2(2);
 

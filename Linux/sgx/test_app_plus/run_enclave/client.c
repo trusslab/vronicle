@@ -32,7 +32,7 @@ int die(const char *msg)
 
 int useage(const char *path)
 {
-	printf("Useage:\n\t%s <server address> <contractId>\n", path);
+	printf("Useage:\n\t%s <server address> <total_num_of_frames>\n", path);
 	return 1;
 }
 

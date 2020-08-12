@@ -152,7 +152,7 @@ test: all
 # Added for H264 Decoder
 
 libh264bsd.a: 
-	@cd $(DECODER_DIR) && mkdir include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
+	@cd $(DECODER_DIR) && mkdir -p include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 	@echo "GEN => H264 Decoder Shared Library Ready..."
 
 $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl

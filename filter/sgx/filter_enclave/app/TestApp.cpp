@@ -860,7 +860,7 @@ int verification_reply(
     size_t raw_signature_length;
 
     char raw_file_signature_name[50];
-    snprintf(raw_file_signature_name, 50, "../video_data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
+    snprintf(raw_file_signature_name, 50, "%s%s", argv[3], (char*)recv_buf);
 
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
     // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
@@ -875,11 +875,11 @@ int verification_reply(
     // Read Raw Image
     // TO-DO: make the base file name flexible
     char raw_file_name[200];
-    snprintf(raw_file_name, 200, "../video_data/raw_for_process/raw_for_process_%s", (char*)recv_buf);
+    snprintf(raw_file_name, 200, "%s%s", argv[4], (char*)recv_buf);
 
     int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size);
-    image_width = atoi(argv[3]);
-    image_height = atoi(argv[4]);
+    image_width = atoi(argv[5]);
+    image_height = atoi(argv[6]);
     // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
     
     auto end_of_reading_raw_img = high_resolution_clock::now();
@@ -1122,8 +1122,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 5){
-        printf("Usage: ./TestApp [vender_public_key_file] [camera_certificate_file] [frame_width] [frame_height]\n");
+    if(argc < 7){
+        printf("Usage: ./TestApp [vender_public_key_file] [camera_certificate_file] [path_to_frame_signature] [path_to_frame] [frame_width] [frame_height]\n");
         return 1;
     }
     

@@ -19,6 +19,9 @@ extern "C" {
 #   define H264E_MAX_THREADS 4
 #endif
 
+/*!Set time base in Hz */
+#define TIME_SCALE_IN_HZ 	27000000
+
 /**
 *   API return error codes
 */
@@ -212,6 +215,9 @@ typedef struct H264E_run_param_tag
     // if 0: frame would be coded with a single NALU
     int desired_nalu_bytes;
 
+    // Target FPS
+    int target_fps;
+
     // Optional NALU notification callback, called by the encoder
     // as soon as NALU encoding complete.
     void (*nalu_callback)(
@@ -235,6 +241,15 @@ typedef struct H264E_io_yuv_tag
     // Stride for each image plane
     int stride[3];
 } H264E_io_yuv_t;
+
+/**
+*    Packed YUY2 descriptor
+*/
+typedef struct H264E_io_yuy2_tag
+{
+    // Pointers to 3 pixel planes of YUY2 image
+    unsigned char *Y, *U, *V;
+} H264E_io_yuy2_t;
 
 typedef struct H264E_persist_tag H264E_persist_t;
 typedef struct H264E_scratch_tag H264E_scratch_t;
@@ -8785,6 +8800,7 @@ static void nal_start(h264e_enc_t *enc, int nal_hdr)
     d += STARTCODE_4BYTES + (-(int)enc->out_pos & 3);   // 4-bytes align for bitbuffer
     assert(IS_ALIGNED(d, 4));
     h264e_bs_init_bits(enc->bs, d);
+    // printf("nal_start is called with nal_hdr: %d\n", nal_hdr);
     U(8, nal_hdr);
 }
 
@@ -8837,7 +8853,7 @@ static void nal_end(h264e_enc_t *enc)
 #define default_base_mode_flag 0
 #define log2_max_frame_num_minus4 1
 
-static void encode_sps(h264e_enc_t *enc, int profile_idc)
+static void encode_sps(h264e_enc_t *enc, int profile_idc, int target_fps)
 {
     struct limit_t
     {
@@ -8874,10 +8890,15 @@ static void encode_sps(h264e_enc_t *enc, int profile_idc)
         plim++;
     }
 
+    // printf("The profile we are using is: %d\n", profile_idc);
+
     nal_start(enc, 0x67 | (profile_idc == SCALABLE_BASELINE)*8);
-    U(8, profile_idc);  // profile, 66 = baseline
-    U(8, plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4));     // no constrains
-    U(8, plim->level);
+    // printf("encode_sps: profile_idc: %d\n", profile_idc);
+    U(8, profile_idc / 2);  // profile, 66 = baseline
+    // printf("encode_sps: plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4): %d\n", plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4));
+    U(8, (plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4)) / 2);     // no constrains
+    // printf("encode_sps: plim->level: %d\n", plim->level);
+    U(8, (plim->level) / 2);
     //U(5, 0x1B);       // sps_id|log2_max_frame_num_minus4|pic_order_cnt_type
     //UE(0);  // sps_id 1
     UE(enc->param.sps_id);
@@ -8894,6 +8915,7 @@ static void encode_sps(h264e_enc_t *enc, int profile_idc)
 #endif
     UE(log2_max_frame_num_minus4);  // log2_max_frame_num_minus4  1 UE(0);  // log2_max_frame_num_minus4  1
     UE(2);  // pic_order_cnt_type         011
+    // printf("1 + enc->param.max_long_term_reference_frames is: %d\n", 1 + enc->param.max_long_term_reference_frames);
     UE(1 + enc->param.max_long_term_reference_frames);  // num_ref_frames
     U1(0);                                      // gaps_in_frame_num_value_allowed_flag);
     UE(((enc->param.width + 15) >> 4) - 1);     // pic_width_in_mbs_minus1
@@ -8909,7 +8931,23 @@ static void encode_sps(h264e_enc_t *enc, int profile_idc)
         UE(0);                                          // frame_crop_top_offset
         UE((enc->frame.h - enc->param.height) >> 1);    // frame_crop_bottom_offset
     }
-    U1(0);      // vui_parameters_present_flag
+
+    // VUI
+    U1(1);      // vui_parameters_present_flag
+    U1(0);      // aspect_ratio_info_present_flag
+    U1(0);      // overscan_info_present_flag
+    U1(0);      // video_signal_type_present_flag
+    U1(0);      // chroma_loc_info_present_flag
+    U1(1);      // timing_info_present_flag
+    unsigned int nnum_units_in_tick = TIME_SCALE_IN_HZ / (2 * target_fps);      // For determining fps of video
+    U(32, nnum_units_in_tick);      // num_units_in_tick
+    U(32, TIME_SCALE_IN_HZ);        // time_scale
+    U1(1);      // fixed_frame_rate_flag
+    U1(0);      // nal_hrd_parameters_present_flag
+    U1(0);      // vcl_hrd_parameters_present_flag
+    U1(0);      // pic_struct_present_flag
+    U1(0);      // bitstream_restriction_flag
+    // END OF VUI
 
 #if H264E_SVC_API
     if(profile_idc == SCALABLE_BASELINE)
@@ -8998,6 +9036,7 @@ static void encode_slice_header(h264e_enc_t *enc, int frame_type, int long_term_
             {
                 //reserved_one_bit = 1    idr_flag                    priority_id
                 U(8, (1 << 7) | ((frame_type == H264E_FRAME_TYPE_KEY) << 6) | 0);
+                // printf("(if (enc->param.num_layers > 1))Not expected to be called!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                 U1(1);   //no_inter_layer_pred_flag
                 U(3, 0); //dependency_id
                 U(4, quality_id); //quality_id
@@ -9031,6 +9070,7 @@ static void encode_slice_header(h264e_enc_t *enc, int frame_type, int long_term_
         {
             //reserved_one_bit = 1    idr_flag                    priority_id
             U(8, (1 << 7) | ((frame_type == H264E_FRAME_TYPE_KEY) << 6) | 0);
+            // printf("(nal_start(enc, (20 | (long_term_idx_update >= 0 ? 0x60 : 0)));  //RBSP_SCALABLE_EXT = 20)Not expected to be called!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
             U1(!enc->param.inter_layer_pred_flag); //no_inter_layer_pred_flag
             U(3, dependency_id); //dependency_id
             U(4, quality_id);    //quality_id
@@ -10916,6 +10956,7 @@ static void rc_frame_end(h264e_enc_t *enc, int intra_flag, int skip_flag, int is
                 nal_start(enc, 12); // filler_data_rbsp
                 do
                 {
+                    // printf("Putting stuffing.................\n");
                     U(8, 0xFF);
                     enc->rc.vbv_bits += 8;
                 } while (enc->rc.vbv_bits < 0);
@@ -11587,16 +11628,16 @@ int H264E_encode(H264E_persist_t *enc, H264E_scratch_t *scratch, const H264E_run
 
             enc_base->out = enc->out;
             enc_base->out_pos = 0;
-            encode_sps(enc_base, 66);
+            encode_sps(enc_base, 66, opt->target_fps);
             encode_pps(enc_base, 0);
 
             enc->out_pos += enc_base->out_pos;
-            encode_sps(enc, 83);
+            encode_sps(enc, 83, opt->target_fps);
             encode_pps(enc, 1);
         } else
 #endif
         {
-            encode_sps(enc, 66);
+            encode_sps(enc, 66, opt->target_fps);
             encode_pps(enc, 0);
         }
     } else

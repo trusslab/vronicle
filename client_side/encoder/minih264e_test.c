@@ -7,9 +7,16 @@
 //#define MINIH264_ONLY_SIMD
 #include "minih264e.h"
 
+// OpenSSL related headers
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+
 #define DEFAULT_GOP 20
 #define DEFAULT_QP 33
 #define DEFAULT_DENOISE 0
+#define DEFAULT_FPS 30
+#define DEFAULT_IS_YUYV 0
 
 #define ENABLE_TEMPORAL_SCALABILITY 0
 #define MAX_LONG_TERM_FRAMES        8 // used only if ENABLE_TEMPORAL_SCALABILITY==1
@@ -19,10 +26,12 @@
 H264E_create_param_t create_param;
 H264E_run_param_t run_param;
 H264E_io_yuv_t yuv;
+H264E_io_yuy2_t yuyv;
 uint8_t *buf_in, *buf_save;
-uint8_t *coded_data;
-FILE *fin, *fout;
-int sizeof_coded_data, frame_size, g_w, g_h, _qp;
+uint8_t *yuyv_buf_in, *temp_buf_in, *p;
+uint8_t *coded_data, *all_coded_data;
+FILE *fin, *fout, *fsig;
+int sizeof_coded_data, frame_size, yuyv_frame_size, temp_frame_size, g_w, g_h, _qp;
 
 #ifdef _WIN32
 // only vs2017 have aligned_alloc
@@ -114,7 +123,9 @@ struct
 {
     const char *input_file;
     const char *output_file;
-    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr;
+    const char *sig_file;
+    const char *privkey_file;
+    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr, fps, is_yuyv;
 } cmdline[1];
 
 static int str_equal(const char *pattern, char **p)
@@ -129,6 +140,47 @@ static int str_equal(const char *pattern, char **p)
     }
 }
 
+int sign (EVP_PKEY* priv_key, void *data_to_be_signed, size_t size_of_data, unsigned char **sig, size_t *size_of_sig)
+{
+	EVP_MD_CTX *mdctx = NULL;
+	
+	/* Create the Message Digest Context */
+	if(!(mdctx = EVP_MD_CTX_create())){
+		printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
+		exit(1);
+	}
+	
+	/* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
+	if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priv_key)){
+		printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
+		exit(1);
+	}
+	
+	/* Call update with the message */
+	if(1 != EVP_DigestSignUpdate(mdctx, data_to_be_signed, size_of_data)){
+		printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
+		exit(1);
+	}
+	
+	/* Finalise the DigestSign operation */
+	/* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
+	* signature. Length is returned in slen */
+	if(1 != EVP_DigestSignFinal(mdctx, NULL, size_of_sig)){
+		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+		exit(1);
+	};
+    *sig = (unsigned char*)malloc(*size_of_sig);
+	if(1 != EVP_DigestSignFinal(mdctx, *sig, size_of_sig)){
+		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+		exit(1);
+	};
+	
+	/* Clean up */
+	if(mdctx) EVP_MD_CTX_destroy(mdctx);
+
+	return 0;
+}
+
 static int read_cmdline_options(int argc, char *argv[])
 {
     int i;
@@ -139,6 +191,8 @@ static int read_cmdline_options(int argc, char *argv[])
     cmdline->kbps = 0;
     //cmdline->kbps = 2048;
     cmdline->denoise = DEFAULT_DENOISE;
+    cmdline->fps = DEFAULT_FPS;
+    cmdline->is_yuyv = DEFAULT_IS_YUYV;
     for (i = 1; i < argc; i++)
     {
         char *p = argv[i];
@@ -175,6 +229,12 @@ static int read_cmdline_options(int argc, char *argv[])
             } else if (str_equal(("psnr"), &p))
             {
                 cmdline->psnr = 1;
+            } else if (str_equal(("fps"), &p))
+            {
+                cmdline->fps = atoi(p);
+            } else if (str_equal(("is_yuyv"), &p))
+            {
+                cmdline->is_yuyv = 1;
             } else
             {
                 printf("ERROR: Unknown option %s\n", p - 1);
@@ -186,6 +246,12 @@ static int read_cmdline_options(int argc, char *argv[])
         } else if (!cmdline->output_file)
         {
             cmdline->output_file = p;
+        } else if (!cmdline->sig_file)
+        {
+            cmdline->sig_file = p;
+        } else if (!cmdline->privkey_file)
+        {
+            cmdline->privkey_file = p;
         } else
         {
             printf("ERROR: Unknown option %s\n", p);
@@ -195,7 +261,7 @@ static int read_cmdline_options(int argc, char *argv[])
     if (!cmdline->input_file && !cmdline->gen)
     {
         printf("Usage:\n"
-               "    h264e_test [options] <input[frame_size].yuv> <output.264>\n"
+               "    h264e_test [options] <input[frame_size].yuv> <out.264> <out.sig> <privkey.key>\n"
                "Frame size can be: WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif\n"
                "    4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA\n"
                "Options:\n"
@@ -208,7 +274,9 @@ static int read_cmdline_options(int argc, char *argv[])
                "    -speed<n>       - speed [0..10], 0 means best quality\n"
                "    -denoise        - use temporal noise supression\n"
                "    -stats          - print frame statistics\n"
-               "    -psnr           - print psnr statistics\n");
+               "    -psnr           - print psnr statistics\n"
+               "    -fps<n>         - set target fps of the video, default is 30\n"
+               "    -is_yuyv        - if the frames' chroma is in yuyv 4:2:2 format(note that psnr might not work when using yuyv)\n");
         return 0;
     }
     return 1;
@@ -345,7 +413,7 @@ static rd_t psnr_get()
 {
     int i;
     rd_t rd;
-    double fps = 30;
+    double fps = 30;    // Modified for adjusting fps output (Note that this is just for psnr output)
     double realkbps = g_psnr.bytes*8./((double)g_psnr.frames/(fps))/1000;
     double db = 10*log10(255.*255/(g_psnr.noise[0]/g_psnr.count[0]));
     for (i = 0; i < 4; i++)
@@ -422,18 +490,22 @@ static void gen_chessboard_rot(unsigned char *p, int w, int h, int frm)
 int main(int argc, char *argv[])
 {
     int i, frames = 0;
-    const char *fnin, *fnout;
+    const char *fnin, *fnout, *fnsig;
+    FILE *fpriv_key;
+    EVP_PKEY *priv_key;
 
     if (!read_cmdline_options(argc, argv))
         return 1;
     fnin  = cmdline->input_file;
     fnout = cmdline->output_file;
+    fnsig = cmdline->sig_file;
 
     if (!cmdline->gen)
     {
-        g_w = 352;
-        g_h = 288;
+        g_w = 1280;
+        g_h = 720;
         guess_format_from_name(fnin, &g_w, &g_h);
+        printf("The video resolution will be %d x %d\n", g_w, g_h);
         fin = fopen(fnin, "rb");
         if (!fin)
         {
@@ -452,6 +524,31 @@ int main(int argc, char *argv[])
     if (!fout)
     {
         printf("ERROR: cant open output file %s\n", fnout);
+        return 1;
+    }
+    if (!fnsig)
+        fnsig = "out.sig";
+    fsig = fopen(fnsig, "w");
+    if (!fsig)
+    {
+        printf("ERROR: cant open output file %s\n", "out.sig");
+        return 1;
+    }
+    if (!cmdline->privkey_file) {
+        printf("ERROR: private key is required\n");
+        return 1;
+    }
+    fpriv_key = fopen(cmdline->privkey_file, "r");
+    if (!fpriv_key)
+    {
+        printf("ERROR: cant open input file %s\n", "data/encoder_pri");
+        return 1;
+    }
+    priv_key = EVP_PKEY_new();
+    priv_key = PEM_read_PrivateKey(fpriv_key, &priv_key, NULL, NULL);
+    if (!priv_key)
+    {
+        printf("ERROR: cant read private key\n");
         return 1;
     }
 
@@ -487,9 +584,23 @@ int main(int argc, char *argv[])
     }
 #endif
 
+    // Allocate space for yuv420 (the one used for actually process data)
     frame_size = g_w*g_h*3/2;
     buf_in   = (uint8_t*)ALIGNED_ALLOC(64, frame_size);
     buf_save = (uint8_t*)ALIGNED_ALLOC(64, frame_size);
+
+    // If yuyv frames are used, allocate space for both the src and temp space for converting chroma format
+    if(cmdline->is_yuyv){
+        // Allocate space for yuyv src
+        yuyv_frame_size = g_w * g_h * 2;
+        yuyv_buf_in = (uint8_t*)malloc(yuyv_frame_size * sizeof(char));
+        memset(yuyv_buf_in, 0, yuyv_frame_size);
+        
+        // Allocate space for temp space
+        temp_frame_size = g_w * g_h * 2;
+        temp_buf_in = (uint8_t*)malloc(temp_frame_size * sizeof(char));
+        memset(temp_buf_in, 0, temp_frame_size);
+    }
 
     if (!buf_in || !buf_save)
     {
@@ -501,10 +612,9 @@ int main(int argc, char *argv[])
     //for (cmdline->qp = 50; cmdline->qp <= 51; cmdline->qp += 2)
     //printf("encoding %s to %s with qp = %d\n", fnin, fnout, cmdline->qp);
     {
-        int sum_bytes = 0;
-        int max_bytes = 0;
-        int min_bytes = 10000000;
         int sizeof_persist = 0, sizeof_scratch = 0, error;
+        int total_sizeof_coded_data = 0;
+        unsigned char* total_coded_data = NULL;
         H264E_persist_t *enc = NULL;
         H264E_scratch_t *scratch = NULL;
         if (cmdline->psnr)
@@ -516,7 +626,6 @@ int main(int argc, char *argv[])
             printf("H264E_init error = %d\n", error);
             return 0;
         }
-        printf("sizeof_persist = %d sizeof_scratch = %d\n", sizeof_persist, sizeof_scratch);
         enc     = (H264E_persist_t *)ALIGNED_ALLOC(64, sizeof_persist);
         scratch = (H264E_scratch_t *)ALIGNED_ALLOC(64, sizeof_scratch);
         error = H264E_init(enc, &create_param);
@@ -524,29 +633,93 @@ int main(int argc, char *argv[])
         if (fin)
             fseek(fin, 0, SEEK_SET);
 
+        // printf("maxframes is set at %d\n", cmdline->max_frames);
         for (i = 0; cmdline->max_frames; i++)
         {
+            // printf("processing frame: %d; with maxframes: %d\n", i, cmdline->max_frames);
             if (!fin)
             {
                 if (i > 300) break;
                 memset(buf_in + g_w*g_h, 128, g_w*g_h/2);
                 gen_chessboard_rot(buf_in, g_w, g_h, i);
-            } else
+            }
+
+            if(cmdline->is_yuyv){
+                if (!fread(yuyv_buf_in, yuyv_frame_size, 1, fin)) break;
+                p = yuyv_buf_in;   // Record head adddress
+
+                // temp conversion address
+                yuyv.Y = temp_buf_in;
+                yuyv.U = yuyv.Y + g_w * g_h;
+                yuyv.V = yuyv.U + (g_w * g_h >> 1);   // Y  U  V  =4 : 2 ; 2
+
+                // final incoming yuv data address
+                yuv.yuv[0] = buf_in; yuv.stride[0] = g_w;
+                yuv.yuv[1] = buf_in + g_w*g_h; yuv.stride[1] = g_w/2;
+                yuv.yuv[2] = buf_in + g_w*g_h*5/4; yuv.stride[2] = g_w/2;
+
+                // yuyv to yuv
+                int k, j;
+                for (k = 0; k < g_h; ++k)
+                {
+                    for (j = 0; j < (g_w >> 1); ++j)
+                    {
+                        yuyv.Y[j * 2] = p[4 * j];
+                        yuyv.U[j] = p[4 * j + 1];
+                        yuyv.Y[j * 2 + 1] = p[4 * j + 2];
+                        yuyv.V[j] = p[4 * j + 3];
+                    }
+                    p = p + g_w * 2;
+
+                    yuyv.Y = yuyv.Y + g_w;
+                    yuyv.U = yuyv.U + (g_w >> 1);
+                    yuyv.V = yuyv.V + (g_w >> 1);
+                }
+                // Now packed is planar
+                // reset
+                yuyv.Y = temp_buf_in;
+                yuyv.U = yuyv.Y + g_w * g_h;
+                yuyv.V = yuyv.U + (g_w * g_h >> 1);
+
+                int l;
+                for (l = 0; l < g_h / 2; ++l)
+                {
+                    memcpy(yuv.yuv[1], yuyv.U, g_w >> 1);
+                    memcpy(yuv.yuv[2], yuyv.V, g_w >> 1);
+
+                    yuv.yuv[1] = yuv.yuv[1] + (g_w >> 1);
+                    yuv.yuv[2] = yuv.yuv[2] + (g_w >> 1);
+
+                    yuyv.U = yuyv.U + (g_w);
+                    yuyv.V = yuyv.V + (g_w);
+                }
+
+                memcpy(yuv.yuv[0], yuyv.Y, g_w * g_h);
+
+                // reset
+                yuv.yuv[0] = buf_in;
+                yuv.yuv[1] = buf_in + g_w*g_h;
+                yuv.yuv[2] = buf_in + g_w*g_h*5/4;
+            } else {
                 if (!fread(buf_in, frame_size, 1, fin)) break;
+                yuv.yuv[0] = buf_in; yuv.stride[0] = g_w;
+                yuv.yuv[1] = buf_in + g_w*g_h; yuv.stride[1] = g_w/2;
+                yuv.yuv[2] = buf_in + g_w*g_h*5/4; yuv.stride[2] = g_w/2;
+            }
+
+            // For printing psnr
             if (cmdline->psnr)
                 memcpy(buf_save, buf_in, frame_size);
 
-            yuv.yuv[0] = buf_in; yuv.stride[0] = g_w;
-            yuv.yuv[1] = buf_in + g_w*g_h; yuv.stride[1] = g_w/2;
-            yuv.yuv[2] = buf_in + g_w*g_h*5/4; yuv.stride[2] = g_w/2;
-
             run_param.frame_type = 0;
             run_param.encode_speed = cmdline->speed;
+            run_param.target_fps = cmdline->fps;
             //run_param.desired_nalu_bytes = 100;
 
             if (cmdline->kbps)
             {
-                run_param.desired_frame_bytes = cmdline->kbps*1000/8/30;
+                printf("kbps is set manually...\n");
+                run_param.desired_frame_bytes = cmdline->kbps*1000/8/30;    // Modified for framerates
                 run_param.qp_min = 10;
                 run_param.qp_max = 50;
             } else
@@ -590,13 +763,6 @@ int main(int argc, char *argv[])
             error = H264E_encode(enc, scratch, &run_param, &yuv, &coded_data, &sizeof_coded_data);
             assert(!error);
 
-            if (i)
-            {
-                sum_bytes += sizeof_coded_data - 4;
-                if (min_bytes > sizeof_coded_data - 4) min_bytes = sizeof_coded_data - 4;
-                if (max_bytes < sizeof_coded_data - 4) max_bytes = sizeof_coded_data - 4;
-            }
-
             if (cmdline->stats)
                 printf("frame=%d, bytes=%d\n", frames++, sizeof_coded_data);
 
@@ -610,8 +776,37 @@ int main(int argc, char *argv[])
             }
             if (cmdline->psnr)
                 psnr_add(buf_save, buf_in, g_w, g_h, sizeof_coded_data);
+            // Collect coded_data and sizeof_coded_data for future signature calculation
+            unsigned char* tmp;
+            tmp = (unsigned char*)realloc(total_coded_data, (size_t)(total_sizeof_coded_data + sizeof_coded_data));
+            memcpy(tmp + total_sizeof_coded_data, coded_data, sizeof_coded_data);
+            total_sizeof_coded_data += sizeof_coded_data;
+            if (tmp)
+                total_coded_data = tmp;
         }
         //fprintf(stderr, "%d avr = %6d  [%6d %6d]\n", qp, sum_bytes/299, min_bytes, max_bytes);
+        if (cmdline->stats)
+            printf("total size of coded data %i\n", total_sizeof_coded_data);
+        if (fsig)
+        {
+            unsigned char *sig = NULL;
+            size_t size_of_sig = 0;
+            sign(priv_key, total_coded_data, total_sizeof_coded_data, &sig, &size_of_sig);
+            if (!fwrite(sig, size_of_sig, 1, fsig))
+            {
+                printf("ERROR writing signature\n");
+                return 1;
+            }
+            if (cmdline->stats)
+            {
+	            printf ("{\"sig\":\"");
+	            for (int i = 0; i < (int)size_of_sig; i++) {
+	                printf("%02x", (unsigned char) sig[i]);
+	            }
+	            printf("\"}\n");
+            }
+            free(sig);
+        }
 
         if (cmdline->psnr)
             psnr_print(psnr_get());
@@ -620,14 +815,26 @@ int main(int argc, char *argv[])
             free(enc);
         if (scratch)
             free(scratch);
+        if (total_coded_data)
+            free(total_coded_data);
     }
     free(buf_in);
     free(buf_save);
+
+    // Need to free more if yuyv frames are src
+    if(cmdline->is_yuyv){
+        free(yuyv_buf_in);
+        free(temp_buf_in);
+    }
 
     if (fin)
         fclose(fin);
     if (fout)
         fclose(fout);
+    if (fsig)
+        fclose(fsig);
+    if (fpriv_key)
+        fclose(fpriv_key);
 #if H264E_MAX_THREADS
     if (thread_pool)
     {

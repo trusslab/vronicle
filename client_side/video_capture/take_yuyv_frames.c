@@ -147,7 +147,7 @@ int init_mmap(int fd)
 int capture_frames(int fd, const char* fileName, int num_of_frames)
 {
 
-    int outfd = open(fileName, O_WRONLY | O_CREAT | O_TRUNC);
+    int outfd = open(fileName, O_RDWR | O_NONBLOCK, 0);
 
     for(int i = 0; i < num_of_frames; ++i){
         struct v4l2_buffer buf = {0};

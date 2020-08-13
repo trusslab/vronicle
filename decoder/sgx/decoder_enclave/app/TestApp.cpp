@@ -56,6 +56,7 @@
 #include "TestApp.h"
 
 #include <openssl/evp.h>
+#include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
@@ -815,6 +816,47 @@ void savePic(u8* picData, int width, int height, int picNum) {
   }
 }
 
+EVP_PKEY* extract_pub_from_cert_file(const char *cert_filestr) {
+
+  EVP_PKEY            *pkey = NULL;
+  BIO              *certbio = NULL;
+  X509                *cert = NULL;
+  int ret;
+
+  /* ---------------------------------------------------------- *
+   * These function calls initialize openssl for correct work.  *
+   * ---------------------------------------------------------- */
+  OpenSSL_add_all_algorithms();
+  ERR_load_BIO_strings();
+  ERR_load_crypto_strings();
+
+  /* ---------------------------------------------------------- *
+   * Create the Input/Output BIO's.                             *
+   * ---------------------------------------------------------- */
+  certbio = BIO_new(BIO_s_file());
+
+  /* ---------------------------------------------------------- *
+   * Load the certificate from file (PEM).                      *
+   * ---------------------------------------------------------- */
+  ret = BIO_read_filename(certbio, cert_filestr);
+  if (! (cert = PEM_read_bio_X509(certbio, NULL, 0, NULL))) {
+    printf("Error loading cert into memory\n");
+    return NULL;
+  }
+
+  /* ---------------------------------------------------------- *
+   * Extract the certificate's public key data.                 *
+   * ---------------------------------------------------------- */
+  if ((pkey = X509_get_pubkey(cert)) == NULL) {
+    printf("Error getting public key from certificate");
+    return NULL;
+  }
+
+  X509_free(cert);
+  BIO_free_all(certbio);
+  return pkey;
+}
+
 void do_decoding(
     int socket_fd,
 	struct sockaddr *saddr_p,
@@ -837,8 +879,35 @@ void do_decoding(
         is_output_multi = 1;
     }
 
-    char* input_file_path = strtok((char*)recv_buf, "***");
-    char* output_file_path = strtok(NULL, "****");
+    char* input_video_path = argv[5];
+    char* input_vendor_pub_path = argv[6];
+    char* output_file_path = argv[7];
+    char* input_sig_path = argv[8];
+    char* input_cert_path = argv[9];
+
+    // Read camera vendor public key
+    long vendor_pub_len = 0;
+    char* vendor_pub = read_file_as_str(input_vendor_pub_path, &vendor_pub_len);
+    if (!vendor_pub) {
+        printf("Failed to read camera vendor public key\n");
+        return;
+    }
+
+    // Read camera certificate
+    long camera_cert_len = 0;
+    char* camera_cert = read_file_as_str(input_cert_path, &camera_cert_len);
+    if (!camera_cert) {
+        printf("Failed to read camera certificate\n");
+        return;
+    }
+
+    // Read video signature
+    size_t vid_sig_length = 0;
+    unsigned char* vid_sig= read_signature(input_sig_path, &vid_sig_length);
+    if (!vid_sig) {
+        printf("Failed to read video signature\n");
+        return;
+    }
 
     // Set up parameters for the case where output is multi
     int current_frame_num = 0;
@@ -853,9 +922,9 @@ void do_decoding(
     }
 
     if(!is_output_multi)
-        printf("input_file_path: %s, output_file_path: %s\n", input_file_path, output_file_path);
+        printf("input_video_path: %s, output_file_path: %s\n", input_video_path, output_file_path);
     else
-        printf("input_file_path: %s, output_file_base_path: %s\n", input_file_path, output_file_path);
+        printf("input_video_path: %s, output_file_base_path: %s\n", input_video_path, output_file_path);
 
     FILE* rgb_output_file = NULL;
     if(!is_output_multi)
@@ -871,12 +940,15 @@ void do_decoding(
 
     u8* contentBuffer;
     size_t contentSize;
-    createContentBuffer(input_file_path, &contentBuffer, &contentSize);
+    createContentBuffer(input_video_path, &contentBuffer, &contentSize);
 
-    loadContent(input_file_path, contentBuffer, contentSize);
+    loadContent(input_video_path, contentBuffer, contentSize);
     sgx_status_t status = t_sgxver_decode_content(global_eid, contentBuffer, contentSize, 
-                                                    sizeof(u32), sizeof(int), frame_width, frame_height, num_of_frames, 
-                                                    sizeof(u8), output_rgb_buffer);
+                                                  vendor_pub, vendor_pub_len,
+                                                  camera_cert, camera_cert_len,
+                                                  vid_sig, vid_sig_length,
+                                                  frame_width, frame_height, num_of_frames, 
+                                                  output_rgb_buffer);
 
     printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
         *frame_width, *frame_height, *num_of_frames);
@@ -1215,8 +1287,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 5){
-        printf("Usage: ./TestApp [frame_width] [frame_height] [num_of_frames] [is_output_multi(0/1)]\n");
+    if(argc < 10){
+        printf("Usage: ./TestApp [frame_width] [frame_height] [num_of_frames] [is_output_multi(0/1)] [path_to_video] [path_to_camera_vendor_pubkey] [path_to_output_file] [path_to_video_sig] [path_to_camera_cert]\n");
         return 1;
     }
 

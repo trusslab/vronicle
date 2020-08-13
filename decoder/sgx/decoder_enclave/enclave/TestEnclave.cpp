@@ -561,14 +561,52 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 
 void t_sgxver_decode_content(
 	void* input_content_buffer, size_t size_of_input_content_buffer, 
-	size_t size_of_u32, size_t size_of_int, void* frame_width, void* frame_height, void* num_of_frames, 
-	size_t size_of_u8, void* output_rgb_buffer) {
+	void* vendor_pub, long vendor_pub_len,
+	void* camera_cert, long camera_cert_len,
+	void* vid_sig, size_t vid_sig_len,
+	u32* frame_width, u32* frame_height, int* num_of_frames, 
+	void* output_rgb_buffer) {
 
+    int res = -1;
 	// In: void* input_content_buffer
 	// Out: void* frame_width, void* frame_height, void* num_of_frames, void* output_rgb_buffer
 	// Common: size_t size_of_input_content_buffer, size_t size_of_u32, size_t size_of_int, size_of_u8
 
-	// testIncludeFunc2(2);
+	// Verify certificate
+	BIO* bo_pub = BIO_new( BIO_s_mem() );
+	BIO_write(bo_pub, (char*)vendor_pub, vendor_pub_len);
+
+	EVP_PKEY* vendor_pubkey = EVP_PKEY_new();
+	vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &vendor_pubkey, 0, 0);
+	BIO_free(bo_pub);
+
+	BIO* bo = BIO_new( BIO_s_mem() );
+	BIO_write(bo, (char*)camera_cert, camera_cert_len);
+    X509* cam_cert;
+    cam_cert = X509_new();
+	cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, NULL);
+	BIO_free(bo);
+
+	res = verify_cert(cam_cert, vendor_pubkey);
+
+	if(res != 1){
+		printf("Verify certificate failed\n");
+		return;
+	}
+
+	// Verify signature
+	EVP_PKEY* pukey = EVP_PKEY_new();
+	pukey = X509_get_pubkey(cam_cert);
+	res = verify_hash((char*)input_content_buffer, size_of_input_content_buffer, (unsigned char*)vid_sig, vid_sig_len, pukey);
+	if(res != 1){
+		printf("Verify signature failed\n");
+		return;
+	}
+
+	// Cleanup
+	X509_free(cam_cert);
+	EVP_PKEY_free(vendor_pubkey);
+	EVP_PKEY_free(pukey);
 
 	u32 status;
 	storage_t dec;
@@ -643,9 +681,9 @@ void t_sgxver_decode_content(
 	}
 
 	// Before we go out of enclave, assign all required output values
-	*(u32*)frame_width = width;
-	*(u32*)frame_height = height;
-	*(int*)num_of_frames = numPics;
+	*frame_width = width;
+	*frame_height = height;
+	*num_of_frames = numPics;
 
 	// printf("Test file complete. %d pictures decoded.\n", numPics);
 }

@@ -147,7 +147,7 @@ int init_mmap(int fd)
 int capture_frames(int fd, const char* fileName, int num_of_frames)
 {
 
-    int outfd = open(fileName, O_RDWR | O_NONBLOCK, 0);
+    FILE* outfile = fopen(fileName, "wb");
 
     for(int i = 0; i < num_of_frames; ++i){
         struct v4l2_buffer buf = {0};
@@ -185,10 +185,10 @@ int capture_frames(int fd, const char* fileName, int num_of_frames)
         }
 
         // printf("Image Length (After taken image): %d\n", buf.bytesused);
-        write(outfd, buffer, buf.bytesused);
+        fwrite(buffer, (size_t)buf.bytesused, 1, outfile);
     }
     
-    close(outfd);
+    fclose(outfile);
 
     return 0;
 }
@@ -204,7 +204,6 @@ int main(int argc, char *argv[])
 
     int fd;
     char buf[25];
-
     fd = open("/dev/video0", O_RDWR);
     if (fd == -1)
     {

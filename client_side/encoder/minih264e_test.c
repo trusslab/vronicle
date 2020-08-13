@@ -11,6 +11,7 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <openssl/bio.h>
 
 #define DEFAULT_GOP 20
 #define DEFAULT_QP 33
@@ -119,6 +120,28 @@ void h264e_thread_pool_run(void *pool, void (*callback)(void*), void *callback_j
 }
 #endif
 
+void Base64Encode( const unsigned char* buffer,
+                   size_t length,
+                   char** base64Text, 
+                   size_t* actual_base64_len) {
+    BIO *bio, *b64;
+    BUF_MEM *bufferPtr;
+
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);
+
+    BIO_write(bio, buffer, length);
+    BIO_flush(bio);
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    BIO_set_close(bio, BIO_NOCLOSE);
+    BIO_free_all(bio);
+
+    *actual_base64_len = (*bufferPtr).length;
+
+    *base64Text=(*bufferPtr).data;
+}
+
 struct
 {
     const char *input_file;
@@ -140,7 +163,7 @@ static int str_equal(const char *pattern, char **p)
     }
 }
 
-int sign (EVP_PKEY* priv_key, void *data_to_be_signed, size_t size_of_data, unsigned char **sig, size_t *size_of_sig)
+int sign (EVP_PKEY* priv_key, void *data_to_be_signed, size_t size_of_data, char **sig_b64, size_t *sig_len_b64)
 {
 	EVP_MD_CTX *mdctx = NULL;
 	
@@ -165,15 +188,18 @@ int sign (EVP_PKEY* priv_key, void *data_to_be_signed, size_t size_of_data, unsi
 	/* Finalise the DigestSign operation */
 	/* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
 	* signature. Length is returned in slen */
-	if(1 != EVP_DigestSignFinal(mdctx, NULL, size_of_sig)){
+    size_t size_of_sig = 0;
+	if(1 != EVP_DigestSignFinal(mdctx, NULL, &size_of_sig)){
 		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);
 	};
-    *sig = (unsigned char*)malloc(*size_of_sig);
-	if(1 != EVP_DigestSignFinal(mdctx, *sig, size_of_sig)){
+    unsigned char *sig = (unsigned char*)malloc(size_of_sig);
+	if(1 != EVP_DigestSignFinal(mdctx, sig, &size_of_sig)){
 		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);
 	};
+
+    Base64Encode(sig, size_of_sig, sig_b64, sig_len_b64);
 	
 	/* Clean up */
 	if(mdctx) EVP_MD_CTX_destroy(mdctx);
@@ -789,10 +815,10 @@ int main(int argc, char *argv[])
             printf("total size of coded data %i\n", total_sizeof_coded_data);
         if (fsig)
         {
-            unsigned char *sig = NULL;
-            size_t size_of_sig = 0;
-            sign(priv_key, total_coded_data, total_sizeof_coded_data, &sig, &size_of_sig);
-            if (!fwrite(sig, size_of_sig, 1, fsig))
+            char *sig_b64 = NULL;
+            size_t sig_len_b64 = 0;
+            sign(priv_key, total_coded_data, total_sizeof_coded_data, &sig_b64, &sig_len_b64);
+            if (!fwrite(sig_b64, sig_len_b64, 1, fsig))
             {
                 printf("ERROR writing signature\n");
                 return 1;
@@ -800,12 +826,12 @@ int main(int argc, char *argv[])
             if (cmdline->stats)
             {
 	            printf ("{\"sig\":\"");
-	            for (int i = 0; i < (int)size_of_sig; i++) {
-	                printf("%02x", (unsigned char) sig[i]);
+	            for (int i = 0; i < (int)sig_len_b64; i++) {
+	                printf("%02x", (unsigned char) sig_b64[i]);
 	            }
 	            printf("\"}\n");
             }
-            free(sig);
+            free(sig_b64);
         }
 
         if (cmdline->psnr)

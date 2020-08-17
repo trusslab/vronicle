@@ -185,42 +185,9 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 
 
 
-int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
-	
-	// EVP_MD_CTX *mdctx;
-	// const EVP_MD *md;
-
-	// md = EVP_sha256();
-	// mdctx = EVP_MD_CTX_new();
-	// EVP_DigestInit_ex(mdctx, md, NULL);
-
-	// int ret;
-	// ret = EVP_SignInit_ex(mdctx, md, NULL);
-	// if(ret != 1){
-	// 	printf("EVP_SignInit_ex error. \n");
-    //     exit(1);
-	// }
-
-	// printf("In filter signing, len_of_hash is: %d\n", len_of_hash);
-
-	// ret = EVP_SignUpdate(mdctx, hash_to_be_signed, len_of_hash);
-	// if(ret != 1){
-	// 	printf("EVP_SignUpdate error. \n");
-    //     exit(1);
-	// }
-
-	// unsigned int sizeOfSignature = -1;
-
-	// ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
-	// if(ret != 1){
-	// 	printf("EVP_SignFinal error : %ld. \n",  ERR_get_error());
-    //     exit(1);
-	// }
-	// *(int*)size_of_actual_signature = sizeOfSignature;
+int sign(EVP_PKEY* priKey, void *data_to_be_signed, size_t len_of_data, unsigned char *signature, size_t *size_of_actual_signature){
 
 	EVP_MD_CTX *mdctx = NULL;
-	
-	// (unsigned char*)signature = NULL;
 	
 	/* Create the Message Digest Context */
 	if(!(mdctx = EVP_MD_CTX_create())){
@@ -235,77 +202,19 @@ int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, voi
 	}
 	
 	/* Call update with the message */
-	if(1 != EVP_DigestSignUpdate(mdctx, hash_to_be_signed, len_of_hash)){
+	if(1 != EVP_DigestSignUpdate(mdctx, data_to_be_signed, len_of_data)){
 		printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
 		exit(1);
 	}
 	
 	/* Finalise the DigestSign operation */
-	/* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
-	* signature. Length is returned in slen */
-	// if(1 != EVP_DigestSignFinal(mdctx, NULL, slen)) goto err;
-	/* Allocate memory for the signature based on size in slen */
-	// if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) goto err;
-	/* Obtain the signature */
-	// printf("Before passing in (size_t*)size_of_actual_signature, it is: %zu\n", *(size_t*)size_of_actual_signature);
-	if(1 != EVP_DigestSignFinal(mdctx, (unsigned char*)signature, (size_t*)size_of_actual_signature)){
+	if(1 != EVP_DigestSignFinal(mdctx, signature, size_of_actual_signature)){
 		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 		exit(1);
 	};
 	
 	/* Clean up */
 	if(mdctx) EVP_MD_CTX_destroy(mdctx);
-
-	// Return 0 on success, otherwise, return 1
-    // EVP_MD_CTX *mdctx;
-	// const EVP_MD *md;
-	// unsigned char md_value[EVP_MAX_MD_SIZE];
-	// unsigned int md_len, i;
-
-	// OpenSSL_add_all_digests();
-
-	// md = EVP_get_digestbyname("SHA256");
-
-	// if (md == NULL) {
-    //      printf("Unknown message digest %s\n", "SHA256");
-    //      exit(1);
-    // }
-
-	// mdctx = EVP_MD_CTX_new();
-	// EVP_DigestInit_ex(mdctx, md, NULL);
-
-	// int ret;
-	// ret = EVP_SignInit_ex(mdctx, EVP_sha256(), NULL);
-	// if(ret != 1){
-	// 	printf("EVP_SignInit_ex error. \n");
-    //     exit(1);
-	// }
-
-	// printf("hash_to_be_signed (length = %d): {%s}\n", strlen((char*)hash_to_be_signed), (char*)hash_to_be_signed);
-
-	// ret = EVP_SignUpdate(mdctx, (void*)hash_to_be_signed, strlen((char*)hash_to_be_signed));
-	// if(ret != 1){
-	// 	printf("EVP_SignUpdate error. \n");
-    //     exit(1);
-	// }
-
-	// //printf("The size of pkey is: %d\n", EVP_PKEY_size(key_for_sign));
-	// //printf("The len of pkey is: %d\n", i2d_PrivateKey(key_for_sign, NULL));
-
-	// unsigned int sizeOfSignature = -1;
-
-	// print_private_key(priKey);
-
-	// printf("signature for filter signing before passing in (pre sizeOfSignature = %u): {%s}\n", sizeOfSignature, (unsigned char*)signature);
-
-	// ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
-	// if(ret != 1){
-	// 	printf("EVP_SignFinal error with code: %lu. \n", ERR_get_error());
-    //     exit(1);
-	// }
-	// *(int*)size_of_actual_signature = sizeOfSignature;
-
-	// printf("The size of signature is: %d\n", *(int*)size_of_actual_signature);
 
 	return 0;
 }
@@ -543,14 +452,14 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
 
 	// Generate signature
-	*(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	int result_of_filter_signing = sign_hash(enc_priv_key, char_array_for_processed_img_sign, len_of_processed_image_str, processed_img_signautre, size_of_actual_processed_img_signature);
-	if(result_of_filter_signing != 0){
-		*(int*)runtime_result = 2;
-		EVP_PKEY_free(pukey);
-		X509_free(cam_cert);
-		return;
-	}
+	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
+	// int result_of_filter_signing = sign(enc_priv_key, char_array_for_processed_img_sign, len_of_processed_image_str, processed_img_signautre, size_of_actual_processed_img_signature);
+	// if(result_of_filter_signing != 0){
+	// 	*(int*)runtime_result = 2;
+	// 	EVP_PKEY_free(pukey);
+	// 	X509_free(cam_cert);
+	// 	return;
+	// }
 
 	// Free Memory
 	EVP_PKEY_free(pukey);
@@ -627,6 +536,8 @@ void t_sgxver_decode_content(
 	u8* pic_rgb = NULL;
 	u32 picId, isIdrPic, numErrMbs;
 	u32 top, left, width, height, croppingFlag;
+	unsigned char* pic_sig = (unsigned char*)malloc(512);
+	size_t pic_sig_len = 0;
 
 	u8* output_rgb_buffer_temp = (u8*)output_rgb_buffer;
 
@@ -644,10 +555,19 @@ void t_sgxver_decode_content(
 				exit(1);
 			}
 			yuv420_prog_planar_to_rgb_packed(pic, pic_rgb, width, height);
+
+			// Generate signature
+			res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, 
+					   pic_sig, &pic_sig_len);
+			if(res != 0){
+				printf("Signing frame failed\n");
+				return;
+			}
+			free(pic_sig);
+			// Save signature to output buffer
+			// Save frame to output buffer
 			memcpy(output_rgb_buffer_temp, pic_rgb, frame_size_in_rgb);
 			output_rgb_buffer_temp += frame_size_in_rgb;
-			// if (outputPath) savePic(pic, width, height, numPics);
-			// TO-DO processing and saving of the original pic buffer
 			break;
 		case H264BSD_HDRS_RDY:
 			h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);

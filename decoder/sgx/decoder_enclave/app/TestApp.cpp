@@ -522,6 +522,7 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     // Need to free the return after finishing using
     FILE* signature_file = fopen(sign_file_name, "r");
     if(signature_file == NULL){
+        printf("Failed to read video signature from file: %s\n", sign_file_name);
         return NULL;
     }
 
@@ -878,12 +879,17 @@ void do_decoding(
         printf("The output is multi\n");
         is_output_multi = 1;
     }
-
     char* input_video_path = argv[5];
     char* input_vendor_pub_path = argv[6];
-    char* output_file_path = argv[7];
-    char* input_sig_path = argv[8];
-    char* input_cert_path = argv[9];
+    char* input_sig_path = argv[7];
+    char* input_cert_path = argv[8];
+    char* output_file_path = argv[9];
+    char* output_sig_path = argv[10];
+
+    if(!is_output_multi)
+        printf("input_video_path: %s, input_vendor_pub_path: %s, output_file_path: %s, input_sig_path: %s, input_cert_path: %s\n", input_video_path, input_vendor_pub_path, output_file_path, input_sig_path, input_cert_path);
+    else
+        printf("input_video_path: %s, input_vendor_pub_path: %s, output_file_base_path: %s, input_sig_path: %s, input_cert_path: %s, output_sig_path: %s\n", input_video_path, input_vendor_pub_path, output_file_path, input_sig_path, input_cert_path, output_sig_path);
 
     // Read camera vendor public key
     long vendor_pub_len = 0;
@@ -903,14 +909,14 @@ void do_decoding(
 
     // Read video signature
     size_t vid_sig_length = 0;
-    unsigned char* vid_sig= read_signature(input_sig_path, &vid_sig_length);
+    unsigned char* vid_sig = read_signature(input_sig_path, &vid_sig_length);
     if (!vid_sig) {
         printf("Failed to read video signature\n");
         return;
     }
 
     // Set up parameters for the case where output is multi
-    int current_frame_num = 0;
+    size_t sig_size = 384; // TODO: Remove hardcoded sig size
     int length_of_base_frame_file_name = (int)strlen(output_file_path);
     int size_of_current_frame_file_name = 0;
     char* current_frame_file_name;
@@ -920,13 +926,12 @@ void do_decoding(
         size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * 3;
         current_frame_file_name = (char*)malloc(size_of_current_frame_file_name);
     }
-
-    if(!is_output_multi)
-        printf("input_video_path: %s, output_file_path: %s\n", input_video_path, output_file_path);
-    else
-        printf("input_video_path: %s, output_file_base_path: %s\n", input_video_path, output_file_path);
+    int length_of_base_sig_file_name = (int)strlen(output_sig_path);
+    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * 3;
+    char current_sig_file_name[size_of_current_sig_file_name];
 
     FILE* rgb_output_file = NULL;
+    FILE* sig_output_file = NULL;
     if(!is_output_multi)
         rgb_output_file = fopen(output_file_path, "wb");
 
@@ -937,6 +942,8 @@ void do_decoding(
     int frame_size = sizeof(u8) * frame_width_from_input * frame_height_from_input * 3;
     size_t total_size_of_raw_rgb_buffer = frame_size * num_of_frames_from_input;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
+    size_t total_size_of_sig_buffer = sig_size * num_of_frames_from_input;
+    u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
 
     u8* contentBuffer;
     size_t contentSize;
@@ -948,7 +955,7 @@ void do_decoding(
                                                   camera_cert, camera_cert_len,
                                                   vid_sig, vid_sig_length,
                                                   frame_width, frame_height, num_of_frames, 
-                                                  output_rgb_buffer);
+                                                  output_rgb_buffer, output_sig_buffer);
 
     printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
         *frame_width, *frame_height, *num_of_frames);
@@ -957,36 +964,51 @@ void do_decoding(
         fwrite(output_rgb_buffer, 1, total_size_of_raw_rgb_buffer, rgb_output_file);
     else {
         u8* temp_output_rgb_buffer = output_rgb_buffer;
+        u8* temp_output_sig_buffer = output_sig_buffer;
 
         // To-Do: make the following two lines flexible
         char* dirname = "../video_data/raw_for_process";
         mkdir(dirname, 0777);
+        dirname = "../video_data/sig";
+        mkdir(dirname, 0777);
 
         for(int i = 0; i < *num_of_frames; ++i){
-            if(rgb_output_file)
-                fclose(rgb_output_file);
+            // Write frame to file
             memset(current_frame_file_name, 0, size_of_current_frame_file_name);
             temp_pointer_for_current_frame_file_name = current_frame_file_name + sizeof(char) * length_of_base_frame_file_name;
             memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
-            sprintf(temp_pointer_for_current_frame_file_name, "%d", current_frame_num++);
-            printf("Now writing file: %s\n", current_frame_file_name);
+            sprintf(temp_pointer_for_current_frame_file_name, "%d", i);
+            printf("Now writing frame to file: %s\n", current_frame_file_name);
             rgb_output_file = fopen(current_frame_file_name, "wb");
-            if(!rgb_output_file){
-                printf("Finished writing frames\n");
-                break;
-            }
             fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
             temp_output_rgb_buffer += frame_size;
+            fclose(rgb_output_file);
+
+            // Write signature to file
+            memset(current_sig_file_name, 0, size_of_current_sig_file_name);
+            memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
+            sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
+            printf("Now writing sig to file: %s\n", current_sig_file_name);
+            sig_output_file = fopen(current_sig_file_name, "wb");
+            fwrite(temp_output_sig_buffer, sig_size, 1, sig_output_file);
+            temp_output_sig_buffer += sig_size;
+            fclose(sig_output_file);
         }
     }
 
-    if(outputFile) fclose(outputFile);
-    if(rgb_output_file) fclose(rgb_output_file);
-
     // Free everything
-    free(frame_width);
-    free(frame_height);
-    free(num_of_frames);
+    if(frame_width)
+        free(frame_width);
+    if(frame_height)
+        free(frame_height);
+    if(num_of_frames)
+        free(num_of_frames);
+    if(contentBuffer)
+        free(contentBuffer);
+    if(output_rgb_buffer)
+        free(output_rgb_buffer);
+    if(output_sig_buffer)
+        free(output_sig_buffer);
 
     return;
 }
@@ -1288,7 +1310,7 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 10){
-        printf("Usage: ./TestApp [frame_width] [frame_height] [num_of_frames] [is_output_multi(0/1)] [path_to_video] [path_to_camera_vendor_pubkey] [path_to_output_file] [path_to_video_sig] [path_to_camera_cert]\n");
+        printf("Usage: ./TestApp [frame_width] [frame_height] [num_of_frames] [is_output_multi(0/1)] [path_to_video] [path_to_camera_vendor_pubkey] [path_to_video_sig] [path_to_camera_cert] [path_to_output_frame_file] [path_to_output_sig_file]\n");
         return 1;
     }
 
@@ -1302,6 +1324,10 @@ int main(int argc, char *argv[], char **env)
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Conducting RA took time: " << duration.count() << endl; 
+    char* cert_file_name = "../video_data/decoder_cert.der";
+    FILE* cert_file = fopen(cert_file_name, "wb");
+    fwrite(der_cert, size_of_cert, 1, cert_file);
+    fclose(cert_file);
 
 	/* create the server waiting for the verification request from the client */
 	int s;

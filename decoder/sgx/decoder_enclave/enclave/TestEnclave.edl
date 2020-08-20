@@ -70,7 +70,8 @@ from "ra_tls.edl" import *;
                                             [in, size=vid_sig_len] void* vid_sig, size_t vid_sig_len,
                                             [out] u32* frame_width, [out] u32* frame_height, 
                                             [out] int* num_of_frames, 
-                                            [user_check] void* output_rgb_buffer);
+                                            [user_check] void* output_rgb_buffer,
+                                            [user_check] void* output_sig_buffer);
  
     };
 };

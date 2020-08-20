@@ -183,80 +183,102 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 	return res;
 }
 
-
-
 int sign(EVP_PKEY* priKey, void *data_to_be_signed, size_t len_of_data, unsigned char *signature, size_t *size_of_actual_signature){
 
 	EVP_MD_CTX *mdctx = NULL;
+	int ret = 0;
 	
-	/* Create the Message Digest Context */
-	if(!(mdctx = EVP_MD_CTX_create())){
-		printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
-		exit(1);
-	}
+	do {
+		/* Create the Message Digest Context */
+		if(!(mdctx = EVP_MD_CTX_create())){
+			printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
+			ret = 1;
+			break;
+		}
 	
-	/* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
-	if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priKey)){
-		printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
-		exit(1);
-	}
+		/* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
+		if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priKey)){
+			printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
+			ret = 1;
+			break;
+		}
 	
-	/* Call update with the message */
-	if(1 != EVP_DigestSignUpdate(mdctx, data_to_be_signed, len_of_data)){
-		printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
-		exit(1);
-	}
+		/* Call update with the message */
+		if(1 != EVP_DigestSignUpdate(mdctx, data_to_be_signed, len_of_data)){
+			printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
+			ret = 1;
+			break;
+		}
 	
-	/* Finalise the DigestSign operation */
-	if(1 != EVP_DigestSignFinal(mdctx, signature, size_of_actual_signature)){
-		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
-		exit(1);
-	};
+		if (!signature) {
+			/* Obtain signature size */
+			if(1 != EVP_DigestSignFinal(mdctx, NULL, size_of_actual_signature)){
+				printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+				ret = 1;
+				break;
+			}
+			break;
+		}
+	
+		/* Finalise the DigestSign operation */
+		if(1 != EVP_DigestSignFinal(mdctx, signature, size_of_actual_signature)){
+			printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			ret = 1;
+			break;
+		}
+	} while(0);
 	
 	/* Clean up */
 	if(mdctx) EVP_MD_CTX_destroy(mdctx);
 
-	return 0;
+	return ret;
 }
 
-bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
+bool verify_hash(void* hash_of_file, int size_of_hash, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
 	// Return true on success; otherwise, return false
 	EVP_MD_CTX *mdctx;
 	const EVP_MD *md;
-	int ret;
+	int ret = 1;
 
 	OpenSSL_add_all_digests();
 
-    md = EVP_get_digestbyname("SHA256");
+	do {
+		md = EVP_get_digestbyname("SHA256");
 
-	if (md == NULL) {
-         printf("Unknown message digest %s\n", "SHA256");
-         exit(1);
-    }
+		if (md == NULL) {
+			printf("Unknown message digest %s\n", "SHA256");
+			ret = 0;
+			break;
+		}
 
-	mdctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(mdctx, md, NULL);
+		mdctx = EVP_MD_CTX_new();
+		EVP_DigestInit_ex(mdctx, md, NULL);
 
-	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-	if(ret != 1){
-		printf("EVP_VerifyInit_ex error. \n");
-        exit(1);
-	}
+		ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+		if(ret != 1){
+			printf("EVP_VerifyInit_ex error. \n");
+			break;
+		}
 
-    // printf("hash_of_file to be verified: %s\n", hash_of_file);
+ 	    // printf("hash_of_file to be verified: %s (len: %i)\n", hash_of_file, size_of_hash);
 
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, size_of_hash);
-	if(ret != 1){
-		printf("EVP_VerifyUpdate error. \n");
-        exit(1);
-	}
+		ret = EVP_VerifyUpdate(mdctx, hash_of_file, size_of_hash);
+		if(ret != 1){
+			printf("EVP_VerifyUpdate error. \n");
+			break;
+		}
 
-	ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
-	// printf("EVP_VerifyFinal result: %d\n", ret);
+		ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
+		if(ret != 1){
+			printf("EVP_VerifyFinal error. \n");
+			break;
+		}
+		// printf("EVP_VerifyFinal result: %d\n", ret);
+	} while(0);
 
 	// Below part is for freeing data
 	// For freeing evp_md_ctx
-	EVP_MD_CTX_free(mdctx);
+	if (mdctx) EVP_MD_CTX_free(mdctx);
 
     return ret;
 }
@@ -346,7 +368,7 @@ size_t pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number
 
 int verify_cert(X509* cert_to_verify, EVP_PKEY* pubkey_for_verify)
 {
-    int r= X509_verify(cert_to_verify, pubkey_for_verify);
+    int r = X509_verify(cert_to_verify, pubkey_for_verify);
     return r;
 }
 
@@ -474,7 +496,7 @@ void t_sgxver_decode_content(
 	void* camera_cert, long camera_cert_len,
 	void* vid_sig, size_t vid_sig_len,
 	u32* frame_width, u32* frame_height, int* num_of_frames, 
-	void* output_rgb_buffer) {
+	void* output_rgb_buffer, void* output_sig_buffer) {
 
     int res = -1;
 	// In: void* input_content_buffer
@@ -506,7 +528,7 @@ void t_sgxver_decode_content(
 	// Verify signature
 	EVP_PKEY* pukey = EVP_PKEY_new();
 	pukey = X509_get_pubkey(cam_cert);
-	res = verify_hash((char*)input_content_buffer, size_of_input_content_buffer, (unsigned char*)vid_sig, vid_sig_len, pukey);
+	res = verify_hash(input_content_buffer, size_of_input_content_buffer, (unsigned char*)vid_sig, vid_sig_len, pukey);
 	if(res != 1){
 		printf("Verify signature failed\n");
 		return;
@@ -536,8 +558,14 @@ void t_sgxver_decode_content(
 	u8* pic_rgb = NULL;
 	u32 picId, isIdrPic, numErrMbs;
 	u32 top, left, width, height, croppingFlag;
-	unsigned char* pic_sig = (unsigned char*)malloc(512);
+	// Obtain signature length and allocate memory for signature
 	size_t pic_sig_len = 0;
+	res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, NULL, &pic_sig_len);
+	if(res != 0){
+		printf("Failed to obtain signature length\n");
+		return;
+	}
+	unsigned char* pic_sig = (unsigned char*)malloc(pic_sig_len);
 
 	u8* output_rgb_buffer_temp = (u8*)output_rgb_buffer;
 
@@ -557,14 +585,15 @@ void t_sgxver_decode_content(
 			yuv420_prog_planar_to_rgb_packed(pic, pic_rgb, width, height);
 
 			// Generate signature
-			res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, 
-					   pic_sig, &pic_sig_len);
+			res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, pic_sig, &pic_sig_len);
 			if(res != 0){
 				printf("Signing frame failed\n");
-				return;
+				break;
 			}
-			free(pic_sig);
 			// Save signature to output buffer
+			memcpy(output_sig_buffer, pic_sig, pic_sig_len);
+			output_sig_buffer += pic_sig_len;
+			memset(pic_sig, 0, pic_sig_len);
 			// Save frame to output buffer
 			memcpy(output_rgb_buffer_temp, pic_rgb, frame_size_in_rgb);
 			output_rgb_buffer_temp += frame_size_in_rgb;
@@ -596,9 +625,10 @@ void t_sgxver_decode_content(
 
 	h264bsdShutdown(&dec);
 	// Free other things
-	if(pic_rgb != NULL){
+	if(pic_rgb)
 		free(pic_rgb);
-	}
+	if(pic_sig)
+		free(pic_sig);
 
 	// Before we go out of enclave, assign all required output values
 	*frame_width = width;

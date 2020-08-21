@@ -805,63 +805,55 @@ int verification_reply(
     char** argv)
 {
 	fflush(stdout);
+    int ret = 1;
 
     // printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
-
-    auto start_of_reading_public_key = high_resolution_clock::now();
-
-    // Read Public Key (no longer used)
-    /*
-    char absolutePath[MAX_PATH];
-    char *ptr = NULL;
-
-    ptr = realpath(dirname(argv[0]), absolutePath);
-
-    if (ptr == NULL || chdir(absolutePath) != 0)
-        return 1;
-
-    long original_pub_key_str_len;
-    char* original_pub_key_str = read_file_as_str(argv[1], &original_pub_key_str_len);
-
-    auto end_of_reading_public_key = high_resolution_clock::now();
-    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
-    cout << "Processing frame " << (char*)recv_buf << " read public key take time: " << public_key_read_duration.count() << endl; 
-
-    auto start_of_reading_signature = high_resolution_clock::now();
-    */
 
     // Set up some basic parameters
     // TO-DO: make frame_size flexible
     int frame_size = 1280 * 720 * 3 * sizeof(unsigned char);
-
-    // Read Certificate and its vendor public key
     char absolutePath[MAX_PATH];
     char *ptr = NULL;
-
     ptr = realpath(dirname(argv[0]), absolutePath);
-
     if (ptr == NULL || chdir(absolutePath) != 0)
         return 1;
 
-    long original_vendor_pub_str_len;
-    char* original_vendor_pub_str = read_file_as_str(argv[1], &original_vendor_pub_str_len);
+    // Read Certificate and its vendor public key
+    auto start_of_reading_public_key = high_resolution_clock::now();
 
-    long original_cert_str_len;
-    char* original_cert_str = read_file_as_str(argv[2], &original_cert_str_len);
+    FILE* ias_cert_file = fopen(argv[1], "rb");
+    if (!ias_cert_file) {
+        cout << "Could not open IAS certificate file" << endl;
+        return 1;
+    }
+    fseek(ias_cert_file, 0, SEEK_END);
+    size_t size_of_ias_cert = ftell(ias_cert_file);
+    rewind(ias_cert_file);
+    char* ias_cert = (char*)malloc(size_of_ias_cert);
+    if (!ias_cert) {
+        cout << "Not enough memory" << endl;
+        fclose(ias_cert_file);
+        return 1;
+    }
+    int fread_result = fread(ias_cert, size_of_ias_cert, 1, ias_cert_file);
+    if (fread_result != size_of_ias_cert) {
+        cout << "Failed to read IAS certificate file" << endl;
+        fclose(ias_cert_file);
+        return 1;
+    }
+    fclose(ias_cert_file);
 
     auto end_of_reading_public_key = high_resolution_clock::now();
     auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
     cout << "Processing frame " << (char*)recv_buf << " read camera certificate take time: " << public_key_read_duration.count() << endl; 
 
+    // Read Signature
     auto start_of_reading_signature = high_resolution_clock::now();
 
-    // Read Signature
     unsigned char* raw_signature;
     size_t raw_signature_length;
-
     char raw_file_signature_name[50];
-    snprintf(raw_file_signature_name, 50, "%s%s", argv[3], (char*)recv_buf);
-
+    snprintf(raw_file_signature_name, 50, "%s%s", argv[2], (char*)recv_buf);
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
     // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
     // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
@@ -870,33 +862,20 @@ int verification_reply(
     auto signature_read_duration = duration_cast<microseconds>(end_of_reading_signature - start_of_reading_signature);
     cout << "Processing frame " << (char*)recv_buf << " read signature take time: " << signature_read_duration.count() << endl; 
 
-    auto start_of_reading_raw_img = high_resolution_clock::now();
-
     // Read Raw Image
     // TO-DO: make the base file name flexible
-    char raw_file_name[200];
-    snprintf(raw_file_name, 200, "%s%s", argv[4], (char*)recv_buf);
+    auto start_of_reading_raw_img = high_resolution_clock::now();
 
+    char raw_file_name[200];
+    snprintf(raw_file_name, 200, "%s%s", argv[3], (char*)recv_buf);
     int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size);
-    image_width = atoi(argv[5]);
-    image_height = atoi(argv[6]);
+    image_width = atoi(argv[4]);
+    image_height = atoi(argv[5]);
     // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
     
     auto end_of_reading_raw_img = high_resolution_clock::now();
     auto raw_img_read_duration = duration_cast<microseconds>(end_of_reading_raw_img - start_of_reading_raw_img);
     cout << "Processing frame " << (char*)recv_buf << " read raw img take time: " << raw_img_read_duration.count() << endl; 
-
-    auto start_of_reading_raw_img_hash = high_resolution_clock::now();
-
-    // Read Raw Image Hash
-    int size_of_hoorf = 65;
-    char* hash_of_original_raw_file = (char*) malloc(size_of_hoorf);
-    read_file_as_hash(raw_file_name, hash_of_original_raw_file);
-    // cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
-
-    auto end_of_reading_raw_img_hash = high_resolution_clock::now();
-    auto raw_img_hash_read_duration = duration_cast<microseconds>(end_of_reading_raw_img_hash - start_of_reading_raw_img_hash);
-    cout << "Processing frame " << (char*)recv_buf << " read raw img hash take time: " << raw_img_hash_read_duration.count() << endl; 
 
     auto start_of_allocation = high_resolution_clock::now();
 
@@ -904,18 +883,10 @@ int verification_reply(
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
-    // Allocate char array for encalve to create signature of processed pixels
-    long size_of_char_array_for_processed_img_sign = image_height * image_width * 3 * 4 + 16;
-    // printf("size_of_char_array_for_processed_img_sign: %d\n", size_of_char_array_for_processed_img_sign);
-    char* char_array_for_processed_img_sign = (char*)malloc(size_of_char_array_for_processed_img_sign);
-
     // Prepare for signature output and its hash
     size_t size_of_processed_img_signature = 512;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
     // printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
-    size_t size_of_actual_processed_img_signature;
-    int size_of_hoprf = 65;
-    char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
 
     auto end_of_allocation = high_resolution_clock::now();
     auto allocation_duration = duration_cast<microseconds>(end_of_allocation - start_of_allocation);
@@ -924,17 +895,15 @@ int verification_reply(
     // printf("The very first pixel(Before processed by filter): R: %d; G: %d; B: %d\n", (int)image_pixels[100].r, (int)image_pixels[100].g, (int)image_pixels[100].b);
 
     // Going to get into enclave
-    int runtime_result = -1;
     auto start = high_resolution_clock::now();
     sgx_status_t status = t_sgxver_call_apis(
-        global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-        hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        original_vendor_pub_str, original_vendor_pub_str_len, 
-        original_cert_str, original_cert_str_len, processed_pixels, &runtime_result, sizeof(int), 
-        char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, 
-        hash_of_processed_raw_file, size_of_hoprf, 
-        processed_img_signature, size_of_processed_img_signature, 
-        &size_of_actual_processed_img_signature, sizeof(size_t));
+        global_eid, &ret,
+        image_pixels, sizeof(pixel) * image_width * image_height,
+        image_width, image_height, 
+        raw_signature, raw_signature_length, 
+        ias_cert, size_of_ias_cert,
+        processed_pixels,
+        processed_img_signature, size_of_processed_img_signature);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Processing frame " << (char*)recv_buf << " in enclave takes time: " << duration.count() << endl; 
@@ -943,16 +912,10 @@ int verification_reply(
         return 1;    //Test failed
     }
 
-    if (runtime_result != 0) {
-        printf("Runtime result verification failed: %d\n", runtime_result);
+    if (ret != 0) {
+        printf("Runtime result verification failed: %d\n", ret);
         return 1;
     }
-
-    // cout << "Enclave has successfully run with runtime_result: " << runtime_result << endl;
-    // printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
-    // printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
-    // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
-    // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
 
     auto start_of_saving_frame = high_resolution_clock::now();
 
@@ -977,7 +940,7 @@ int verification_reply(
 
     // Save processed filter singature
     // printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
-    int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_actual_processed_img_signature, (char*) recv_buf);
+    int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_processed_img_signature, (char*) recv_buf);
     if(result_of_filter_sign_saving != 0){
         return 1;
     }
@@ -995,18 +958,8 @@ int verification_reply(
         free(processed_pixels);
     if(image_buffer)
         free(image_buffer);
-    if(hash_of_original_raw_file)
-        free(hash_of_original_raw_file);
     if(raw_signature)
         free(raw_signature);
-    if(original_vendor_pub_str)
-        free(original_vendor_pub_str);
-    if(original_cert_str)
-        free(original_cert_str);
-    if(char_array_for_processed_img_sign)
-        free(char_array_for_processed_img_sign);
-    if(hash_of_processed_raw_file)
-        free(hash_of_processed_raw_file);
     if(processed_img_signature)
         free(processed_img_signature);
 

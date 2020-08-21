@@ -49,19 +49,18 @@ from "ra_tls.edl" import *;
 
     trusted {
         public void t_sgxssl_call_apis([user_check] void* evp_pkey_v);
-        public void t_sgxver_call_apis([in, size=size_of_image_pixels] void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
-                                        [in, size=size_of_hooi] void *hash_of_original_image, int size_of_hooi, 
-                                        [in, size=size_of_actual_signature] void *signature, size_t size_of_actual_signature,
-                                        [in, size=original_vendor_pub_str_len] void *original_vendor_pub_str, long original_vendor_pub_str_len, 
-                                        [in, size=original_cert_str_len] void *original_cert_str, long original_cert_str_len,
-                                        [out, size=size_of_image_pixels] void* processed_pixels,
-                                        [out, size=size_of_runtime_result] void* runtime_result, int size_of_runtime_result,
-                                        [out, size=size_of_cafpis] void* char_array_for_processed_img_sign, int size_of_cafpis,
-                                        [out, size=size_of_hopi] void* hash_of_processed_image, int size_of_hopi,
-                                        [out, size=size_of_pis] void* processed_img_signautre, size_t size_of_pis,
-                                        [out, size=sizeof_soapis] void* size_of_actual_processed_img_signature, size_t sizeof_soapis);
-        public void t_create_key_and_x509([out, size=size_of_cert] void* cert, size_t size_of_cert,
-                                          [out, size=asoc] void* actual_size_of_cert, size_t asoc);
+        public int t_sgxver_call_apis(
+            [in, size=size_of_img_pixels] void *img_pixels, size_t size_of_img_pixels, 
+            int img_width, int img_height, 
+            [in, size=size_of_img_sig] void *img_sig, size_t size_of_img_sig,
+            [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert,
+            [out, size=size_of_img_pixels] void* out_pixels,
+            [out, size=size_of_out_img_sig] void* out_img_sig, size_t size_of_out_img_sig
+        );
+        public void t_create_key_and_x509(
+            [out, size=size_of_cert] void* cert, size_t size_of_cert,
+            [out, size=asoc] void* actual_size_of_cert, size_t asoc
+        );
         public void t_free(void);
  
     };

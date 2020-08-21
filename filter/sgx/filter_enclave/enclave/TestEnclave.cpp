@@ -43,6 +43,7 @@
 #include "RawBase.h"
 #include "SampleFilters.h"
 #include "ra-attester.h"
+#include "ra-challenger.h"
 
 #include <openssl/ec.h>
 #include <openssl/bn.h>
@@ -52,17 +53,6 @@
 #include <openssl/rand.h>
 #include <openssl/bio.h>
 #include <openssl/pem.h>
-
-// Include for Decoder
-#include <sys/types.h>
-#include <unistd.h>
-#include <time.h>
-#include <stdlib.h>
-
-#include "decoder/src/h264bsd_decoder.h"
-#include "decoder/src/h264bsd_util.h"
-
-#define ADD_ENTROPY_SIZE	32
 
 void exit(int status)
 {
@@ -181,171 +171,102 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 	return res;
 }
 
-
-
-int sign_hash(EVP_PKEY* priKey, void *hash_to_be_signed, size_t len_of_hash, void *signature, void *size_of_actual_signature){
-	
-	// EVP_MD_CTX *mdctx;
-	// const EVP_MD *md;
-
-	// md = EVP_sha256();
-	// mdctx = EVP_MD_CTX_new();
-	// EVP_DigestInit_ex(mdctx, md, NULL);
-
-	// int ret;
-	// ret = EVP_SignInit_ex(mdctx, md, NULL);
-	// if(ret != 1){
-	// 	printf("EVP_SignInit_ex error. \n");
-    //     exit(1);
-	// }
-
-	// printf("In filter signing, len_of_hash is: %d\n", len_of_hash);
-
-	// ret = EVP_SignUpdate(mdctx, hash_to_be_signed, len_of_hash);
-	// if(ret != 1){
-	// 	printf("EVP_SignUpdate error. \n");
-    //     exit(1);
-	// }
-
-	// unsigned int sizeOfSignature = -1;
-
-	// ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
-	// if(ret != 1){
-	// 	printf("EVP_SignFinal error : %ld. \n",  ERR_get_error());
-    //     exit(1);
-	// }
-	// *(int*)size_of_actual_signature = sizeOfSignature;
+int sign(EVP_PKEY* priKey, void *data_to_be_signed, size_t len_of_data, unsigned char *signature, size_t *size_of_actual_signature){
 
 	EVP_MD_CTX *mdctx = NULL;
+	int ret = 0;
 	
-	// (unsigned char*)signature = NULL;
+	do {
+		/* Create the Message Digest Context */
+		if(!(mdctx = EVP_MD_CTX_create())){
+			printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
+			ret = 1;
+			break;
+		}
 	
-	/* Create the Message Digest Context */
-	if(!(mdctx = EVP_MD_CTX_create())){
-		printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
-		exit(1);
-	}
+		/* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
+		if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priKey)){
+			printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
+			ret = 1;
+			break;
+		}
 	
-	/* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
-	if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priKey)){
-		printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
-		exit(1);
-	}
+		/* Call update with the message */
+		if(1 != EVP_DigestSignUpdate(mdctx, data_to_be_signed, len_of_data)){
+			printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
+			ret = 1;
+			break;
+		}
 	
-	/* Call update with the message */
-	if(1 != EVP_DigestSignUpdate(mdctx, hash_to_be_signed, len_of_hash)){
-		printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
-		exit(1);
-	}
+		if (!signature) {
+			/* Obtain signature size */
+			if(1 != EVP_DigestSignFinal(mdctx, NULL, size_of_actual_signature)){
+				printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+				ret = 1;
+				break;
+			}
+			break;
+		}
 	
-	/* Finalise the DigestSign operation */
-	/* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
-	* signature. Length is returned in slen */
-	// if(1 != EVP_DigestSignFinal(mdctx, NULL, slen)) goto err;
-	/* Allocate memory for the signature based on size in slen */
-	// if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) goto err;
-	/* Obtain the signature */
-	// printf("Before passing in (size_t*)size_of_actual_signature, it is: %zu\n", *(size_t*)size_of_actual_signature);
-	if(1 != EVP_DigestSignFinal(mdctx, (unsigned char*)signature, (size_t*)size_of_actual_signature)){
-		printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
-		exit(1);
-	};
+		/* Finalise the DigestSign operation */
+		if(1 != EVP_DigestSignFinal(mdctx, signature, size_of_actual_signature)){
+			printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			ret = 1;
+			break;
+		}
+	} while(0);
 	
 	/* Clean up */
 	if(mdctx) EVP_MD_CTX_destroy(mdctx);
 
-	// Return 0 on success, otherwise, return 1
-    // EVP_MD_CTX *mdctx;
-	// const EVP_MD *md;
-	// unsigned char md_value[EVP_MAX_MD_SIZE];
-	// unsigned int md_len, i;
-
-	// OpenSSL_add_all_digests();
-
-	// md = EVP_get_digestbyname("SHA256");
-
-	// if (md == NULL) {
-    //      printf("Unknown message digest %s\n", "SHA256");
-    //      exit(1);
-    // }
-
-	// mdctx = EVP_MD_CTX_new();
-	// EVP_DigestInit_ex(mdctx, md, NULL);
-
-	// int ret;
-	// ret = EVP_SignInit_ex(mdctx, EVP_sha256(), NULL);
-	// if(ret != 1){
-	// 	printf("EVP_SignInit_ex error. \n");
-    //     exit(1);
-	// }
-
-	// printf("hash_to_be_signed (length = %d): {%s}\n", strlen((char*)hash_to_be_signed), (char*)hash_to_be_signed);
-
-	// ret = EVP_SignUpdate(mdctx, (void*)hash_to_be_signed, strlen((char*)hash_to_be_signed));
-	// if(ret != 1){
-	// 	printf("EVP_SignUpdate error. \n");
-    //     exit(1);
-	// }
-
-	// //printf("The size of pkey is: %d\n", EVP_PKEY_size(key_for_sign));
-	// //printf("The len of pkey is: %d\n", i2d_PrivateKey(key_for_sign, NULL));
-
-	// unsigned int sizeOfSignature = -1;
-
-	// print_private_key(priKey);
-
-	// printf("signature for filter signing before passing in (pre sizeOfSignature = %u): {%s}\n", sizeOfSignature, (unsigned char*)signature);
-
-	// ret = EVP_SignFinal(mdctx, (unsigned char*)signature, &sizeOfSignature, priKey);
-	// if(ret != 1){
-	// 	printf("EVP_SignFinal error with code: %lu. \n", ERR_get_error());
-    //     exit(1);
-	// }
-	// *(int*)size_of_actual_signature = sizeOfSignature;
-
-	// printf("The size of signature is: %d\n", *(int*)size_of_actual_signature);
-
-	return 0;
+	return ret;
 }
 
-bool verify_hash(char* hash_of_file, int size_of_hash, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
+bool verify_hash(void* hash_of_file, size_t size_of_hash, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
 	// Return true on success; otherwise, return false
 	EVP_MD_CTX *mdctx;
 	const EVP_MD *md;
-	int ret;
+	int ret = 1;
 
 	OpenSSL_add_all_digests();
 
-    md = EVP_get_digestbyname("SHA256");
+	do {
+		md = EVP_get_digestbyname("SHA256");
 
-	if (md == NULL) {
-         printf("Unknown message digest %s\n", "SHA256");
-         exit(1);
-    }
+		if (md == NULL) {
+			printf("Unknown message digest %s\n", "SHA256");
+			ret = 0;
+			break;
+		}
 
-	mdctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(mdctx, md, NULL);
+		mdctx = EVP_MD_CTX_new();
+		EVP_DigestInit_ex(mdctx, md, NULL);
 
-	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-	if(ret != 1){
-		printf("EVP_VerifyInit_ex error. \n");
-        exit(1);
-	}
+		ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+		if(ret != 1){
+			printf("EVP_VerifyInit_ex error. \n");
+			break;
+		}
 
-    // printf("hash_of_file to be verified: %s\n", hash_of_file);
+ 	    // printf("hash_of_file to be verified: %s (len: %i)\n", hash_of_file, size_of_hash);
 
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, size_of_hash);
-	if(ret != 1){
-		printf("EVP_VerifyUpdate error. \n");
-        exit(1);
-	}
+		ret = EVP_VerifyUpdate(mdctx, hash_of_file, size_of_hash);
+		if(ret != 1){
+			printf("EVP_VerifyUpdate error. \n");
+			break;
+		}
 
-	ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
-	// printf("EVP_VerifyFinal result: %d\n", ret);
+		ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
+		if(ret != 1){
+			printf("EVP_VerifyFinal error. \n");
+			break;
+		}
+		// printf("EVP_VerifyFinal result: %d\n", ret);
+	} while(0);
 
 	// Below part is for freeing data
 	// For freeing evp_md_ctx
-	EVP_MD_CTX_free(mdctx);
+	if (mdctx) EVP_MD_CTX_free(mdctx);
 
     return ret;
 }
@@ -458,88 +379,49 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 	free(buf);
 }
 
-void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int image_width, int image_height, 
-						void* hash_of_original_image, int size_of_hooi, void *signature, size_t size_of_actual_signature,
-						void *original_vendor_pub_str, long original_vendor_pub_str_len, 
-						void *original_cert_str, long original_cert_str_len, 
-						void* processed_pixels, void* runtime_result, int size_of_runtime_result, 
-						void* char_array_for_processed_img_sign, int size_of_cafpis, 
-						void* hash_of_processed_image, int size_of_hopi,
-						void* processed_img_signautre, size_t size_of_pis, 
-						void* size_of_actual_processed_img_signature, size_t sizeof_soapis)
+// Return 0 if success, 1 otherwise
+int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
+					   int img_width, int img_height, 
+					   void* img_sig, size_t size_of_img_sig,
+					   void* ias_cert, size_t size_of_ias_cert, 
+					   void* out_pixels,
+					   void* out_img_sig, size_t size_of_out_img_sig)
 {
+	int ret = 1;
+	if(!img_pixels) {
+		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
+		return ret;
+	}
 
-	// In: image_pixels, size_of_image_pixels, image_width, image_height, signature, size_of_actual_signature, original_pub_key_str, original_pub_key_str_len,
-	// size_of_runtime_result, size_of_cafpis, size_of_pis, size_of_hopi, filter_pri_key_str, filter_pri_key_str_len, sizeof_soapis, 
-	// ===========================================
-	// Out: processed_pixels, runtime_result, char_array_for_processed_img_sign, processed_img_signautre, hash_of_processed_image, 
-	// size_of_actual_processed_img_signature, 
-	// ===========================================
+	// Verify IAS certificate
+	ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
+	if (ret) {
+		printf("IAS cert verification failed\n");
+		return ret;
+	}
 
-	// Convert str to public key & cert
+	// Extract public key from IAS certificate
+	EVP_PKEY* ias_pubkey = EVP_PKEY_new();
+	get_ias_pubkey_from_cert((const uint8_t*)ias_cert, (uint32_t)size_of_ias_cert, (void*)ias_pubkey);
+	if(!ias_pubkey){
+		ret = 1;
+		printf("Failed to retreive public key\n");
+		return ret;
+	}
 
-	// BIO* bo_pub = BIO_new( BIO_s_mem() );
-	// BIO_write(bo_pub, (char*)original_vendor_pub_str, original_vendor_pub_str_len);
-
-	// EVP_PKEY* vendor_pubkey = EVP_PKEY_new();
-	// vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &vendor_pubkey, 0, 0);
-	// BIO_free(bo_pub);
-
-	// BIO* bo = BIO_new( BIO_s_mem() );
-	// BIO_write(bo, (char*)original_cert_str, original_cert_str_len);
-
-    // X509* cam_cert;
-    // cam_cert = X509_new();
-	// cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, NULL);
-	// BIO_free(bo);
-
-	// int result_of_cert_verify = verify_cert(cam_cert, vendor_pubkey);
-
-	// if(result_of_cert_verify != 1){
-	// 	*(int*)runtime_result = 1;
-	// 	return;
-	// }
-	// EVP_PKEY_free(vendor_pubkey);
-
-	// printf("Certificate is verified\n");
-
-	// // BIO_write(bo, (char*)mKey, strlen(mKey));
-	// EVP_PKEY* pukey = EVP_PKEY_new();
-	// pukey = X509_get_pubkey(cam_cert);
-    // // printf("Hello from enclave!\n");
-
-	// print_public_key(pukey);
-
-	// // Verify signature
-	// bool result_of_verification = verify_hash((char*)hash_of_original_image, size_of_hooi, (unsigned char*)signature, size_of_actual_signature, (EVP_PKEY*)pukey);
-	// // printf("(Inside Enclave)result_of_verification: %d\n", result_of_verification);
-	// if(result_of_verification != 1){
-	// 	*(int*)runtime_result = 1;
-	// 	return;
-	// }
+	// Verify signature
+	ret = verify_hash((char*)img_pixels, size_of_img_pixels, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);
+	if(ret != 1){
+		ret = 1;
+		printf("Failed to verify signature\n");
+		return ret;
+	}
 
 	// printf("Signature is verified\n");
 	// printf("size of image_pixels is: %d\n", size_of_image_pixels);
-	if(!image_pixels)
-		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
 
 	// Process image
-	pixel* img_pixels = (pixel*) image_pixels;
-	// printf("The very first pixel(Before processed by filter): R: %d; G: %d; B: %d\n", (int)img_pixels[0].r, (int)img_pixels[0].g, (int)img_pixels[0].b);
-	// blur(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 5);
-	blur_5(img_pixels, (pixel*)processed_pixels, image_width, image_width * image_height, 1.0 / 25.0);
-	// printf("The very first pixel(After processed by filter): R: %d; G: %d; B: %d\n", (int)((pixel*)processed_pixels)[0].r, (int)((pixel*)processed_pixels)[0].g, (int)((pixel*)processed_pixels)[0].b);
-
-	// Prepare for output processed image file str
-	//pixels_to_raw_str((pixel*)processed_pixels, image_width, image_height, (char*)char_array_for_processed_img_sign, size_of_cafpis);
-	size_t len_of_processed_image_str = pixels_to_linked_pure_str((pixel*)processed_pixels, image_width * image_height, (char*)char_array_for_processed_img_sign);
-
-	// Generate hash of processed image (probably no longer needed)
-	// printf("The len of char_array_for_processed_img_sign is: %d\n", len_of_processed_image_str);
-	// str_to_hash((char*)char_array_for_processed_img_sign, strlen((char*)char_array_for_processed_img_sign), (char*)hash_of_processed_image);
-	// str_to_hash((char*)char_array_for_processed_img_sign, len_of_processed_image_str, (char*)hash_of_processed_image);
-	// str_to_hash((char*)processed_pixels, strlen((char*)processed_pixels), (char*)hash_of_processed_image);
-	// printf("hash_of_processed_image(new!): %s\n", (char*)hash_of_processed_image);
+	blur_5((pixel*)img_pixels, (pixel*)out_pixels, img_width, img_width * img_height, 1.0 / 25.0);
 
 	// Generate signature
 	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
@@ -552,11 +434,11 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	// }
 
 	// Free Memory
-	// if(pukey)
-	// 	EVP_PKEY_free(pukey);
+	if(ias_pubkey)
+		EVP_PKEY_free(ias_pubkey);
 	// X509_free(cam_cert);
 
-	*(int*)runtime_result = 0;
+	return 0;
 }
 
 void t_sgxssl_call_apis(void* evp_pkey_v)

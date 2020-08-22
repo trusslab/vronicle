@@ -861,7 +861,7 @@ int verification_reply(
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
     // Prepare for signature output and its hash
-    size_t size_of_processed_img_signature = 512;
+    size_t size_of_processed_img_signature = 384;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
     // printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
 

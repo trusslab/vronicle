@@ -114,6 +114,7 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 EVP_PKEY *enc_priv_key;
+EVP_PKEY *ias_pubkey;
 RSA *keypair;
 
 void rsa_key_gen()
@@ -148,15 +149,6 @@ void rsa_key_gen()
 	EVP_PKEY_assign_RSA(enc_priv_key, keypair);
 
 	BN_free(bn);
-}
-
-int freeEverthing(){
-	EVP_PKEY_free(enc_priv_key);
-
-	if (enc_priv_key->pkey.ptr != NULL) {
-	  RSA_free(keypair);
-	}
-    return 0;
 }
 
 int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
@@ -244,7 +236,7 @@ bool verify_hash(void* hash_of_file, size_t size_of_hash, unsigned char* signatu
 
 		ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
 		if(ret != 1){
-			printf("EVP_VerifyInit_ex error. \n");
+			printf("EVP_VerifyInit_ex error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 			break;
 		}
 
@@ -252,13 +244,13 @@ bool verify_hash(void* hash_of_file, size_t size_of_hash, unsigned char* signatu
 
 		ret = EVP_VerifyUpdate(mdctx, hash_of_file, size_of_hash);
 		if(ret != 1){
-			printf("EVP_VerifyUpdate error. \n");
+			printf("EVP_VerifyUpdate error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 			break;
 		}
 
 		ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
 		if(ret != 1){
-			printf("EVP_VerifyFinal error. \n");
+			printf("EVP_VerifyFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 			break;
 		}
 		// printf("EVP_VerifyFinal result: %d\n", ret);
@@ -379,6 +371,38 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 	free(buf);
 }
 
+int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
+{
+	int ret = 1;
+	X509 *crt = NULL;
+	do {
+		// Verify IAS certificate
+		printf("IAS cert verification\n");
+		ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
+		if (ret) {
+			printf("IAS cert verification failed\n");
+			break;
+		}
+
+		// Extract public key from IAS certificate
+		printf("Retreive public key\n");
+		ias_pubkey = EVP_PKEY_new();
+ 	    const unsigned char* p = (unsigned char*)ias_cert;
+ 	    crt = d2i_X509(NULL, &p, size_of_ias_cert);
+ 	    assert(crt != NULL);
+ 	    ias_pubkey = X509_get_pubkey(crt);
+		if(!ias_pubkey){
+			ret = 1;
+			printf("Failed to retreive public key\n");
+			break;
+		}
+	} while(0);
+
+	// Clean up
+    X509_free(crt);
+	return ret;
+}
+
 // Return 0 if success, 1 otherwise
 int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 					   int img_width, int img_height, 
@@ -388,12 +412,13 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 					   void* out_img_sig, size_t size_of_out_img_sig)
 {
 	int ret = 1;
-	if(!img_pixels) {
+	if (!img_pixels) {
 		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
 		return ret;
 	}
 
 	// Verify IAS certificate
+	printf("IAS cert verification\n");
 	ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
 	if (ret) {
 		printf("IAS cert verification failed\n");
@@ -401,17 +426,22 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	}
 
 	// Extract public key from IAS certificate
-	EVP_PKEY* ias_pubkey = EVP_PKEY_new();
-	get_ias_pubkey_from_cert((const uint8_t*)ias_cert, (uint32_t)size_of_ias_cert, (void*)ias_pubkey);
-	if(!ias_pubkey){
+	printf("Retreive public key\n");
+	ias_pubkey = EVP_PKEY_new();
+    const unsigned char* p = (unsigned char*)ias_cert;
+    X509* crt = d2i_X509(NULL, &p, size_of_ias_cert);
+    assert(crt != NULL);
+    ias_pubkey = X509_get_pubkey(crt);
+	if (!ias_pubkey) {
 		ret = 1;
 		printf("Failed to retreive public key\n");
 		return ret;
 	}
+    X509_free(crt);
 
 	// Verify signature
 	ret = verify_hash((char*)img_pixels, size_of_img_pixels, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);
-	if(ret != 1){
+	if (ret != 1) {
 		ret = 1;
 		printf("Failed to verify signature\n");
 		return ret;
@@ -432,10 +462,6 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	// 	X509_free(cam_cert);
 	// 	return;
 	// }
-
-	// Free Memory
-	if(ias_pubkey)
-		EVP_PKEY_free(ias_pubkey);
 	// X509_free(cam_cert);
 
 	return 0;
@@ -468,5 +494,11 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
 
 void t_free(void)
 {
-	freeEverthing();
+	EVP_PKEY_free(enc_priv_key);
+	if (enc_priv_key->pkey.ptr != NULL) {
+	  RSA_free(keypair);
+	}
+
+	if(ias_pubkey)
+		EVP_PKEY_free(ias_pubkey);
 }

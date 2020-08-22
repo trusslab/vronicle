@@ -28,16 +28,6 @@ void get_quote_from_cert
 );
 
 /**
- * Extract IAS public key from a DER-encoded X.509 certificate.
- */
-void get_ias_pubkey_from_cert
-(
-    const uint8_t* der_crt,
-    uint32_t der_crt_len,
-    void* pubkey
-);
-
-/**
  * Verify SGX-related X.509 extensions.
  * @return 0 if verification succeeds, 1 otherwise.
  */

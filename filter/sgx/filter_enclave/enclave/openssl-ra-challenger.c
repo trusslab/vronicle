@@ -360,34 +360,6 @@ int verify_enclave_quote_status
     return 1;
 }
 
-void get_ias_pubkey_from_cert
-(
-    const uint8_t* der_crt,
-    uint32_t der_crt_len,
-    void* pubkey // This is in EVP_PKEY format
-)
-{
-    attestation_verification_report_t attn_report;
-
-    const unsigned char* p = der_crt;
-    X509* crt = d2i_X509(NULL, &p, der_crt_len);
-    assert(crt != NULL);
-
-    openssl_extract_x509_extensions(crt, &attn_report);
-
-    BIO* bio = BIO_new_mem_buf(attn_report.ias_sign_cert, attn_report.ias_sign_cert_len);
-    X509* ias_sign_cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
-    assert(crt != NULL);
-
-    EVP_PKEY* key = X509_get_pubkey(ias_sign_cert);
-    assert(key != NULL);
-    pubkey = (void*)key;
-    BIO_free(bio);
-    X509_free(crt);
-    X509_free(ias_sign_cert);
-    return;
-}
-
 /**
  * @return 0 if verified successfully, 1 otherwise.
  */
@@ -409,6 +381,7 @@ int verify_sgx_cert_extensions
     uint8_t base64[sizeof(attn_report.ias_report_signature)];
     memcpy(base64, attn_report.ias_report_signature, attn_report.ias_report_signature_len);
     assert((attn_report.ias_report_signature_len % 4) == 0);
+    memset(attn_report.ias_report_signature, 0, sizeof(attn_report.ias_report_signature));
     int ret = EVP_DecodeBlock(attn_report.ias_report_signature,
                               base64, attn_report.ias_report_signature_len);
     assert(ret > 0);

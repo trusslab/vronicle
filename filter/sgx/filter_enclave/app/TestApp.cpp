@@ -806,38 +806,49 @@ int verification_reply(
 {
 	fflush(stdout);
     int ret = 1;
+    char* ias_cert_file_name = argv[1];
+    char* raw_file_sig_path  = argv[2];
+    char* raw_file_path      = argv[3];
+    image_width              = atoi(argv[4]);
+    image_height             = atoi(argv[5]);
+
+    // printf("Input parameters:\n\
+    //         ias_cert_file_name: %s\n\
+    //         raw_file_sig_path : %s\n\
+    //         raw_file_path     : %s\n\
+    //         image_width       : %i\n\
+    //         image_height      : %i\n",
+    //         ias_cert_file_name, raw_file_sig_path, raw_file_path, image_width, image_height
+    //       );
 
     // printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
 
     // Set up some basic parameters
     // TO-DO: make frame_size flexible
     int frame_size = 1280 * 720 * 3 * sizeof(unsigned char);
-    char absolutePath[MAX_PATH];
-    char *ptr = NULL;
-    ptr = realpath(dirname(argv[0]), absolutePath);
-    if (ptr == NULL || chdir(absolutePath) != 0)
-        return 1;
 
     // Read Certificate and its vendor public key
     auto start_of_reading_public_key = high_resolution_clock::now();
 
-    FILE* ias_cert_file = fopen(argv[1], "rb");
+    FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
     if (!ias_cert_file) {
         cout << "Could not open IAS certificate file" << endl;
         return 1;
     }
     fseek(ias_cert_file, 0, SEEK_END);
-    size_t size_of_ias_cert = ftell(ias_cert_file);
-    rewind(ias_cert_file);
+    size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
+    fseek(ias_cert_file, 0, SEEK_SET);
     char* ias_cert = (char*)malloc(size_of_ias_cert);
     if (!ias_cert) {
         cout << "Not enough memory" << endl;
+        free(ias_cert);
         fclose(ias_cert_file);
         return 1;
     }
-    int fread_result = fread(ias_cert, size_of_ias_cert, 1, ias_cert_file);
+    size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
     if (fread_result != size_of_ias_cert) {
         cout << "Failed to read IAS certificate file" << endl;
+        free(ias_cert);
         fclose(ias_cert_file);
         return 1;
     }
@@ -853,7 +864,7 @@ int verification_reply(
     unsigned char* raw_signature;
     size_t raw_signature_length;
     char raw_file_signature_name[50];
-    snprintf(raw_file_signature_name, 50, "%s%s", argv[2], (char*)recv_buf);
+    snprintf(raw_file_signature_name, 50, "%s%s", raw_file_sig_path, (char*)recv_buf);
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
     // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
     // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
@@ -867,19 +878,17 @@ int verification_reply(
     auto start_of_reading_raw_img = high_resolution_clock::now();
 
     char raw_file_name[200];
-    snprintf(raw_file_name, 200, "%s%s", argv[3], (char*)recv_buf);
+    snprintf(raw_file_name, 200, "%s%s", raw_file_path, (char*)recv_buf);
     int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size);
-    image_width = atoi(argv[4]);
-    image_height = atoi(argv[5]);
     // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
     
     auto end_of_reading_raw_img = high_resolution_clock::now();
     auto raw_img_read_duration = duration_cast<microseconds>(end_of_reading_raw_img - start_of_reading_raw_img);
     cout << "Processing frame " << (char*)recv_buf << " read raw img take time: " << raw_img_read_duration.count() << endl; 
 
+    // Prepare processed Image
     auto start_of_allocation = high_resolution_clock::now();
 
-    // Prepare processed Image
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
 
@@ -1075,8 +1084,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 7){
-        printf("Usage: ./TestApp [vender_public_key_file] [camera_certificate_file] [path_to_frame_signature] [path_to_frame] [frame_width] [frame_height]\n");
+    if(argc < 5){
+        printf("Usage: ./TestApp [path_to_ias_cert] [path_to_frame_signature] [path_to_frame] [frame_width] [frame_height]\n");
         return 1;
     }
     

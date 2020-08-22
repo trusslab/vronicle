@@ -1067,6 +1067,12 @@ int main(int argc, char *argv[], char **env)
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Conducting RA took time: " << duration.count() << endl; 
 
+    // Save Enclave certificate
+    char* cert_file_name = "../video_data/filter_cert.der";
+    FILE* cert_file = fopen(cert_file_name, "wb");
+    fwrite(der_cert, size_of_cert, 1, cert_file);
+    fclose(cert_file);
+
     // Read Certificate and its vendor public key
     char* ias_cert_file_name = argv[1];
     auto start_of_reading_public_key = high_resolution_clock::now();

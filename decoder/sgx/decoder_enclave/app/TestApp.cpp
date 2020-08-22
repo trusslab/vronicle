@@ -967,11 +967,15 @@ void do_decoding(
         memset(current_sig_file_name, 0, size_of_current_sig_file_name);
         memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
         sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
+        char* b64_sig = NULL;
+        size_t b64_sig_size = 0;
+        Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
+        temp_output_sig_buffer += sig_size;
         printf("Now writing sig to file: %s\n", current_sig_file_name);
         sig_output_file = fopen(current_sig_file_name, "wb");
-        fwrite(temp_output_sig_buffer, sig_size, 1, sig_output_file);
-        temp_output_sig_buffer += sig_size;
+        fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
         fclose(sig_output_file);
+        free(b64_sig);
     }
 
     // Free everything

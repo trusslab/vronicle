@@ -223,7 +223,7 @@ H264E_io_yuy2_t yuyv;
 uint8_t *buf_in, *buf_save;
 uint8_t *yuyv_buf_in, *temp_buf_in, *p;
 uint8_t *coded_data, *all_coded_data;
-char *input_file, *output_file, *input_file_sig, *output_file_sig, *ias_cert_file;
+char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_ias_cert_file, *out_ias_cert_file;
 int sizeof_coded_data, g_w, g_h, _qp;
 cmdline *cl;
 
@@ -496,9 +496,12 @@ static int read_cmdline_options(int argc, char *argv[])
         } else if (!output_file_sig)
         {
             output_file_sig = p;
-        } else if (!ias_cert_file)
+        } else if (!in_ias_cert_file)
         {
-            ias_cert_file = p;
+            in_ias_cert_file = p;
+        } else if (!out_ias_cert_file)
+        {
+            out_ias_cert_file = p;
         } else
         {
             printf("ERROR: Unknown option %s\n", p);
@@ -508,7 +511,7 @@ static int read_cmdline_options(int argc, char *argv[])
     if (!input_file && !cl->gen)
     {
         printf("Usage:\n"
-               "    h264e_test [options] <path_to_input_frames> <output.264> <path_to_input_frame_sigs> <output.sig> <path_to_filter_cert>\n"
+               "    h264e_test [options] <path_to_input_frames> <output.264> <path_to_input_frame_sigs> <output.sig> <path_to_filter_cert> <encoder_cert.der>\n"
                "Frame size can be: WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif\n"
                "    4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA\n"
                "Options:\n"
@@ -612,6 +615,67 @@ static int guess_format_from_name(const char *file_name, int *w, int *h)
     return found;
 }
 
+size_t calcDecodeLength(const char* b64input) {
+  size_t len = strlen(b64input), padding = 0;
+  // printf("The len in calc is: %d\n", (int)len);
+
+  if (b64input[len-1] == '=' && b64input[len-2] == '=') //last two chars are =
+    padding = 2;
+  else if (b64input[len-1] == '=') //last char is =
+    padding = 1;
+
+  // printf("The padding in calc is: %d\n", (int)padding);
+  return (len*3)/4 - padding;
+}
+
+void Base64Decode(const char* b64message, unsigned char** buffer, size_t* length) {
+  BIO *bio, *b64;
+
+  int decodeLen = calcDecodeLength(b64message);
+  // printf("decodeLen is: %d\n", decodeLen);
+  *buffer = (unsigned char*)malloc(decodeLen + 1);
+  (*buffer)[decodeLen] = '\0';
+
+  bio = BIO_new_mem_buf(b64message, -1);
+  b64 = BIO_new(BIO_f_base64());
+  bio = BIO_push(b64, bio);
+
+  *length = BIO_read(bio, *buffer, strlen(b64message));
+  // printf("The length is: %d\n", (int)*length);
+  // printf("The buffer is: %s\n", buffer);
+  BIO_free_all(bio);
+}
+
+unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
+    // Return signature on success, otherwise, return NULL
+    // Need to free the return after finishing using
+    FILE* signature_file = fopen(sign_file_name, "r");
+    if(signature_file == NULL){
+        return NULL;
+    }
+
+    fseek(signature_file, 0, SEEK_END);
+    long length = ftell(signature_file);
+    // printf("read_signature: length of file from ftell is: %d\n", length);
+    fseek(signature_file, 0, SEEK_SET);
+
+    char* base64signature = (char*)malloc(length + 1);
+
+    int success_read_count = fread(base64signature, 1, length, signature_file);
+    base64signature[success_read_count] = '\0';
+    // printf("success_read_count is %d\n", success_read_count);
+
+    fclose(signature_file);
+
+    // printf("base64signautre: {%s}\n", base64signature);
+    
+    unsigned char* signature;
+    Base64Decode(base64signature, &signature, signatureLength);
+
+    free(base64signature);
+
+    return signature;
+}
 
 // Keep the following two functions in case we need it in the future
 
@@ -696,29 +760,11 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
     int i, res = -1;
-    char *fnin, *fnout, *fninsig, *fnoutsig, *fniascert;
+    char *fnin, *fnout, *fninsig, *fnoutsig, *fniniascert, *fnoutiascert;
     FILE *fin, *fout, *fsig, *fcert;
     sgx_status_t status;
 
-	/* initialize and start the enclave in here */
-	start_enclave();
-
-    size_t size_of_cert = 4 * 4096;
-    unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
-    auto start = high_resolution_clock::now();
-    status = t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
-    if (status != SGX_SUCCESS) {
-        printf("Creating SGX certificate failed\n");
-        return 1;
-    }
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Conducting RA took time: " << duration.count() << endl; 
-
-	/* create the server waiting for the verification request from the client */
-	// signal(SIGCHLD,wait_wrapper);
-	// sgx_server(argv);
-
+    // Initialize variables
     if (!read_cmdline_options(argc, argv))
         return 1;
 
@@ -726,7 +772,18 @@ int main(int argc, char *argv[], char **env)
     fnout = output_file;
     fninsig  = input_file_sig;
     fnoutsig = output_file_sig;
-    fniascert = ias_cert_file;
+    fniniascert = in_ias_cert_file;
+    fnoutiascert = out_ias_cert_file;
+
+    printf("Input parameters:\n\
+            input_file             : %s\n\
+            output_file            : %s\n\
+            input_file_sig         : %s\n\
+            output_file_sig        : %s\n\
+            in_ias_cert_file       : %s\n\
+            out_ias_cert_file      : %s\n",
+            fnin, fnout, fninsig, fnoutsig, fniniascert, fnoutiascert
+          );
 
     if (!cl->gen)
     {
@@ -744,7 +801,46 @@ int main(int argc, char *argv[], char **env)
         fnout = "output.h264";
     if (!fnoutsig)
         fnoutsig = "output.sig";
+    if (!fnoutiascert)
+        fnoutiascert = "encoder_cert.der";
 
+    int frame_size = 0;
+    if (cl->is_yuyv) {
+        frame_size = g_w * g_h * 2;
+    }
+    else if (cl->is_rgb) {
+        frame_size = g_w * g_h * 3;
+    }
+    else {
+        frame_size = g_w * g_h * 3/2;
+    }
+
+	// Initialize and start the enclave
+	start_enclave();
+
+    // Create enclave cert
+    size_t size_of_cert = 4 * 4096;
+    unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
+    auto start = high_resolution_clock::now();
+    status = t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
+    if (status != SGX_SUCCESS) {
+        printf("Creating SGX certificate failed\n");
+        return 1;
+    }
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Conducting RA took time: " << duration.count() << endl; 
+
+    // Save Enclave cert
+    FILE* out_cert_file = fopen(fnoutiascert, "w");
+    fwrite(der_cert, size_of_cert, 1, out_cert_file);
+    fclose(out_cert_file);
+
+	/* create the server waiting for the verification request from the client */
+	// signal(SIGCHLD,wait_wrapper);
+	// sgx_server(argv);
+
+    // Initialize variables inside of the enclave
     printf("t_encoder_init\n");
     status = t_encoder_init(global_eid, &res, cl, sizeof(cmdline), g_w, g_h);
     if (res || status != SGX_SUCCESS) {
@@ -753,10 +849,10 @@ int main(int argc, char *argv[], char **env)
     }
 
     // Verify IAS certificate
-    fcert = fopen(fniascert, "r");
+    fcert = fopen(fniniascert, "r");
     if (!fcert)
     {
-        printf("ERROR: cant open IAS cert file %s\n", fniascert);
+        printf("ERROR: cant open IAS cert file %s\n", fniniascert);
         return 1;
     }
     fseek(fcert, 0, SEEK_END);
@@ -785,42 +881,29 @@ int main(int argc, char *argv[], char **env)
     }
     free(ias_cert);
 
-    int frame_size = 0;
-    if (cl->is_yuyv)
-        frame_size = g_w * g_h * 2;
-    else if (cl->is_rgb){
-        // printf("frame size is rgb\n");
-        frame_size = g_w * g_h * 3;
-    }
-    else
-        frame_size = g_w * g_h * 3/2;
-
     // Set up parameters for the case each frame is in a single file
-    int current_frame_num = 0;
-    int length_of_base_frame_file_name = (int)strlen(input_file);
-    int size_of_current_frame_file_name = 0;
-    char* current_frame_file_name;
     // Assume there are at most 999 frames
-    size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * 3;
-    current_frame_file_name = (char*)malloc(size_of_current_frame_file_name);
+    int length_of_base_frame_file_name = (int)strlen(fnin);
+    int size_of_current_frame_file_name = sizeof(char) * (length_of_base_frame_file_name + 3);
+    char current_frame_file_name[size_of_current_frame_file_name];
+    int length_of_base_sig_file_name = (int)strlen(fninsig);
+    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * 3;
+    char current_sig_file_name[size_of_current_sig_file_name];
 
     // Encode frames
     uint8_t* frame = new uint8_t [frame_size];
     for (i = 0; cl->max_frames; i++)
     {
-        // printf("processing frame: %d; with maxframes: %d\n", i, cl->max_frames);
-
+        // Read frame
         memset(current_frame_file_name, 0, size_of_current_frame_file_name);
-        memcpy(current_frame_file_name, input_file, sizeof(char) * length_of_base_frame_file_name);
-        sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", current_frame_num++);
+        memcpy(current_frame_file_name, fnin, sizeof(char) * length_of_base_frame_file_name);
+        sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
         printf("Now reading file: %s\n", current_frame_file_name);
         fin = fopen(current_frame_file_name, "rb");
         if(!fin){
             printf("Finished reading frames\n");
             break;
         }
-        fseek(fin, 0, SEEK_SET);
-
         memset(frame, 0, frame_size);
         if (!fread(frame, frame_size, 1, fin))
         {
@@ -829,13 +912,33 @@ int main(int argc, char *argv[], char **env)
             break;
         }
         fclose(fin);
-        status = t_encode_frame(global_eid, &res, NULL, 0, frame, frame_size);
-        if (res || status != SGX_SUCCESS)
-        {
-            printf("ERROR: encoding frame failed\n");
+
+        // Read signature
+        memset(current_sig_file_name, 0, size_of_current_sig_file_name);
+        memcpy(current_sig_file_name, fninsig, sizeof(char) * length_of_base_sig_file_name);
+        sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
+        printf("Now reading fig: %s\n", current_sig_file_name);
+        unsigned char* frame_sig = NULL;
+        size_t frame_sig_len = 0;
+        frame_sig = read_signature(current_sig_file_name, &frame_sig_len);
+        if (!frame_sig || frame_sig_len == 0) {
+            printf("ERROR: Reading signature failed\n");
             delete frame;
             return 1;
         }
+
+        // Encode frame in enclave
+        status = t_encode_frame(global_eid, &res, frame_sig, frame_sig_len, frame, frame_size);
+        if (res || status != SGX_SUCCESS)
+        {
+            printf("ERROR: encoding frame failed\n");
+            free(frame_sig);
+            delete frame;
+            return 1;
+        }
+
+        // Clean up
+        free(frame_sig);
     }
     delete frame;
 

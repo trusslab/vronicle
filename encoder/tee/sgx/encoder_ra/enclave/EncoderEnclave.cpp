@@ -138,7 +138,6 @@ struct evp_pkey_st {
 
 EVP_PKEY *enc_priv_key;
 EVP_PKEY *ias_pubkey;
-RSA *keypair;
 
 static void psnr_init()
 {
@@ -180,87 +179,96 @@ int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 
 int sign(EVP_PKEY* priKey, unsigned char *data, size_t data_size, unsigned char** sig, size_t *sig_size){
     EVP_MD_CTX *mdctx = NULL;
+    int ret = 0;
     
-    /* Create the Message Digest Context */
-    if(!(mdctx = EVP_MD_CTX_create())){
-        printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
-        exit(1);
-    }
-    
-    /* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
-    if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priKey)){
-        printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
-        exit(1);
-    }
-    
-    /* Call update with the message */
-    if(1 != EVP_DigestSignUpdate(mdctx, data, data_size)){
-        printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
-        exit(1);
-    }
-    
-    /* Finalise the DigestSign operation */
-    /* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
-    * signature. Length is returned in slen */
-    if (!sig) {
-        if (1 != EVP_DigestSignFinal(mdctx, NULL, sig_size)) {
-            printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
-            exit(1);
+    do {
+        /* Create the Message Digest Context */
+        if(!(mdctx = EVP_MD_CTX_create())){
+            printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
+            ret = 1;
+            break;
         }
-    } else {
-        if (1 != EVP_DigestSignFinal(mdctx, *sig, sig_size)) {
-            printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
-            exit(1);
+    
+        /* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
+        if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, priKey)){
+            printf("EVP_DigestSignInit error: %ld. \n", ERR_get_error());
+            ret = 1;
+            break;
         }
-    }
+    
+        /* Call update with the message */
+        if(1 != EVP_DigestSignUpdate(mdctx, data, data_size)){
+            printf("EVP_DigestSignUpdate error: %ld. \n", ERR_get_error());
+            ret = 1;
+            break;
+        }
+    
+        /* Finalise the DigestSign operation */
+        /* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
+        * signature. Length is returned in slen */
+        if (!sig) {
+            if (1 != EVP_DigestSignFinal(mdctx, NULL, sig_size)) {
+                printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+                ret = 1;
+                break;
+            }
+        } else {
+            if (1 != EVP_DigestSignFinal(mdctx, *sig, sig_size)) {
+                printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+                ret = 1;
+                break;
+            }
+        }
+    } while (0);
     
     /* Clean up */
     if(mdctx) EVP_MD_CTX_destroy(mdctx);
 
-    return 0;
+    return ret;
 }
 
-int verify_sig (char* hash_of_file, int size_of_hash,
+int verify_sig (void* file, size_t size_of_file,
                 unsigned char* signature, size_t size_of_siganture,
                 EVP_PKEY* public_key)
 {
     // Return true on success; otherwise, return false
-    EVP_MD_CTX *mdctx;
-    const EVP_MD *md;
-    int ret;
+    EVP_MD_CTX *mdctx = NULL;
+    const EVP_MD *md = NULL;
+    int ret = 0;
 
     OpenSSL_add_all_digests();
 
-    md = EVP_get_digestbyname("SHA256");
+	do {
+		md = EVP_get_digestbyname("SHA256");
 
-    if (md == NULL) {
-         printf("Unknown message digest %s\n", "SHA256");
-         exit(1);
-    }
+		if (md == NULL) {
+			printf("Unknown message digest %s\n", "SHA256");
+			break;
+		}
 
-    mdctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(mdctx, md, NULL);
+		mdctx = EVP_MD_CTX_new();
+		EVP_DigestInit_ex(mdctx, md, NULL);
 
-    ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-    if(ret != 1){
-        printf("EVP_VerifyInit_ex error. \n");
-        exit(1);
-    }
+		ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
+		if(ret != 1){
+			printf("EVP_VerifyInit_ex error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			break;
+		}
 
-    // printf("hash_of_file to be verified: %s\n", hash_of_file);
+		ret = EVP_VerifyUpdate(mdctx, file, size_of_file);
+		if(ret != 1){
+			printf("EVP_VerifyUpdate error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			break;
+		}
 
-    ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, size_of_hash);
-    if(ret != 1){
-        printf("EVP_VerifyUpdate error. \n");
-        exit(1);
-    }
+		ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
+		if(ret != 1){
+			printf("EVP_VerifyFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			break;
+		}
+	} while(0);
 
-    ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
-    // printf("EVP_VerifyFinal result: %d\n", ret);
-
-    // Below part is for freeing data
-    // For freeing evp_md_ctx
-    EVP_MD_CTX_free(mdctx);
+	if (mdctx) EVP_MD_CTX_free(mdctx);
 
     return ret;
 }
@@ -437,9 +445,14 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     // The signature should have two information:
     // (1) The frame
     // (2) A metadata of the frame (frame ID, total # of frames, segment ID)
+    printf("%i %i\n", frame_sig_size, frame_size);
     if (frame_sig)
     {
-        res = verify_sig((char*)frame, frame_size, frame_sig, frame_sig_size, ias_pubkey);
+        if (!ias_pubkey) {
+            printf("Run t_verify_cert first\n");
+            return -1;
+        }
+        res = verify_sig((void*)frame, frame_size, frame_sig, frame_sig_size, ias_pubkey);
         if (res != 1) {
             printf("Signature cannot be verified\n");
             return -1;
@@ -620,7 +633,7 @@ int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 	} while(0);
 
 	// Clean up
-    X509_free(crt);
+    if (crt) X509_free(crt);
 	return ret;
 }
 

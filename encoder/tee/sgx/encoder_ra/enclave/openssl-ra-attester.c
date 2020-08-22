@@ -10,6 +10,7 @@
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
 #include <openssl/bn.h>
+#include <openssl/err.h>
 
 #include "ra-attester.h"
 #include "ra.h"
@@ -32,6 +33,7 @@ void generate_x509
     attestation_verification_report_t* attn_report
 )
 {
+    int ret = 1;
     X509* crt;
     crt = X509_new();
     
@@ -59,39 +61,67 @@ void generate_x509
 
     X509_set_issuer_name(crt, name);
 
-    ASN1_OBJECT *obj = OBJ_txt2obj((char*)(ias_response_body_oid + 2), 1);
-    // ASN1_OBJECT obj = { .data = ias_response_body_oid + 2,
-    //                     .length = ias_oid_len - 2 };
-    ASN1_OCTET_STRING val = { .data = attn_report->ias_report,
-                              .length = attn_report->ias_report_len};
+    // int nid = OBJ_create((const char*)ias_response_body_oid + 2, "IasResponseBodyOidShortName", "IasResponseBodyOidLongName");
+    int nid = OBJ_create("1.2.840.113741.1337.2", "IasResponseBodyOidShortName", "IasResponseBodyOidLongName");
+    ASN1_OBJECT *obj = OBJ_nid2obj(nid);
+    ASN1_OCTET_STRING *val = ASN1_OCTET_STRING_new();
+    val->data = attn_report->ias_report;
+    val->length = attn_report->ias_report_len;
     X509_EXTENSION *ex = X509_EXTENSION_new();
-    X509_EXTENSION_set_object(ex, obj);
-    X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, ex, -1);
+    ret = X509_EXTENSION_set_object(ex, obj);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_object Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_EXTENSION_set_data(ex, val);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_data Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_add_ext(crt, ex, -1);
+    if (ret == 0)
+        printf("X509_add_ext Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
 
     // obj.data   = ias_root_cert_oid + 2;
-    obj = OBJ_txt2obj((char*)(ias_root_cert_oid + 2), 1);
-    val.data   = attn_report->ias_sign_ca_cert;
-    val.length = attn_report->ias_sign_ca_cert_len;
-    X509_EXTENSION_set_object(ex, obj);
-    X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, ex, -1);
+    nid = OBJ_create("1.2.840.113741.1337.3", "IasRootCertOidShortName", "IasRootCertOidLongName");
+    obj = OBJ_nid2obj(nid);
+    val->data   = attn_report->ias_sign_ca_cert;
+    val->length = attn_report->ias_sign_ca_cert_len;
+    ret = X509_EXTENSION_set_object(ex, obj);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_object Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_EXTENSION_set_data(ex, val);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_data Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_add_ext(crt, ex, -1);
+    if (ret == 0)
+        printf("X509_add_ext Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
 
     // obj.data   = ias_leaf_cert_oid + 2;
-    obj = OBJ_txt2obj((char*)(ias_leaf_cert_oid + 2), 1);
-    val.data   = attn_report->ias_sign_cert;
-    val.length = attn_report->ias_sign_cert_len;
-    X509_EXTENSION_set_object(ex, obj);
-    X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, ex, -1);
+    nid = OBJ_create("1.2.840.113741.1337.4", "IasLeafCertOidShortName", "IasLeafCertOidLongName");
+    obj = OBJ_nid2obj(nid);
+    val->data   = attn_report->ias_sign_cert;
+    val->length = attn_report->ias_sign_cert_len;
+    ret = X509_EXTENSION_set_object(ex, obj);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_object Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_EXTENSION_set_data(ex, val);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_data Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_add_ext(crt, ex, -1);
+    if (ret == 0)
+        printf("X509_add_ext Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
 
     // obj.data   = ias_report_signature_oid + 2;
-    obj = OBJ_txt2obj((char*)(ias_report_signature_oid + 2), 1);
-    val.data   = attn_report->ias_report_signature;
-    val.length = attn_report->ias_report_signature_len;
-    X509_EXTENSION_set_object(ex, obj);
-    X509_EXTENSION_set_data(ex, &val);
-    X509_add_ext(crt, ex, -1);
+    nid = OBJ_create("1.2.840.113741.1337.5", "IasReportSigOidShortName", "IasReportSigOidLongName");
+    obj = OBJ_nid2obj(nid);
+    val->data   = attn_report->ias_report_signature;
+    val->length = attn_report->ias_report_signature_len;
+    ret = X509_EXTENSION_set_object(ex, obj);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_object Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_EXTENSION_set_data(ex, val);
+    if (ret == 0)
+        printf("X509_EXTENSION_set_data Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
+    ret = X509_add_ext(crt, ex, -1);
+    if (ret == 0)
+        printf("X509_add_ext Error: %s\n", ERR_error_string(ERR_get_error(), NULL));
 
     X509_sign(crt, key, EVP_sha256());
 

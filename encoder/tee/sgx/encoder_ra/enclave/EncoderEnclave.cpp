@@ -445,7 +445,6 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     // The signature should have two information:
     // (1) The frame
     // (2) A metadata of the frame (frame ID, total # of frames, segment ID)
-    printf("%i %i\n", frame_sig_size, frame_size);
     if (frame_sig)
     {
         if (!ias_pubkey) {

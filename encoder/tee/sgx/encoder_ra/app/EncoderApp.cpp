@@ -227,6 +227,29 @@ char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_ias_cert_
 int sizeof_coded_data, g_w, g_h, _qp;
 cmdline *cl;
 
+void Base64Encode( const unsigned char* buffer,
+                   size_t length,
+                   char** base64Text, 
+                   size_t* actual_base64_len) {
+    BIO *bio, *b64;
+    BUF_MEM *bufferPtr;
+
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);
+
+    BIO_write(bio, buffer, length);
+    BIO_flush(bio);
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    BIO_set_close(bio, BIO_NOCLOSE);
+    BIO_free_all(bio);
+
+    *actual_base64_len = (*bufferPtr).length;
+  // printf("Inside Base64Encode we have data(length: %d){%s}\n", (*bufferPtr).length, (*bufferPtr).data);
+
+    *base64Text=(*bufferPtr).data;
+}
+
 /* Check error conditions for loading enclave */
 void print_error_message(sgx_status_t ret)
 {
@@ -775,15 +798,15 @@ int main(int argc, char *argv[], char **env)
     fniniascert = in_ias_cert_file;
     fnoutiascert = out_ias_cert_file;
 
-    printf("Input parameters:\n\
-            input_file             : %s\n\
-            output_file            : %s\n\
-            input_file_sig         : %s\n\
-            output_file_sig        : %s\n\
-            in_ias_cert_file       : %s\n\
-            out_ias_cert_file      : %s\n",
-            fnin, fnout, fninsig, fnoutsig, fniniascert, fnoutiascert
-          );
+    // printf("Input parameters:\n\
+    //         input_file             : %s\n\
+    //         output_file            : %s\n\
+    //         input_file_sig         : %s\n\
+    //         output_file_sig        : %s\n\
+    //         in_ias_cert_file       : %s\n\
+    //         out_ias_cert_file      : %s\n",
+    //         fnin, fnout, fninsig, fnoutsig, fniniascert, fnoutiascert
+    //       );
 
     if (!cl->gen)
     {
@@ -841,7 +864,6 @@ int main(int argc, char *argv[], char **env)
 	// sgx_server(argv);
 
     // Initialize variables inside of the enclave
-    printf("t_encoder_init\n");
     status = t_encoder_init(global_eid, &res, cl, sizeof(cmdline), g_w, g_h);
     if (res || status != SGX_SUCCESS) {
         printf("t_encoder_init failed\n");
@@ -943,7 +965,6 @@ int main(int argc, char *argv[], char **env)
     delete frame;
 
     // Store encoded video
-    printf("t_get_encoded_video\n");
     fout = fopen(fnout, "wb");
     if (!fout)
     {
@@ -964,7 +985,7 @@ int main(int argc, char *argv[], char **env)
             printf("t_get_encoded_video failed\n");
             return 1;
         }
-        printf("coded_data_size: %li\n", total_coded_data_size);
+        // printf("coded_data_size: %li\n", total_coded_data_size);
         if (!total_coded_data)
         {
             printf("ERROR obtaining encoded video\n");
@@ -979,7 +1000,6 @@ int main(int argc, char *argv[], char **env)
     }
 
     // Store signature
-    printf("t_generate_sig\n");
     fsig = fopen(fnoutsig, "w");
     if (!fsig)
     {
@@ -1000,7 +1020,10 @@ int main(int argc, char *argv[], char **env)
             printf("t_get_sig failed\n");
             return 1;
         }
-        if (!fwrite(sig, sig_size, 1, fsig))
+        char* b64_sig = NULL;
+        size_t b64_sig_size = 0;
+        Base64Encode(sig, sig_size, &b64_sig, &b64_sig_size);
+        if (!fwrite(b64_sig, b64_sig_size, 1, fsig))
         {
             printf("ERROR writing signature\n");
             return 1;

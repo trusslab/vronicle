@@ -806,7 +806,6 @@ int verification_reply(
 {
 	fflush(stdout);
     int ret = 1;
-    char* ias_cert_file_name = argv[1];
     char* raw_file_sig_path  = argv[2];
     char* raw_file_path      = argv[3];
     image_width              = atoi(argv[4]);
@@ -826,37 +825,6 @@ int verification_reply(
     // Set up some basic parameters
     // TO-DO: make frame_size flexible
     int frame_size = 1280 * 720 * 3 * sizeof(unsigned char);
-
-    // Read Certificate and its vendor public key
-    auto start_of_reading_public_key = high_resolution_clock::now();
-
-    FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
-    if (!ias_cert_file) {
-        cout << "Could not open IAS certificate file" << endl;
-        return 1;
-    }
-    fseek(ias_cert_file, 0, SEEK_END);
-    size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
-    fseek(ias_cert_file, 0, SEEK_SET);
-    char* ias_cert = (char*)malloc(size_of_ias_cert);
-    if (!ias_cert) {
-        cout << "Not enough memory" << endl;
-        free(ias_cert);
-        fclose(ias_cert_file);
-        return 1;
-    }
-    size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
-    if (fread_result != size_of_ias_cert) {
-        cout << "Failed to read IAS certificate file" << endl;
-        free(ias_cert);
-        fclose(ias_cert_file);
-        return 1;
-    }
-    fclose(ias_cert_file);
-
-    auto end_of_reading_public_key = high_resolution_clock::now();
-    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
-    cout << "Processing frame " << (char*)recv_buf << " read camera certificate take time: " << public_key_read_duration.count() << endl; 
 
     // Read Signature
     auto start_of_reading_signature = high_resolution_clock::now();
@@ -910,7 +878,6 @@ int verification_reply(
         image_pixels, sizeof(pixel) * image_width * image_height,
         image_width, image_height, 
         raw_signature, raw_signature_length, 
-        ias_cert, size_of_ias_cert,
         processed_pixels,
         processed_img_signature, size_of_processed_img_signature);
     auto stop = high_resolution_clock::now();
@@ -1099,6 +1066,46 @@ int main(int argc, char *argv[], char **env)
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Conducting RA took time: " << duration.count() << endl; 
+
+    // Read Certificate and its vendor public key
+    char* ias_cert_file_name = argv[1];
+    auto start_of_reading_public_key = high_resolution_clock::now();
+
+    FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
+    if (!ias_cert_file) {
+        cout << "Could not open IAS certificate file" << endl;
+        return 1;
+    }
+    fseek(ias_cert_file, 0, SEEK_END);
+    size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
+    fseek(ias_cert_file, 0, SEEK_SET);
+    char* ias_cert = (char*)malloc(size_of_ias_cert);
+    if (!ias_cert) {
+        cout << "Not enough memory" << endl;
+        free(ias_cert);
+        fclose(ias_cert_file);
+        return 1;
+    }
+    size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
+    if (fread_result != size_of_ias_cert) {
+        cout << "Failed to read IAS certificate file" << endl;
+        free(ias_cert);
+        fclose(ias_cert_file);
+        return 1;
+    }
+    fclose(ias_cert_file);
+    int ret = 0;
+    sgx_status_t status = t_verify_cert(global_eid, &ret, ias_cert, size_of_ias_cert);
+    if (status != SGX_SUCCESS) {
+        cout << "Failed to read IAS certificate file" << endl;
+        free(ias_cert);
+        return ret;
+    }
+    free(ias_cert);
+
+    auto end_of_reading_public_key = high_resolution_clock::now();
+    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
+    cout << "Verifying certificate took time: " << public_key_read_duration.count() << endl; 
 
 	/* create the server waiting for the verification request from the client */
 	int s;

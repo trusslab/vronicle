@@ -377,7 +377,6 @@ int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 	X509 *crt = NULL;
 	do {
 		// Verify IAS certificate
-		printf("IAS cert verification\n");
 		ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
 		if (ret) {
 			printf("IAS cert verification failed\n");
@@ -385,7 +384,6 @@ int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 		}
 
 		// Extract public key from IAS certificate
-		printf("Retreive public key\n");
 		ias_pubkey = EVP_PKEY_new();
  	    const unsigned char* p = (unsigned char*)ias_cert;
  	    crt = d2i_X509(NULL, &p, size_of_ias_cert);
@@ -407,7 +405,6 @@ int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 					   int img_width, int img_height, 
 					   void* img_sig, size_t size_of_img_sig,
-					   void* ias_cert, size_t size_of_ias_cert, 
 					   void* out_pixels,
 					   void* out_img_sig, size_t size_of_out_img_sig)
 {
@@ -416,28 +413,6 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
 		return ret;
 	}
-
-	// Verify IAS certificate
-	printf("IAS cert verification\n");
-	ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
-	if (ret) {
-		printf("IAS cert verification failed\n");
-		return ret;
-	}
-
-	// Extract public key from IAS certificate
-	printf("Retreive public key\n");
-	ias_pubkey = EVP_PKEY_new();
-    const unsigned char* p = (unsigned char*)ias_cert;
-    X509* crt = d2i_X509(NULL, &p, size_of_ias_cert);
-    assert(crt != NULL);
-    ias_pubkey = X509_get_pubkey(crt);
-	if (!ias_pubkey) {
-		ret = 1;
-		printf("Failed to retreive public key\n");
-		return ret;
-	}
-    X509_free(crt);
 
 	// Verify signature
 	ret = verify_hash((char*)img_pixels, size_of_img_pixels, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);

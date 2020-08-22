@@ -53,9 +53,11 @@ from "ra_tls.edl" import *;
             [in, size=size_of_img_pixels] void *img_pixels, size_t size_of_img_pixels, 
             int img_width, int img_height, 
             [in, size=size_of_img_sig] void *img_sig, size_t size_of_img_sig,
-            [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert,
             [out, size=size_of_img_pixels] void* out_pixels,
             [out, size=size_of_out_img_sig] void* out_img_sig, size_t size_of_out_img_sig
+        );
+        public int t_verify_cert(
+            [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert
         );
         public void t_create_key_and_x509(
             [out, size=size_of_cert] void* cert, size_t size_of_cert,

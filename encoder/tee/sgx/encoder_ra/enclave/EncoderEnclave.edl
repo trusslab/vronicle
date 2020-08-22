@@ -52,8 +52,9 @@ from "ra_tls.edl" import *;
         public int t_encoder_init([in, size=cl_size] cmdline* cl_in, size_t cl_size, int w, int h);
         public int t_encode_frame([in, size=frame_sig_size] unsigned char* frame_sig, size_t frame_sig_size,
                                   [in, size=frame_size] uint8_t* frame, size_t frame_size);
-        public int t_verify_cert([in, size=vendor_pubkey_str_size] char* vendor_pubkey_str, size_t vendor_pubkey_str_size,
-                                 [in, size=cert_str_size] char* cert_str, size_t cert_str_size);
+        public int t_verify_cert(
+            [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert
+        );
         public void t_get_sig_size([out] size_t* sig_size);
         public void t_get_sig([out, size=sig_size] unsigned char* sig, size_t sig_size);
         public void t_get_encoded_video_size([out] size_t* video_size);

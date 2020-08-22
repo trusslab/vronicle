@@ -223,8 +223,7 @@ H264E_io_yuy2_t yuyv;
 uint8_t *buf_in, *buf_save;
 uint8_t *yuyv_buf_in, *temp_buf_in, *p;
 uint8_t *coded_data, *all_coded_data;
-char *input_file, *output_file;
-FILE *fin, *fout, *fsig;
+char *input_file, *output_file, *input_file_sig, *output_file_sig, *ias_cert_file;
 int sizeof_coded_data, g_w, g_h, _qp;
 cmdline *cl;
 
@@ -491,6 +490,15 @@ static int read_cmdline_options(int argc, char *argv[])
         } else if (!output_file)
         {
             output_file = p;
+        } else if (!input_file_sig)
+        {
+            input_file_sig = p;
+        } else if (!output_file_sig)
+        {
+            output_file_sig = p;
+        } else if (!ias_cert_file)
+        {
+            ias_cert_file = p;
         } else
         {
             printf("ERROR: Unknown option %s\n", p);
@@ -500,7 +508,7 @@ static int read_cmdline_options(int argc, char *argv[])
     if (!input_file && !cl->gen)
     {
         printf("Usage:\n"
-               "    h264e_test [options] <input[frame_size].yuv> <output.264>\n"
+               "    h264e_test [options] <path_to_input_frames> <output.264> <path_to_input_frame_sigs> <output.sig> <path_to_filter_cert>\n"
                "Frame size can be: WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif\n"
                "    4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA\n"
                "Options:\n"
@@ -688,7 +696,9 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
     int i, res = -1;
-    const char *fnin, *fnout;
+    char *fnin, *fnout, *fninsig, *fnoutsig, *fniascert;
+    FILE *fin, *fout, *fsig, *fcert;
+    sgx_status_t status;
 
 	/* initialize and start the enclave in here */
 	start_enclave();
@@ -696,7 +706,11 @@ int main(int argc, char *argv[], char **env)
     size_t size_of_cert = 4 * 4096;
     unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
     auto start = high_resolution_clock::now();
-    t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
+    status = t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
+    if (status != SGX_SUCCESS) {
+        printf("Creating SGX certificate failed\n");
+        return 1;
+    }
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Conducting RA took time: " << duration.count() << endl; 
@@ -707,8 +721,12 @@ int main(int argc, char *argv[], char **env)
 
     if (!read_cmdline_options(argc, argv))
         return 1;
+
     fnin  = input_file;
     fnout = output_file;
+    fninsig  = input_file_sig;
+    fnoutsig = output_file_sig;
+    fniascert = ias_cert_file;
 
     if (!cl->gen)
     {
@@ -723,27 +741,49 @@ int main(int argc, char *argv[], char **env)
     }
 
     if (!fnout)
-        fnout = "out.264";
-    fout = fopen(fnout, "wb");
-    if (!fout)
-    {
-        printf("ERROR: cant open output file %s\n", fnout);
-        return 1;
-    }
-    fsig = fopen("out.sig", "w");
-    if (!fsig)
-    {
-        printf("ERROR: cant open output file %s\n", "out.sig");
+        fnout = "output.h264";
+    if (!fnoutsig)
+        fnoutsig = "output.sig";
+
+    printf("t_encoder_init\n");
+    status = t_encoder_init(global_eid, &res, cl, sizeof(cmdline), g_w, g_h);
+    if (res || status != SGX_SUCCESS) {
+        printf("t_encoder_init failed\n");
         return 1;
     }
 
-    printf("t_encoder_init\n");
-    t_encoder_init(global_eid, &res, cl, sizeof(cmdline), g_w, g_h);
-    if (res)
+    // Verify IAS certificate
+    fcert = fopen(fniascert, "r");
+    if (!fcert)
     {
-        printf("ERROR: t_encoder_init failed\n");
+        printf("ERROR: cant open IAS cert file %s\n", fniascert);
         return 1;
     }
+    fseek(fcert, 0, SEEK_END);
+    size_t size_of_ias_cert = (size_t)ftell(fcert);
+    fseek(fcert, 0, SEEK_SET);
+    char* ias_cert = (char*)malloc(size_of_ias_cert);
+    if (!ias_cert) {
+        cout << "Not enough memory" << endl;
+        free(ias_cert);
+        fclose(fcert);
+        return 1;
+    }
+    size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, fcert);
+    if (fread_result != size_of_ias_cert) {
+        cout << "Failed to read IAS certificate file" << endl;
+        free(ias_cert);
+        fclose(fcert);
+        return 1;
+    }
+    fclose(fcert);
+    status = t_verify_cert(global_eid, &res, ias_cert, size_of_ias_cert);
+    if (status != SGX_SUCCESS || res) {
+        cout << "Failed to read IAS certificate file" << endl;
+        free(ias_cert);
+        return res;
+    }
+    free(ias_cert);
 
     int frame_size = 0;
     if (cl->is_yuyv)
@@ -785,26 +825,42 @@ int main(int argc, char *argv[], char **env)
         if (!fread(frame, frame_size, 1, fin))
         {
             printf("Finished reading frames\n");
+            fclose(fin);
             break;
         }
         fclose(fin);
-        t_encode_frame(global_eid, &res, NULL, 0, frame, frame_size);
-        if (res)
+        status = t_encode_frame(global_eid, &res, NULL, 0, frame, frame_size);
+        if (res || status != SGX_SUCCESS)
         {
             printf("ERROR: encoding frame failed\n");
-            break;
+            delete frame;
+            return 1;
         }
     }
     delete frame;
 
     // Store encoded video
     printf("t_get_encoded_video\n");
-    if (fout)
+    fout = fopen(fnout, "wb");
+    if (!fout)
+    {
+        printf("ERROR: cant open output file %s\n", fnout);
+        return 1;
+    }
+    else // if (fout)
     {
         size_t total_coded_data_size = 0;
-        t_get_encoded_video_size(global_eid, &total_coded_data_size);
+        status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
+        if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
+            printf("t_get_encoded_video_size failed\n");
+            return 1;
+        }
         unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
-        t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
+        status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
+        if (status != SGX_SUCCESS) {
+            printf("t_get_encoded_video failed\n");
+            return 1;
+        }
         printf("coded_data_size: %li\n", total_coded_data_size);
         if (!total_coded_data)
         {
@@ -821,12 +877,26 @@ int main(int argc, char *argv[], char **env)
 
     // Store signature
     printf("t_generate_sig\n");
-    if (fsig)
+    fsig = fopen(fnoutsig, "w");
+    if (!fsig)
+    {
+        printf("ERROR: cant open output file %s\n", fnoutsig);
+        return 1;
+    }
+    else // if (fsig)
     {
         size_t sig_size = 0;
-        t_get_sig_size(global_eid, &sig_size);
+        status = t_get_sig_size(global_eid, &sig_size);
+        if (sig_size == 0 || status != SGX_SUCCESS) {
+            printf("t_get_sig_size failed\n");
+            return 1;
+        }
         unsigned char *sig = new unsigned char [sig_size];
-        t_get_sig(global_eid, sig, sig_size);
+        status = t_get_sig(global_eid, sig, sig_size);
+        if (status != SGX_SUCCESS) {
+            printf("t_get_sig failed\n");
+            return 1;
+        }
         if (!fwrite(sig, sig_size, 1, fsig))
         {
             printf("ERROR writing signature\n");
@@ -855,7 +925,11 @@ int main(int argc, char *argv[], char **env)
     if (cl)
         free(cl);
 
-    t_free(global_eid);
+    status = t_free(global_eid);
+    if (status != SGX_SUCCESS) {
+        printf("t_get_sig failed\n");
+        return 1;
+    }
 
 	/* after verification we destroy the enclave */
     sgx_destroy_enclave(global_eid);

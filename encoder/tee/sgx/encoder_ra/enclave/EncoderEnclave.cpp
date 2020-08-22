@@ -43,6 +43,7 @@
 #include "RawBase.h"
 #include "SampleFilters.h"
 #include "ra-attester.h"
+#include "ra-challenger.h"
 
 #include <openssl/ec.h>
 #include <openssl/bn.h>
@@ -136,7 +137,7 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 EVP_PKEY *enc_priv_key;
-EVP_PKEY *pub_key;
+EVP_PKEY *ias_pubkey;
 RSA *keypair;
 
 static void psnr_init()
@@ -438,7 +439,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     // (2) A metadata of the frame (frame ID, total # of frames, segment ID)
     if (frame_sig)
     {
-        res = verify_sig((char*)frame, frame_size, frame_sig, frame_sig_size, pub_key);
+        res = verify_sig((char*)frame, frame_size, frame_sig, frame_sig_size, ias_pubkey);
         if (res != 1) {
             printf("Signature cannot be verified\n");
             return -1;
@@ -593,35 +594,34 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     return res;
 }
 
-int t_verify_cert (char* vendor_pubkey_str, size_t vendor_pubkey_str_size,
-                   char* cert_str, size_t cert_str_size)
+int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 {
-    int res = -1;
-    // Verify certificate
-    BIO* bo_pub = BIO_new( BIO_s_mem() );
-    BIO_write(bo_pub, vendor_pubkey_str, (int)vendor_pubkey_str_size);
-    EVP_PKEY* vendor_pubkey = EVP_PKEY_new();
-    vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &vendor_pubkey, 0, 0);
-    BIO_free(bo_pub);
-    BIO* bo = BIO_new( BIO_s_mem() );
-    BIO_write(bo, cert_str, cert_str_size);
-    X509* vendor_cert;
-    vendor_cert = X509_new();
-    vendor_cert = PEM_read_bio_X509(bo, &vendor_cert, 0, NULL);
-    BIO_free(bo);
-    res = verify_cert(vendor_cert, vendor_pubkey);
-    if(res != 1){
-        printf("Certificate cannot be verified\n");
-        return res;
-    }
-    EVP_PKEY_free(vendor_pubkey);
+	int ret = 1;
+	X509 *crt = NULL;
+	do {
+		// Verify IAS certificate
+		ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
+		if (ret) {
+			printf("IAS cert verification failed\n");
+			break;
+		}
 
-    // Extract public key from cert
-    pub_key = EVP_PKEY_new();
-    pub_key = X509_get_pubkey(vendor_cert);
+		// Extract public key from IAS certificate
+		ias_pubkey = EVP_PKEY_new();
+ 	    const unsigned char* p = (unsigned char*)ias_cert;
+ 	    crt = d2i_X509(NULL, &p, size_of_ias_cert);
+ 	    assert(crt != NULL);
+ 	    ias_pubkey = X509_get_pubkey(crt);
+		if(!ias_pubkey){
+			ret = 1;
+			printf("Failed to retreive public key\n");
+			break;
+		}
+	} while(0);
 
-    X509_free(vendor_cert);
-    return res;
+	// Clean up
+    X509_free(crt);
+	return ret;
 }
 
 void t_get_sig_size (size_t* sig_size)
@@ -667,8 +667,8 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
 
 void t_free(void)
 {
-    if (pub_key)
-        EVP_PKEY_free(pub_key);
+    if (ias_pubkey)
+        EVP_PKEY_free(ias_pubkey);
     if (enc_priv_key)
         EVP_PKEY_free(enc_priv_key);
 

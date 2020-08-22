@@ -422,23 +422,32 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 		return ret;
 	}
 
-	// printf("Signature is verified\n");
-	// printf("size of image_pixels is: %d\n", size_of_image_pixels);
-
 	// Process image
-	blur_5((pixel*)img_pixels, (pixel*)out_pixels, img_width, img_width * img_height, 1.0 / 25.0);
+    pixel* processed_pixels;
+	size_t processed_pixels_size = sizeof(pixel) * img_height * img_width;
+    processed_pixels = (pixel*)malloc(processed_pixels_size);
+	blur_5((pixel*)img_pixels, processed_pixels, img_width, img_width * img_height, 1.0 / 25.0);
 
 	// Generate signature
-	// *(size_t*)size_of_actual_processed_img_signature = size_of_pis;
-	// int result_of_filter_signing = sign_hash(enc_priv_key, char_array_for_processed_img_sign, len_of_processed_image_str, processed_img_signautre, size_of_actual_processed_img_signature);
-	// if(result_of_filter_signing != 0){
-	// 	*(int*)runtime_result = 2;
-	// 	EVP_PKEY_free(pukey);
-	// 	X509_free(cam_cert);
-	// 	return;
-	// }
-	// X509_free(cam_cert);
+	size_t sig_size = 384;
+	unsigned char* sig = (unsigned char*)malloc(sig_size);
+	ret = sign(enc_priv_key, (void*)processed_pixels, processed_pixels_size, sig, &sig_size);
+	if(ret != 0){
+		free(processed_pixels);
+		free(sig);
+		printf("Failed to generate signature\n");
+		return ret;
+	}
 
+	// Copy processed pixels to output buffer
+	memset(out_pixels, 0, processed_pixels_size);
+	memcpy(out_pixels, processed_pixels, processed_pixels_size);
+	memset(out_img_sig, 0, sig_size);
+	memcpy(out_img_sig, sig, sig_size);
+
+	// Clean up
+	free(processed_pixels);
+	free(sig);
 	return 0;
 }
 

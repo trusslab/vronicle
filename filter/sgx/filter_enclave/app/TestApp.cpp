@@ -782,8 +782,8 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     char* dirname = "../video_data/processed_raw_sign";
     mkdir(dirname, 0777);
 
-    char processed_raw_sign_file_name[50];
-    snprintf(processed_raw_sign_file_name, 50, "../video_data/processed_raw_sign/processed_raw_sign_%s", frame_id);
+    char processed_raw_sign_file_name[60];
+    snprintf(processed_raw_sign_file_name, 60, "../video_data/processed_raw_sign/processed_raw_sign_%s", frame_id);
 
     ofstream signature_file;
     signature_file.open(processed_raw_sign_file_name);

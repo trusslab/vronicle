@@ -59,6 +59,8 @@
 #include <time.h>
 #include <stdlib.h>
 
+#include "metadata.h"
+
 #include "decoder/src/h264bsd_decoder.h"
 #include "decoder/src/h264bsd_util.h"
 
@@ -490,8 +492,9 @@ void t_sgxver_call_apis(void *image_pixels, size_t size_of_image_pixels, int ima
 	*(int*)runtime_result = 0;
 }
 
-void t_sgxver_decode_content(
+int t_sgxver_decode_content(
 	void* input_content_buffer, size_t size_of_input_content_buffer, 
+	void* md_json, long md_json_len,
 	void* vendor_pub, long vendor_pub_len,
 	void* camera_cert, long camera_cert_len,
 	void* vid_sig, size_t vid_sig_len,
@@ -522,22 +525,32 @@ void t_sgxver_decode_content(
 
 	if(res != 1){
 		printf("Verify certificate failed\n");
-		return;
+		return 1;
 	}
 
 	// Verify signature
 	EVP_PKEY* pukey = EVP_PKEY_new();
 	pukey = X509_get_pubkey(cam_cert);
-	res = verify_hash(input_content_buffer, size_of_input_content_buffer, (unsigned char*)vid_sig, vid_sig_len, pukey);
+	unsigned char* buf = (unsigned char*)malloc(size_of_input_content_buffer + md_json_len);
+	if (!buf) {
+		printf("No memory left\n");
+		return 1;
+	}
+	printf("size: %li, %li\n", size_of_input_content_buffer, md_json_len);
+	memset(buf, 0, size_of_input_content_buffer + md_json_len);
+	memcpy(buf, input_content_buffer, size_of_input_content_buffer);
+	memcpy(buf + size_of_input_content_buffer, md_json, md_json_len);
+	res = verify_hash(buf, size_of_input_content_buffer + md_json_len, (unsigned char*)vid_sig, vid_sig_len, pukey);
+	free(buf);
 	if(res != 1){
 		printf("Verify signature failed\n");
-		return;
+		return 1;
 	}
 
 	// Cleanup
 	X509_free(cam_cert);
 	EVP_PKEY_free(vendor_pubkey);
-	EVP_PKEY_free(pukey);
+	// EVP_PKEY_free(pukey);
 
 	u32 status;
 	storage_t dec;
@@ -563,7 +576,7 @@ void t_sgxver_decode_content(
 	res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, NULL, &pic_sig_len);
 	if(res != 0){
 		printf("Failed to obtain signature length\n");
-		return;
+		return res;
 	}
 	unsigned char* pic_sig = (unsigned char*)malloc(pic_sig_len);
 
@@ -616,10 +629,10 @@ void t_sgxver_decode_content(
 			break;
 		case H264BSD_ERROR:
 			printf("Error\n");
-			exit(1);
+			return 1;
 		case H264BSD_PARAM_SET_ERROR:
 			printf("Param set error\n");
-			exit(1);
+			return 1;
 		}
 	}
 
@@ -631,11 +644,12 @@ void t_sgxver_decode_content(
 		free(pic_sig);
 
 	// Before we go out of enclave, assign all required output values
+	printf("in-enclave: %i, %i, %i\n", width, height, numPics);
 	*frame_width = width;
 	*frame_height = height;
 	*num_of_frames = numPics;
 
-	// printf("Test file complete. %d pictures decoded.\n", numPics);
+	return res;
 }
 
 void t_sgxssl_call_apis(void* evp_pkey_v)

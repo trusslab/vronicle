@@ -139,8 +139,9 @@ void Base64Encode( const unsigned char* buffer,
     BIO_set_close(bio, BIO_NOCLOSE);
     BIO_free_all(bio);
 
-    *actual_base64_len = (*bufferPtr).length;
+    *actual_base64_len = (*bufferPtr).length - 1;
 
+    (*bufferPtr).data[*actual_base64_len] = '\0';
     *base64Text=(*bufferPtr).data;
 }
 
@@ -152,7 +153,7 @@ struct
     const char *md_json_file;
     const char *privkey_file;
     const char *pubkey_file;
-    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr, fps, is_yuyv;
+    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr, fps, is_yuyv, numframes;
 } cmdline[1];
 
 static int str_equal(const char *pattern, char **p)
@@ -207,7 +208,7 @@ int hash_pubkey (EVP_PKEY* pubkey, char** hash_b64, size_t *hash_b64_len)
 
         /* Encode hash to base 64 format */
         Base64Encode(hash, SHA256_DIGEST_LENGTH, hash_b64, hash_b64_len);
-        
+
         ret = 0;
     } while(0);
 
@@ -311,6 +312,9 @@ static int read_cmdline_options(int argc, char *argv[])
             } else if (str_equal(("fps"), &p))
             {
                 cmdline->fps = atoi(p);
+            } else if (str_equal(("numframes"), &p))
+            {
+                cmdline->numframes = atoi(p);
             } else if (str_equal(("is_yuyv"), &p))
             {
                 cmdline->is_yuyv = 1;
@@ -879,21 +883,12 @@ int main(int argc, char *argv[])
 
             if (cmdline->stats)
                 printf("frame=%d, bytes=%d\n", frames++, sizeof_coded_data);
-
-            if (fout)
-            {
-                if (!fwrite(coded_data, sizeof_coded_data, 1, fout))
-                {
-                    printf("ERROR writing output file\n");
-                    break;
-                }
-            }
             if (cmdline->psnr)
                 psnr_add(buf_save, buf_in, g_w, g_h, sizeof_coded_data);
             // Collect coded_data and sizeof_coded_data for future signature calculation
             unsigned char* tmp;
             tmp = (unsigned char*)realloc(total_coded_data, (size_t)(total_sizeof_coded_data + sizeof_coded_data));
-            memcpy(tmp + total_sizeof_coded_data, coded_data, sizeof_coded_data);
+            memcpy(tmp + total_sizeof_coded_data, coded_data, (size_t)sizeof_coded_data);
             total_sizeof_coded_data += sizeof_coded_data;
             if (tmp)
                 total_coded_data = tmp;
@@ -901,6 +896,16 @@ int main(int argc, char *argv[])
         //fprintf(stderr, "%d avr = %6d  [%6d %6d]\n", qp, sum_bytes/299, min_bytes, max_bytes);
         if (cmdline->stats)
             printf("total size of coded data %i\n", total_sizeof_coded_data);
+
+        if (fout)
+        {
+            if (!fwrite(total_coded_data, (size_t)total_sizeof_coded_data, 1, fout))
+            {
+                printf("ERROR writing output file\n");
+                return 1;
+            }
+        }
+
         if (fmd_json)
         {
             metadata* md = (metadata*)malloc(sizeof(metadata));
@@ -914,7 +919,7 @@ int main(int argc, char *argv[])
             md->segment_id = 0;
             md->total_segments = 1;
             md->frame_rate = cmdline->fps;
-            md->bit_rate = 10;
+            md->total_frames = cmdline->numframes;
             md->total_filters = 1;
             md->filters = (char**)malloc(sizeof(char*) * md->total_filters);
             md->filters[0] = "blur\0";
@@ -922,6 +927,12 @@ int main(int argc, char *argv[])
             print_metadata(md);
             char* json = NULL;
             json = metadata_2_json(md);
+            unsigned char* tmp;
+            tmp = (unsigned char*)realloc(total_coded_data, (size_t)(total_sizeof_coded_data + strlen(json)));
+            memcpy(tmp + total_sizeof_coded_data, json, strlen(json));
+            total_sizeof_coded_data += strlen(json);
+            if (tmp)
+                total_coded_data = tmp;
             if (!fwrite(json, strlen(json), 1, fmd_json))
             {
                 printf("ERROR writing metadata\n");

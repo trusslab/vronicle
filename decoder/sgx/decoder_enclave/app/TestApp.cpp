@@ -74,6 +74,8 @@
 
 #include <time.h> /* for time() and ctime() */
 
+#include "metadata.h"
+
 #include "basetype.h"
 
 using namespace std;
@@ -772,29 +774,29 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
 }
 
 void createContentBuffer(char* contentPath, u8** pContentBuffer, size_t* pContentSize) {
-  struct stat sb;
-  if (stat(contentPath, &sb) == -1) {
-    perror("stat failed");
-    exit(1);
-  }
+    struct stat sb;
+    if (stat(contentPath, &sb) == -1) {
+      perror("stat failed");
+      exit(1);
+    }
 
-  *pContentSize = sb.st_size;
-  *pContentBuffer = (u8*)malloc(*pContentSize);
+    *pContentSize = sb.st_size;
+    *pContentBuffer = (u8*)malloc(*pContentSize);
 }
 
 void loadContent(char* contentPath, u8* contentBuffer, size_t contentSize) {
-  FILE *input = fopen(contentPath, "r");
-  if (input == NULL) {
-    perror("open failed");
-    exit(1);
-  }
+    FILE *input = fopen(contentPath, "r");
+    if (input == NULL) {
+      perror("open failed");
+      exit(1);
+    }
 
-  off_t offset = 0;
-  while (offset < contentSize) {
-    offset += fread(contentBuffer + offset, sizeof(u8), contentSize - offset, input);
-  }
+    off_t offset = 0;
+    while (offset < contentSize) {
+      offset += fread(contentBuffer + offset, sizeof(u8), contentSize - offset, input);
+    }
 
-  fclose(input);
+    fclose(input);
 }
 
 // TO-DO: move the following two static variables inside
@@ -869,15 +871,13 @@ void do_decoding(
 {
 
     // Set up some basic parameters
-    int frame_width_from_input = atoi(argv[1]);
-    int frame_height_from_input = atoi(argv[2]);
-    int num_of_frames_from_input = atoi(argv[3]);
-    char* input_video_path = argv[4];
-    char* input_vendor_pub_path = argv[5];
-    char* input_sig_path = argv[6];
-    char* input_cert_path = argv[7];
-    char* output_file_path = argv[8];
-    char* output_sig_path = argv[9];
+    char* input_vendor_pub_path = argv[1];
+    char* input_cert_path = argv[2];
+    char* input_sig_path = argv[3];
+    char* input_md_path = argv[4];
+    char* input_video_path = argv[5];
+    char* output_file_path = argv[6];
+    char* output_sig_path = argv[7];
 
     printf("input_video_path: %s, input_vendor_pub_path: %s, output_file_base_path: %s, input_sig_path: %s, input_cert_path: %s, output_sig_path: %s\n", input_video_path, input_vendor_pub_path, output_file_path, input_sig_path, input_cert_path, output_sig_path);
 
@@ -905,6 +905,17 @@ void do_decoding(
         return;
     }
 
+    // Read metadata
+    long md_json_len = 0;
+    char* md_json = read_file_as_str(input_md_path, &md_json_len);
+    if (!md_json) {
+        printf("Failed to read metadata\n");
+        return;
+    }
+
+    // Parse metadata
+    metadata* md = json_2_metadata(md_json);
+
     // Set up parameters for the case where output is multi
     // Assume there are at most 999 frames
     size_t sig_size = 384; // TODO: Remove hardcoded sig size
@@ -922,10 +933,10 @@ void do_decoding(
     u32* frame_width = (u32*)malloc(sizeof(u32)); 
     u32* frame_height = (u32*)malloc(sizeof(u32));
     int* num_of_frames = (int*)malloc(sizeof(int));
-    int frame_size = sizeof(u8) * frame_width_from_input * frame_height_from_input * 3;
-    size_t total_size_of_raw_rgb_buffer = frame_size * num_of_frames_from_input;
+    int frame_size = sizeof(u8) * md->width * md->height * 3;
+    size_t total_size_of_raw_rgb_buffer = frame_size * md->total_frames;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
-    size_t total_size_of_sig_buffer = sig_size * num_of_frames_from_input;
+    size_t total_size_of_sig_buffer = sig_size * md->total_frames;
     u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
 
     u8* contentBuffer;
@@ -933,49 +944,57 @@ void do_decoding(
     createContentBuffer(input_video_path, &contentBuffer, &contentSize);
 
     loadContent(input_video_path, contentBuffer, contentSize);
-    sgx_status_t status = t_sgxver_decode_content(global_eid, contentBuffer, contentSize, 
+    int ret = 0;
+    sgx_status_t status = t_sgxver_decode_content(global_eid, &ret,
+                                                  contentBuffer, contentSize, 
+                                                  md_json, md_json_len - 1,
                                                   vendor_pub, vendor_pub_len,
                                                   camera_cert, camera_cert_len,
                                                   vid_sig, vid_sig_length,
                                                   frame_width, frame_height, num_of_frames, 
                                                   output_rgb_buffer, output_sig_buffer);
 
-    printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
-        *frame_width, *frame_height, *num_of_frames);
+    if (ret) {
+        printf("Failed to decode video\n");
+    }
+    else {
+        printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+            *frame_width, *frame_height, *num_of_frames);
 
-    u8* temp_output_rgb_buffer = output_rgb_buffer;
-    u8* temp_output_sig_buffer = output_sig_buffer;
+        u8* temp_output_rgb_buffer = output_rgb_buffer;
+        u8* temp_output_sig_buffer = output_sig_buffer;
 
-    // To-Do: make the following two lines flexible
-    char* dirname = "../video_data/raw_for_process";
-    mkdir(dirname, 0777);
-    dirname = "../video_data/sig";
-    mkdir(dirname, 0777);
+        // To-Do: make the following two lines flexible
+        char* dirname = "../video_data/raw_for_process";
+        mkdir(dirname, 0777);
+        dirname = "../video_data/sig";
+        mkdir(dirname, 0777);
 
-    for(int i = 0; i < *num_of_frames; ++i){
-        // Write frame to file
-        memset(current_frame_file_name, 0, size_of_current_frame_file_name);
-        memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
-        sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
-        printf("Now writing frame to file: %s\n", current_frame_file_name);
-        rgb_output_file = fopen(current_frame_file_name, "wb");
-        fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
-        temp_output_rgb_buffer += frame_size;
-        fclose(rgb_output_file);
+        for(int i = 0; i < *num_of_frames; ++i){
+            // Write frame to file
+            memset(current_frame_file_name, 0, size_of_current_frame_file_name);
+            memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
+            sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
+            printf("Now writing frame to file: %s\n", current_frame_file_name);
+            rgb_output_file = fopen(current_frame_file_name, "wb");
+            fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
+            temp_output_rgb_buffer += frame_size;
+            fclose(rgb_output_file);
 
-        // Write signature to file
-        memset(current_sig_file_name, 0, size_of_current_sig_file_name);
-        memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
-        sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
-        char* b64_sig = NULL;
-        size_t b64_sig_size = 0;
-        Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
-        temp_output_sig_buffer += sig_size;
-        printf("Now writing sig to file: %s\n", current_sig_file_name);
-        sig_output_file = fopen(current_sig_file_name, "wb");
-        fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
-        fclose(sig_output_file);
-        free(b64_sig);
+            // Write signature to file
+            memset(current_sig_file_name, 0, size_of_current_sig_file_name);
+            memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
+            sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
+            char* b64_sig = NULL;
+            size_t b64_sig_size = 0;
+            Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
+            temp_output_sig_buffer += sig_size;
+            printf("Now writing sig to file: %s\n", current_sig_file_name);
+            sig_output_file = fopen(current_sig_file_name, "wb");
+            fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
+            fclose(sig_output_file);
+            free(b64_sig);
+        }
     }
 
     // Free everything
@@ -1291,8 +1310,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 10){
-        printf("Usage: ./TestApp [frame_width] [frame_height] [num_of_frames] [path_to_video] [path_to_camera_vendor_pubkey] [path_to_video_sig] [path_to_camera_cert] [path_to_output_frame_file] [path_to_output_sig_file]\n");
+    if(argc < 7){
+        printf("Usage: ./TestApp [path_to_camera_vendor_pubkey] [path_to_camera_cert] [path_to_video_sig] [path_to_metadata] [path_to_video] [path_to_output_frame_file] [path_to_output_sig_file]\n");
         return 1;
     }
 

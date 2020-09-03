@@ -30,6 +30,8 @@ typedef struct metadata {
     // Custody Info
     int total_digests;
     char** digests;
+    // Frame Tag
+    int frame_id;
 } metadata;
 
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
@@ -107,13 +109,13 @@ char* metadata_2_json(metadata *md)
     }
     extend_json_w_fmt(&json, "], \"total_digests\": %i, ",  &md->total_digests, 1);
     extend_json_wo_fmt(&json, "\"digests\": [");
-   for (int i = 0; i < md->total_digests; i++) {
+    for (int i = 0; i < md->total_digests; i++) {
         if (i == 0)
             extend_json_w_fmt(&json, "\"%s\"", md->digests[i], 0);
         else
             extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
     }
-    extend_json_wo_fmt(&json, "]}");
+    extend_json_w_fmt(&json, "], \"frame_id\": %3i}",  &md->frame_id, 1);
     return json;
 }
 
@@ -199,6 +201,11 @@ metadata* json_2_metadata(char* json)
             }
             i += t[i+1].size + 1;
         }
+        else if (jsoneq(json, &t[i], "frame_id") == 0)
+        {
+            md->frame_id = atoi(get_token_data(t[i+1], json));
+            i++;
+        }
         else
         {
             printf("Unexpected key: %.*s\n", t[i].end - t[i].start, json + t[i].start);
@@ -231,6 +238,7 @@ void print_metadata(metadata* md) {
     for (int i = 0; i < md->total_digests; i++) {
         printf("    digest %i: %s\n", i, md->digests[i]);
     }
+    printf("frame_id:  %i\n", md->frame_id);
 }
 
 #ifdef __cplusplus

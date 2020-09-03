@@ -224,6 +224,21 @@ void print_error_message(sgx_status_t ret)
         printf("Error: Unexpected error occurred [0x%x].\n", ret);
 }
 
+int num_digits(int x)  
+{  
+    x = abs(x);  
+    return (x < 10 ? 1 :   
+        (x < 100 ? 2 :   
+        (x < 1000 ? 3 :   
+        (x < 10000 ? 4 :   
+        (x < 100000 ? 5 :   
+        (x < 1000000 ? 6 :   
+        (x < 10000000 ? 7 :  
+        (x < 100000000 ? 8 :  
+        (x < 1000000000 ? 9 :  
+        10)))))))));  
+}  
+
 /* Initialize the enclave:
  *   Step 1: retrive the launch token saved by last transaction
  *   Step 2: call sgx_create_enclave to initialize an enclave instance
@@ -525,8 +540,9 @@ void do_decoding(
     char* input_video_path = argv[5];
     char* output_file_path = argv[6];
     char* output_sig_path = argv[7];
+    char* output_md_path = argv[8];
 
-    printf("input_video_path: %s, input_vendor_pub_path: %s, output_file_base_path: %s, input_sig_path: %s, input_cert_path: %s, output_sig_path: %s\n", input_video_path, input_vendor_pub_path, output_file_path, input_sig_path, input_cert_path, output_sig_path);
+    printf("input_video_path: %s, input_vendor_pub_path: %s, output_file_base_path: %s, input_sig_path: %s, input_cert_path: %s, output_sig_path: %s, output_md_path: %s\n", input_video_path, input_vendor_pub_path, output_file_path, input_sig_path, input_cert_path, output_sig_path, output_md_path);
 
     // Read camera vendor public key
     long vendor_pub_len = 0;
@@ -564,17 +580,23 @@ void do_decoding(
     metadata* md = json_2_metadata(md_json);
 
     // Set up parameters for the case where output is multi
-    // Assume there are at most 999 frames
+    int max_frames = 999; // Assume there are at most 999 frames
+    int max_frame_digits = num_digits(max_frames);
     size_t sig_size = 384; // TODO: Remove hardcoded sig size
+    size_t md_size = md_json_len + 16; // TODO: Remove hardcoded sig size
     int length_of_base_frame_file_name = (int)strlen(output_file_path);
-    int size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * 3;
+    int size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * max_frame_digits;
     char current_frame_file_name[size_of_current_frame_file_name];
     int length_of_base_sig_file_name = (int)strlen(output_sig_path);
-    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * 3;
+    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * max_frame_digits;
     char current_sig_file_name[size_of_current_sig_file_name];
+    int length_of_base_md_file_name = (int)strlen(output_md_path);
+    int size_of_current_md_file_name = sizeof(char) * length_of_base_md_file_name + sizeof(char) * max_frame_digits;
+    char current_md_file_name[size_of_current_md_file_name];
 
     FILE* rgb_output_file = NULL;
     FILE* sig_output_file = NULL;
+    FILE* md_output_file = NULL;
 
     // Parameters to be acquired from enclave
     u32* frame_width = (u32*)malloc(sizeof(u32)); 
@@ -585,6 +607,8 @@ void do_decoding(
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
     size_t total_size_of_sig_buffer = sig_size * md->total_frames;
     u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
+    size_t total_size_of_md_buffer = md_size * md->total_frames;
+    u8* output_md_buffer = (u8*)malloc(total_size_of_md_buffer + 1);
 
     u8* contentBuffer;
     size_t contentSize;
@@ -599,7 +623,7 @@ void do_decoding(
                                                   camera_cert, camera_cert_len,
                                                   vid_sig, vid_sig_length,
                                                   frame_width, frame_height, num_of_frames, 
-                                                  output_rgb_buffer, output_sig_buffer);
+                                                  output_rgb_buffer, output_sig_buffer, output_md_buffer);
 
     if (ret) {
         printf("Failed to decode video\n");
@@ -610,11 +634,14 @@ void do_decoding(
 
         u8* temp_output_rgb_buffer = output_rgb_buffer;
         u8* temp_output_sig_buffer = output_sig_buffer;
+        u8* temp_output_md_buffer = output_md_buffer;
 
         // To-Do: make the following two lines flexible
         char* dirname = "../video_data/raw_for_process";
         mkdir(dirname, 0777);
         dirname = "../video_data/sig";
+        mkdir(dirname, 0777);
+        dirname = "../video_data/metadata";
         mkdir(dirname, 0777);
 
         for(int i = 0; i < *num_of_frames; ++i){
@@ -641,6 +668,16 @@ void do_decoding(
             fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
             fclose(sig_output_file);
             free(b64_sig);
+
+            // Write metadata to file
+            memset(current_md_file_name, 0, size_of_current_md_file_name);
+            memcpy(current_md_file_name, output_md_path, sizeof(char) * length_of_base_md_file_name);
+            sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
+            printf("Now writing metadata to file: %s\n", current_md_file_name);
+            md_output_file = fopen(current_md_file_name, "wb");
+            fwrite(temp_output_md_buffer, md_size, 1, md_output_file);
+            temp_output_md_buffer += md_size;
+            fclose(md_output_file);
         }
     }
 
@@ -657,6 +694,8 @@ void do_decoding(
         free(output_rgb_buffer);
     if(output_sig_buffer)
         free(output_sig_buffer);
+    if(output_md_buffer)
+        free(output_md_buffer);
 
     return;
 }
@@ -755,8 +794,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 7){
-        printf("Usage: ./TestApp [path_to_camera_vendor_pubkey] [path_to_camera_cert] [path_to_video_sig] [path_to_metadata] [path_to_video] [path_to_output_frame_file] [path_to_output_sig_file]\n");
+    if(argc < 8){
+        printf("Usage: ./TestApp [path_to_camera_vendor_pubkey] [path_to_camera_cert] [path_to_video_sig] [path_to_metadata] [path_to_video] [path_to_output_frame_file] [path_to_output_sig_file] [path_to_output_md_file]\n");
         return 1;
     }
 

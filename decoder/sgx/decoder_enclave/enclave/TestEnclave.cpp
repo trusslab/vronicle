@@ -292,7 +292,7 @@ int t_sgxver_decode_content(
 	void* camera_cert, long camera_cert_len,
 	void* vid_sig, size_t vid_sig_len,
 	u32* frame_width, u32* frame_height, int* num_of_frames, 
-	void* output_rgb_buffer, void* output_sig_buffer) {
+	void* output_rgb_buffer, void* output_sig_buffer, void*output_md_buffer) {
 
     int res = -1;
 	// In: void* input_content_buffer
@@ -363,14 +363,12 @@ int t_sgxver_decode_content(
 	u8* pic_rgb = NULL;
 	u32 picId, isIdrPic, numErrMbs;
 	u32 top, left, width, height, croppingFlag;
+	metadata* tmp;
+	char* output_json;
+	unsigned char* data_buf = NULL;
 	// Obtain signature length and allocate memory for signature
 	size_t pic_sig_len = 0;
-	res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, NULL, &pic_sig_len);
-	if(res != 0){
-		printf("Failed to obtain signature length\n");
-		return res;
-	}
-	unsigned char* pic_sig = (unsigned char*)malloc(pic_sig_len);
+	unsigned char* pic_sig = NULL;
 
 	u8* output_rgb_buffer_temp = (u8*)output_rgb_buffer;
 
@@ -381,27 +379,53 @@ int t_sgxver_decode_content(
 
 		switch (result) {
 		case H264BSD_PIC_RDY:
+			// Extract frame
 			pic = h264bsdNextOutputPicture(&dec, &picId, &isIdrPic, &numErrMbs);
 			++numPics;
 			if(pic_rgb == NULL){
 				printf("No valid video header detected, exiting...\n");
 				exit(1);
 			}
+
+			// Convert frame to RGB packed format
 			yuv420_prog_planar_to_rgb_packed(pic, pic_rgb, width, height);
 
+			// Generate metadata
+			tmp = json_2_metadata((char*)md_json);
+			tmp->frame_id = numPics - 1;
+			output_json = metadata_2_json(tmp);
+
+			// Create buffer for signing
+			data_buf = (unsigned char*)malloc(frame_size_in_rgb + strlen(output_json));
+			memset(data_buf, 0, frame_size_in_rgb + strlen(output_json));
+			memcpy(data_buf, pic_rgb, frame_size_in_rgb);
+			memcpy(data_buf + frame_size_in_rgb, output_json, strlen(output_json));
+
 			// Generate signature
-			res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, pic_sig, &pic_sig_len);
+			res = sign(enc_priv_key, data_buf, frame_size_in_rgb + strlen(output_json), pic_sig, &pic_sig_len);
 			if(res != 0){
 				printf("Signing frame failed\n");
 				break;
 			}
+
 			// Save signature to output buffer
 			memcpy(output_sig_buffer, pic_sig, pic_sig_len);
 			output_sig_buffer += pic_sig_len;
 			memset(pic_sig, 0, pic_sig_len);
+
 			// Save frame to output buffer
 			memcpy(output_rgb_buffer_temp, pic_rgb, frame_size_in_rgb);
 			output_rgb_buffer_temp += frame_size_in_rgb;
+
+			// Save metadata to output buffer
+			memcpy(output_md_buffer, output_json, strlen(output_json));
+			output_md_buffer += strlen(output_json);
+
+			// Clean up
+			free(tmp);
+			free(output_json);
+			free(data_buf);
+
 			break;
 		case H264BSD_HDRS_RDY:
 			h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
@@ -414,8 +438,12 @@ int t_sgxver_decode_content(
 				pic_rgb = (u8*)malloc(frame_size_in_rgb);
 				InitConvt(width, height);
 			}
-			// char* cropped = croppingFlag ? "(cropped) " : "";
-			// printf("Decoded headers. Image size %s%dx%d.\n", cropped, width, height);
+			res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, NULL, &pic_sig_len);
+			if(res != 0){
+				printf("Failed to obtain signature length\n");
+				return res;
+			}
+			pic_sig = (unsigned char*)malloc(pic_sig_len);
 			break;
 		case H264BSD_RDY:
 			break;

@@ -113,17 +113,17 @@ char* metadata_2_json(metadata *md)
         else
             extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
     }
-    extend_json_wo_fmt(&json, "]}");
+    extend_json_wo_fmt(&json, "]}\0");
     return json;
 }
 
-metadata* json_2_metadata(char* json)
+metadata* json_2_metadata(char* json, size_t json_len)
 {
     metadata* md = (metadata*)malloc(sizeof(metadata));
     jsmn_parser p;
     jsmntok_t t[128];
     jsmn_init(&p);
-    int res = jsmn_parse(&p, json, strlen(json), t, 128);
+    int res = jsmn_parse(&p, json, json_len, t, 128);
     if (res < 0) {
         printf("Error when parsing JSON: %s\n", json);
         return NULL;

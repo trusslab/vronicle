@@ -489,6 +489,7 @@ char* read_file_as_str(const char* file_name, long* str_len){
     *str_len = ftell(file) + 1;
     fseek(file, 0, SEEK_SET);
     char* str_to_return = (char*)malloc(*str_len);
+    memset(str_to_return, 0, *str_len);
     fread(str_to_return, 1, *str_len - 1, file);
     str_to_return[*str_len - 1] = '\0';
 
@@ -577,13 +578,17 @@ void do_decoding(
     }
 
     // Parse metadata
-    metadata* md = json_2_metadata(md_json);
+    metadata* md = json_2_metadata(md_json, md_json_len);
+    if (!md) {
+        printf("Failed to parse metadata\n");
+        return;
+    }
 
     // Set up parameters for the case where output is multi
     int max_frames = 999; // Assume there are at most 999 frames
     int max_frame_digits = num_digits(max_frames);
     size_t sig_size = 384; // TODO: Remove hardcoded sig size
-    size_t md_size = md_json_len + 16; // TODO: Remove hardcoded sig size
+    size_t md_size = md_json_len + 16 + 46; // TODO: Remove hardcoded sig size
     int length_of_base_frame_file_name = (int)strlen(output_file_path);
     int size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * max_frame_digits;
     char current_frame_file_name[size_of_current_frame_file_name];
@@ -605,10 +610,22 @@ void do_decoding(
     int frame_size = sizeof(u8) * md->width * md->height * 3;
     size_t total_size_of_raw_rgb_buffer = frame_size * md->total_frames;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
+    if (!output_rgb_buffer) {
+        printf("No memory left (RGB)\n");
+        return;
+    }
     size_t total_size_of_sig_buffer = sig_size * md->total_frames;
     u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
+    if (!output_sig_buffer) {
+        printf("No memory left (SIG)\n");
+        return;
+    }
     size_t total_size_of_md_buffer = md_size * md->total_frames;
     u8* output_md_buffer = (u8*)malloc(total_size_of_md_buffer + 1);
+    if (!output_md_buffer) {
+        printf("No memory left (MD)\n");
+        return;
+    }
 
     u8* contentBuffer;
     size_t contentSize;

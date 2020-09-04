@@ -43,6 +43,7 @@
 #include "RawBase.h"
 #include "SampleFilters.h"
 #include "ra-attester.h"
+#include "ra-challenger.h"
 
 #include <openssl/ec.h>
 #include <openssl/bn.h>
@@ -128,14 +129,11 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 EVP_PKEY *enc_priv_key;
-RSA *keypair;
+char* mrenclave;
+size_t mrenclave_len;
 
 int freeEverthing(){
 	EVP_PKEY_free(enc_priv_key);
-
-	if (enc_priv_key->pkey.ptr != NULL) {
-	  RSA_free(keypair);
-	}
     return 0;
 }
 
@@ -204,8 +202,8 @@ int sign(EVP_PKEY* priKey, void *data_to_be_signed, size_t len_of_data, unsigned
 
 bool verify_hash(void* hash_of_file, int size_of_hash, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
 	// Return true on success; otherwise, return false
-	EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
+	EVP_MD_CTX *mdctx = NULL;
+	const EVP_MD *md = NULL;
 	int ret = 1;
 
 	OpenSSL_add_all_digests();
@@ -292,7 +290,7 @@ int t_sgxver_decode_content(
 	void* camera_cert, long camera_cert_len,
 	void* vid_sig, size_t vid_sig_len,
 	u32* frame_width, u32* frame_height, int* num_of_frames, 
-	void* output_rgb_buffer, void* output_sig_buffer, void*output_md_buffer) {
+	void* output_rgb_buffer, void* output_sig_buffer, void* output_md_buffer) {
 
     int res = -1;
 	// In: void* input_content_buffer
@@ -342,7 +340,7 @@ int t_sgxver_decode_content(
 	// Cleanup
 	X509_free(cam_cert);
 	EVP_PKEY_free(vendor_pubkey);
-	// EVP_PKEY_free(pukey);
+	EVP_PKEY_free(pukey);
 
 	u32 status;
 	storage_t dec;
@@ -369,8 +367,11 @@ int t_sgxver_decode_content(
 	// Obtain signature length and allocate memory for signature
 	size_t pic_sig_len = 0;
 	unsigned char* pic_sig = NULL;
+	int tmp_total_digests = 0;
 
+	u8* output_sig_buffer_temp = (u8*)output_sig_buffer;
 	u8* output_rgb_buffer_temp = (u8*)output_rgb_buffer;
+	u8* output_md_buffer_temp = (u8*)output_md_buffer;
 
 	while (len > 0) {
 		u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
@@ -391,8 +392,18 @@ int t_sgxver_decode_content(
 			yuv420_prog_planar_to_rgb_packed(pic, pic_rgb, width, height);
 
 			// Generate metadata
-			tmp = json_2_metadata((char*)md_json);
+			tmp = json_2_metadata((char*)md_json, md_json_len);
+			if (!tmp) {
+				printf("Failed to parse metadata\n");
+				exit(1);
+			}
 			tmp->frame_id = numPics - 1;
+			tmp_total_digests = tmp->total_digests;
+			tmp->total_digests = tmp_total_digests + 1;
+			tmp->digests = (char**)malloc(sizeof(char*) * 1);
+			tmp->digests[0] = (char*)malloc(mrenclave_len);
+			memset(tmp->digests[0], 0, mrenclave_len);
+			memcpy(tmp->digests[0], mrenclave, mrenclave_len);
 			output_json = metadata_2_json(tmp);
 
 			// Create buffer for signing
@@ -409,17 +420,21 @@ int t_sgxver_decode_content(
 			}
 
 			// Save signature to output buffer
-			memcpy(output_sig_buffer, pic_sig, pic_sig_len);
-			output_sig_buffer += pic_sig_len;
+			memset(output_sig_buffer_temp, 0, pic_sig_len);
+			memcpy(output_sig_buffer_temp, pic_sig, pic_sig_len);
+			output_sig_buffer_temp += pic_sig_len;
 			memset(pic_sig, 0, pic_sig_len);
 
 			// Save frame to output buffer
+			memset(output_rgb_buffer_temp, 0, frame_size_in_rgb);
 			memcpy(output_rgb_buffer_temp, pic_rgb, frame_size_in_rgb);
 			output_rgb_buffer_temp += frame_size_in_rgb;
+			memset(pic_rgb, 0, frame_size_in_rgb);
 
 			// Save metadata to output buffer
-			memcpy(output_md_buffer, output_json, strlen(output_json));
-			output_md_buffer += strlen(output_json);
+			memset(output_md_buffer_temp, 0, strlen(output_json));
+			memcpy(output_md_buffer_temp, output_json, strlen(output_json));
+			output_md_buffer_temp += strlen(output_json);
 
 			// Clean up
 			free(tmp);
@@ -428,16 +443,19 @@ int t_sgxver_decode_content(
 
 			break;
 		case H264BSD_HDRS_RDY:
+			// Obtain frame parameters
 			h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
 			if (!croppingFlag) {
 			width = h264bsdPicWidth(&dec) * 16;
 			height = h264bsdPicHeight(&dec) * 16;
 			}
+			// Allocate memory for frame
 			if(pic_rgb == NULL){
 				frame_size_in_rgb = width * height * 3;
 				pic_rgb = (u8*)malloc(frame_size_in_rgb);
 				InitConvt(width, height);
 			}
+			// Call sign() with NULL to obtain signature length
 			res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, NULL, &pic_sig_len);
 			if(res != 0){
 				printf("Failed to obtain signature length\n");
@@ -464,7 +482,6 @@ int t_sgxver_decode_content(
 		free(pic_sig);
 
 	// Before we go out of enclave, assign all required output values
-	printf("in-enclave: %i, %i, %i\n", width, height, numPics);
 	*frame_width = width;
 	*frame_height = height;
 	*num_of_frames = numPics;
@@ -484,12 +501,18 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
     create_key_and_x509(der_key, &der_key_len,
                         der_cert, &der_cert_len,
                         &my_ra_tls_options);
+    // Get private key
 	enc_priv_key = 0;
 	const unsigned char *key = (const unsigned char*)der_key;
     enc_priv_key = d2i_AutoPrivateKey(&enc_priv_key, &key, der_key_len);
+
+	// Copy certificate to output
 	memcpy(cert, der_cert, der_cert_len);
 	size_of_cert = der_cert_len;
 	*(size_t*)actual_size_of_cert = der_cert_len;
+
+	// Get MRENCLAVE value from cert
+	get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
 }
 
 void t_free(void)

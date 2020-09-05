@@ -414,6 +414,7 @@ int t_sgxver_decode_content(
 
 			// Generate signature
 			res = sign(enc_priv_key, data_buf, frame_size_in_rgb + strlen(output_json), pic_sig, &pic_sig_len);
+			printf("orig size: %li, sig size: %li, json: %s\n", frame_size_in_rgb + strlen(output_json), pic_sig_len, output_json);
 			if(res != 0){
 				printf("Signing frame failed\n");
 				break;

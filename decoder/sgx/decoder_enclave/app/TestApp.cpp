@@ -401,7 +401,8 @@ void Base64Encode( const unsigned char* buffer,
     BIO_set_close(bio, BIO_NOCLOSE);
     BIO_free_all(bio);
 
-    *actual_base64_len = (*bufferPtr).length;
+    *actual_base64_len = (*bufferPtr).length - 1;
+    (*bufferPtr).data[*actual_base64_len] = '\0';
   // printf("Inside Base64Encode we have data(length: %d){%s}\n", (*bufferPtr).length, (*bufferPtr).data);
 
     *base64Text=(*bufferPtr).data;
@@ -576,6 +577,8 @@ void do_decoding(
         printf("Failed to read metadata\n");
         return;
     }
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
 
     // Parse metadata
     metadata* md = json_2_metadata(md_json, md_json_len);
@@ -635,7 +638,7 @@ void do_decoding(
     int ret = 0;
     sgx_status_t status = t_sgxver_decode_content(global_eid, &ret,
                                                   contentBuffer, contentSize, 
-                                                  md_json, md_json_len - 1,
+                                                  md_json, md_json_len,
                                                   vendor_pub, vendor_pub_len,
                                                   camera_cert, camera_cert_len,
                                                   vid_sig, vid_sig_length,
@@ -680,7 +683,7 @@ void do_decoding(
             size_t b64_sig_size = 0;
             Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
             temp_output_sig_buffer += sig_size;
-            printf("Now writing sig to file: %s\n", current_sig_file_name);
+            printf("Now writing sig to file: %s, b64_sig: %s, b64_sig_len: %li\n", current_sig_file_name, b64_sig, b64_sig_size);
             sig_output_file = fopen(current_sig_file_name, "wb");
             fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
             fclose(sig_output_file);

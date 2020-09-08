@@ -74,6 +74,8 @@
 
 #include <time.h> /* for time() and ctime() */
 
+#include "metadata.h"
+
 #include "basetype.h"
 
 using namespace std;
@@ -222,64 +224,20 @@ void print_error_message(sgx_status_t ret)
         printf("Error: Unexpected error occurred [0x%x].\n", ret);
 }
 
-static int str_equal(const char *pattern, char **p)
-{
-    if (!strncmp(pattern, *p, strlen(pattern)))
-    {
-        *p += strlen(pattern);
-        return 1;
-    } else
-    {
-        return 0;
-    }
-}
-
-int read_raw_file(const char* file_name){
-    // Return 0 on success, return 1 on failure
-    // cout << "Going to read raw file: " << file_name << endl;
-    FILE* input_raw_file = fopen(file_name, "r");
-    if(input_raw_file == NULL){
-        return 1;
-    }
-    char buff[257]; // Plus one for eof
-    int counter_for_image_info = 0; // First two are width and height
-    int counter_for_checking_if_all_rgb_values_read_properly = 0;
-    char* info;
-    while(fgets(buff, 257, input_raw_file) != NULL){
-        // printf("buff: %s\n", buff);
-        info = strtok(buff, ",");
-        while(info != NULL){
-            // printf("Info: %d\n", atoi(info));
-            if(counter_for_image_info == 0){
-                image_width = atoi(info);
-                ++counter_for_image_info;
-            } else if (counter_for_image_info == 1){
-                image_height = atoi(info);
-                ++counter_for_image_info;
-                // printf("The image has width: %d, and height: %d.\n", image_width, image_height);
-                image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * image_width * image_height * 3);
-            } else {
-                if(counter_for_checking_if_all_rgb_values_read_properly + 10 >= image_width * image_height * 3){
-                    // printf("Current counter: %d, current limit: %d.\n", counter_for_checking_if_all_rgb_values_read_properly, image_width * image_height * 3);
-                    // printf("Current info: %d\n", atoi(info));
-                }
-                image_buffer[counter_for_checking_if_all_rgb_values_read_properly++] = atoi(info);
-            }
-            info = strtok(NULL, ",");
-        }
-        // printf("Current buff: %s\n", buff);
-    }
-    if(image_buffer == NULL || image_height == 0 || image_width == 0 || 
-        counter_for_checking_if_all_rgb_values_read_properly != image_width * image_height * 3){
-            return 1;
-        }
-    // printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
-
-    int total_number_of_pixels = image_width * image_height;
-    image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
-
-    return 0;
-}
+int num_digits(int x)  
+{  
+    x = abs(x);  
+    return (x < 10 ? 1 :   
+        (x < 100 ? 2 :   
+        (x < 1000 ? 3 :   
+        (x < 10000 ? 4 :   
+        (x < 100000 ? 5 :   
+        (x < 1000000 ? 6 :   
+        (x < 10000000 ? 7 :  
+        (x < 100000000 ? 8 :  
+        (x < 1000000000 ? 9 :  
+        10)))))))));  
+}  
 
 /* Initialize the enclave:
  *   Step 1: retrive the launch token saved by last transaction
@@ -382,7 +340,6 @@ void gettime64(uint32_t ts[])
 	ts[1] = (4294*(tv.tv_usec)) + ((1981*(tv.tv_usec))>>11);
 }
 
-
 int die(const char *msg)
 {
 	if (msg) {
@@ -391,76 +348,9 @@ int die(const char *msg)
 	exit(-1);
 }
 
-
-void log_request_arrive(uint32_t *ntp_time)
-{
-	time_t t; 
-
-	if (ntp_time) {
-		t = *ntp_time - UTC_NTP;
-	} else {
-		t = time(NULL);
-	}
-	printf("A request comes at: %s", ctime(&t));
-}
-
-
 void log_ntp_event(char *msg)
 {
 	puts(msg);
-}
-
-int save_processed_frame(pixel* processed_pixels, char* frame_id){
-    // Return 0 on success; otherwise, return 1
-    // First create the folder if not created
-    char* dirname = "data/processed_raw";
-    mkdir(dirname, 0777);
-    
-    // Save data
-    int total_number_of_rgb_values = image_width * image_height * 3;
-
-    char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "data/processed_raw/processed_raw_%s", frame_id);
-
-    FILE* output_file = fopen(processed_raw_file_name, "w+");
-    if(output_file == NULL){
-        return 1;
-    }
-
-    free(image_buffer);
-    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
-    
-    fprintf(output_file, "%07d,%07d,", image_width, image_height);
-    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        fprintf(output_file, "%03d,", image_buffer[i]);
-    }
-    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
-    fclose(output_file);
-
-    return 0;
-}
-
-int save_char_array_to_file(char* str_to_save, char* frame_id){
-    // Return 0 on success; otherwise, return 1
-    char* dirname = "data/processed_raw_str_enclave";
-    mkdir(dirname, 0777);
-
-    char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "data/processed_raw_str_enclave/processed_raw_%s", frame_id);
-
-    FILE* output_file = fopen(processed_raw_file_name, "w+");
-    if(output_file == NULL){
-        return 1;
-    }
-
-    int results = fputs(str_to_save, output_file);
-    if (results == EOF) {
-        return 1;
-    }
-
-    fclose(output_file);
-
-    return 0;
 }
 
 size_t calcDecodeLength(const char* b64input) {
@@ -511,7 +401,8 @@ void Base64Encode( const unsigned char* buffer,
     BIO_set_close(bio, BIO_NOCLOSE);
     BIO_free_all(bio);
 
-    *actual_base64_len = (*bufferPtr).length;
+    *actual_base64_len = (*bufferPtr).length - 1;
+    (*bufferPtr).data[*actual_base64_len] = '\0';
   // printf("Inside Base64Encode we have data(length: %d){%s}\n", (*bufferPtr).length, (*bufferPtr).data);
 
     *base64Text=(*bufferPtr).data;
@@ -528,76 +419,16 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
 
     fseek(signature_file, 0, SEEK_END);
     long length = ftell(signature_file);
-    // printf("read_signature: length of file from ftell is: %d\n", length);
     fseek(signature_file, 0, SEEK_SET);
-
     char* base64signature = (char*)malloc(length + 1);
-
     int success_read_count = fread(base64signature, 1, length, signature_file);
     base64signature[success_read_count] = '\0';
-    // printf("success_read_count is %d\n", success_read_count);
-
     fclose(signature_file);
-
-    // printf("base64signautre: {%s}\n", base64signature);
-    
     unsigned char* signature;
     Base64Decode(base64signature, &signature, signatureLength);
 
     free(base64signature);
-
     return signature;
-}
-
-void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
-{
-    int i = 0;
-
-    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
-    }
-
-    outputBuffer[64] = 0;
-}
-
-int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out){
-    // Return 0 on success, otherwise, return 1
-
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, data, size_of_data);
-    SHA256_Final(hash, &sha256);
-
-    sha256_hash_string(hash, hash_out);
-    return 0;
-}
-
-int read_file_as_hash(char* file_path, char* hash_out){
-    // Return 0 on success, otherwise, return 1
-    FILE *file = fopen(file_path, "rb");
-    if(file == NULL){
-        return 1;
-    }
-
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    const int bufSize = 32768;
-    unsigned char* buffer = (unsigned char*)malloc(bufSize);
-    int bytesRead = 0;
-    if(!buffer) return ENOMEM;
-    while((bytesRead = fread(buffer, 1, bufSize, file)))
-    {
-        SHA256_Update(&sha256, buffer, bytesRead);
-    }
-    SHA256_Final(hash, &sha256);
-
-    sha256_hash_string(hash, hash_out);
-    fclose(file);
-    free(buffer);
-    return 0;
 }
 
 void print_public_key(EVP_PKEY* evp_pkey){
@@ -638,62 +469,6 @@ void print_private_key(EVP_PKEY* evp_pkey){
 	free(buf);
 }
 
-int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
-	// Return true on success; otherwise, return false
-	EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
-	unsigned char md_value[EVP_MAX_MD_SIZE];
-	unsigned int md_len, i;
-	int ret;
-
-	OpenSSL_add_all_digests();
-
-    md = EVP_get_digestbyname("SHA256");
-
-	if (md == NULL) {
-         printf("Unknown message digest %s\n", "SHA256");
-         exit(1);
-    }
-
-	mdctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(mdctx, md, NULL);
-
-	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-	if(ret != 1){
-		printf("EVP_VerifyInit_ex error. \n");
-        exit(1);
-	}
-
-    printf("hash_of_file to be verified: %s\n", hash_of_file);
-
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, 65);
-	if(ret != 1){
-		printf("EVP_VerifyUpdate error. \n");
-        exit(1);
-	}
-
-	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
-	printf("EVP_VerifyFinal result: %d\n", ret);
-
-	// Below part is for freeing data
-	// For freeing evp_md_ctx
-	EVP_MD_CTX_free(mdctx);
-
-    return ret;
-}
-
-unsigned char* public_key_to_str(EVP_PKEY* evp_pkey, int* len_of_publickey){
-	// public key - string
-    // Remember to deallocate the return after using
-	int len = i2d_PublicKey(evp_pkey, NULL);
-    *len_of_publickey = len + 1;
-	unsigned char *buf = (unsigned char *) malloc (*len_of_publickey);
-	unsigned char *tbuf = buf;
-	i2d_PublicKey(evp_pkey, &tbuf);
-
-	return buf;
-}
-
 void print_unsigned_chars(unsigned char* chars_to_print, int len){
 	printf ("{\"(Outside enclave)unsigned_chars\":\"");
 	int i;
@@ -714,148 +489,39 @@ char* read_file_as_str(const char* file_name, long* str_len){
     fseek(file, 0, SEEK_END);
     *str_len = ftell(file) + 1;
     fseek(file, 0, SEEK_SET);
-
     char* str_to_return = (char*)malloc(*str_len);
-
+    memset(str_to_return, 0, *str_len);
     fread(str_to_return, 1, *str_len - 1, file);
-
-    // printf("When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
-
     str_to_return[*str_len - 1] = '\0';
 
     fclose(file);
-
     return str_to_return;
 }
 
-int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_out){
-    // Return 0 on success, otherwise, return 1
-
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, str_for_hashing, size_of_str_for_hashing);
-    SHA256_Final(hash, &sha256);
-
-    sha256_hash_string(hash, hash_out);
-    return 0;
-}
-
-int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
-    // Return 0 on success, otherwise, return 1
-
-    char* base64_signature;
-
-    // printf("The base64_signature before assigning signauture is (length: %d): %s\n", strlen(base64_signature), base64_signature);
-    int len_of_base64encoded_str;
-    Base64Encode(signature, len_of_sign, &base64_signature, (size_t*)&len_of_base64encoded_str);
-    // base64_signature = base64_encode(signature, (size_t)len_of_sign, (size_t*)&len_of_base64encoded_str);
-
-    // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", strlen(base64_signature), len_of_sign, base64_signature);
-    // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", len_of_base64encoded_str, len_of_sign, base64_signature);
-
-    char* dirname = "data/processed_raw_sign";
-    mkdir(dirname, 0777);
-
-    char processed_raw_sign_file_name[50];
-    snprintf(processed_raw_sign_file_name, 50, "data/processed_raw_sign/processed_raw_sign_%s", frame_id);
-
-    ofstream signature_file;
-    signature_file.open(processed_raw_sign_file_name);
-    if (!signature_file.is_open()){
-        return 1;
-    }
-    signature_file.write(base64_signature, len_of_base64encoded_str);
-    signature_file.close();
-
-    return 0;
-}
-
 void createContentBuffer(char* contentPath, u8** pContentBuffer, size_t* pContentSize) {
-  struct stat sb;
-  if (stat(contentPath, &sb) == -1) {
-    perror("stat failed");
-    exit(1);
-  }
+    struct stat sb;
+    if (stat(contentPath, &sb) == -1) {
+      perror("stat failed");
+      exit(1);
+    }
 
-  *pContentSize = sb.st_size;
-  *pContentBuffer = (u8*)malloc(*pContentSize);
+    *pContentSize = sb.st_size;
+    *pContentBuffer = (u8*)malloc(*pContentSize);
 }
 
 void loadContent(char* contentPath, u8* contentBuffer, size_t contentSize) {
-  FILE *input = fopen(contentPath, "r");
-  if (input == NULL) {
-    perror("open failed");
-    exit(1);
-  }
-
-  off_t offset = 0;
-  while (offset < contentSize) {
-    offset += fread(contentBuffer + offset, sizeof(u8), contentSize - offset, input);
-  }
-
-  fclose(input);
-}
-
-// TO-DO: move the following two static variables inside
-static FILE *outputFile = NULL;
-static char* outputPath = NULL;
-
-void savePic(u8* picData, int width, int height, int picNum) {
-  if(outputFile == NULL) {
-    outputFile = fopen(outputPath, "w");
-    if (outputFile == NULL) {
-      perror("output file open failed");
+    FILE *input = fopen(contentPath, "r");
+    if (input == NULL) {
+      perror("open failed");
       exit(1);
     }
-  }
 
-  size_t picSize = width * height * 3 / 2;
-  off_t offset = 0;
-  while (offset < picSize) {
-    offset += fwrite(picData + offset, sizeof(u8), picSize - offset, outputFile);
-  }
-}
+    off_t offset = 0;
+    while (offset < contentSize) {
+      offset += fread(contentBuffer + offset, sizeof(u8), contentSize - offset, input);
+    }
 
-EVP_PKEY* extract_pub_from_cert_file(const char *cert_filestr) {
-
-  EVP_PKEY            *pkey = NULL;
-  BIO              *certbio = NULL;
-  X509                *cert = NULL;
-  int ret;
-
-  /* ---------------------------------------------------------- *
-   * These function calls initialize openssl for correct work.  *
-   * ---------------------------------------------------------- */
-  OpenSSL_add_all_algorithms();
-  ERR_load_BIO_strings();
-  ERR_load_crypto_strings();
-
-  /* ---------------------------------------------------------- *
-   * Create the Input/Output BIO's.                             *
-   * ---------------------------------------------------------- */
-  certbio = BIO_new(BIO_s_file());
-
-  /* ---------------------------------------------------------- *
-   * Load the certificate from file (PEM).                      *
-   * ---------------------------------------------------------- */
-  ret = BIO_read_filename(certbio, cert_filestr);
-  if (! (cert = PEM_read_bio_X509(certbio, NULL, 0, NULL))) {
-    printf("Error loading cert into memory\n");
-    return NULL;
-  }
-
-  /* ---------------------------------------------------------- *
-   * Extract the certificate's public key data.                 *
-   * ---------------------------------------------------------- */
-  if ((pkey = X509_get_pubkey(cert)) == NULL) {
-    printf("Error getting public key from certificate");
-    return NULL;
-  }
-
-  X509_free(cert);
-  BIO_free_all(certbio);
-  return pkey;
+    fclose(input);
 }
 
 void do_decoding(
@@ -869,17 +535,16 @@ void do_decoding(
 {
 
     // Set up some basic parameters
-    int frame_width_from_input = atoi(argv[1]);
-    int frame_height_from_input = atoi(argv[2]);
-    int num_of_frames_from_input = atoi(argv[3]);
-    char* input_video_path = argv[4];
-    char* input_vendor_pub_path = argv[5];
-    char* input_sig_path = argv[6];
-    char* input_cert_path = argv[7];
-    char* output_file_path = argv[8];
-    char* output_sig_path = argv[9];
+    char* input_vendor_pub_path = argv[1];
+    char* input_cert_path = argv[2];
+    char* input_sig_path = argv[3];
+    char* input_md_path = argv[4];
+    char* input_video_path = argv[5];
+    char* output_file_path = argv[6];
+    char* output_sig_path = argv[7];
+    char* output_md_path = argv[8];
 
-    printf("input_video_path: %s, input_vendor_pub_path: %s, output_file_base_path: %s, input_sig_path: %s, input_cert_path: %s, output_sig_path: %s\n", input_video_path, input_vendor_pub_path, output_file_path, input_sig_path, input_cert_path, output_sig_path);
+    printf("input_video_path: %s, input_vendor_pub_path: %s, output_file_base_path: %s, input_sig_path: %s, input_cert_path: %s, output_sig_path: %s, output_md_path: %s\n", input_video_path, input_vendor_pub_path, output_file_path, input_sig_path, input_cert_path, output_sig_path, output_md_path);
 
     // Read camera vendor public key
     long vendor_pub_len = 0;
@@ -905,77 +570,135 @@ void do_decoding(
         return;
     }
 
+    // Read metadata
+    long md_json_len = 0;
+    char* md_json = read_file_as_str(input_md_path, &md_json_len);
+    if (!md_json) {
+        printf("Failed to read metadata\n");
+        return;
+    }
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+
+    // Parse metadata
+    metadata* md = json_2_metadata(md_json, md_json_len);
+    if (!md) {
+        printf("Failed to parse metadata\n");
+        return;
+    }
+
     // Set up parameters for the case where output is multi
-    // Assume there are at most 999 frames
+    int max_frames = 999; // Assume there are at most 999 frames
+    int max_frame_digits = num_digits(max_frames);
     size_t sig_size = 384; // TODO: Remove hardcoded sig size
+    size_t md_size = md_json_len + 16 + 46; // TODO: Remove hardcoded sig size
     int length_of_base_frame_file_name = (int)strlen(output_file_path);
-    int size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * 3;
+    int size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * max_frame_digits;
     char current_frame_file_name[size_of_current_frame_file_name];
     int length_of_base_sig_file_name = (int)strlen(output_sig_path);
-    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * 3;
+    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * max_frame_digits;
     char current_sig_file_name[size_of_current_sig_file_name];
+    int length_of_base_md_file_name = (int)strlen(output_md_path);
+    int size_of_current_md_file_name = sizeof(char) * length_of_base_md_file_name + sizeof(char) * max_frame_digits;
+    char current_md_file_name[size_of_current_md_file_name];
 
     FILE* rgb_output_file = NULL;
     FILE* sig_output_file = NULL;
+    FILE* md_output_file = NULL;
 
     // Parameters to be acquired from enclave
     u32* frame_width = (u32*)malloc(sizeof(u32)); 
     u32* frame_height = (u32*)malloc(sizeof(u32));
     int* num_of_frames = (int*)malloc(sizeof(int));
-    int frame_size = sizeof(u8) * frame_width_from_input * frame_height_from_input * 3;
-    size_t total_size_of_raw_rgb_buffer = frame_size * num_of_frames_from_input;
+    int frame_size = sizeof(u8) * md->width * md->height * 3;
+    size_t total_size_of_raw_rgb_buffer = frame_size * md->total_frames;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
-    size_t total_size_of_sig_buffer = sig_size * num_of_frames_from_input;
+    if (!output_rgb_buffer) {
+        printf("No memory left (RGB)\n");
+        return;
+    }
+    size_t total_size_of_sig_buffer = sig_size * md->total_frames;
     u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
+    if (!output_sig_buffer) {
+        printf("No memory left (SIG)\n");
+        return;
+    }
+    size_t total_size_of_md_buffer = md_size * md->total_frames;
+    u8* output_md_buffer = (u8*)malloc(total_size_of_md_buffer + 1);
+    if (!output_md_buffer) {
+        printf("No memory left (MD)\n");
+        return;
+    }
 
     u8* contentBuffer;
     size_t contentSize;
     createContentBuffer(input_video_path, &contentBuffer, &contentSize);
 
     loadContent(input_video_path, contentBuffer, contentSize);
-    sgx_status_t status = t_sgxver_decode_content(global_eid, contentBuffer, contentSize, 
+    int ret = 0;
+    sgx_status_t status = t_sgxver_decode_content(global_eid, &ret,
+                                                  contentBuffer, contentSize, 
+                                                  md_json, md_json_len,
                                                   vendor_pub, vendor_pub_len,
                                                   camera_cert, camera_cert_len,
                                                   vid_sig, vid_sig_length,
                                                   frame_width, frame_height, num_of_frames, 
-                                                  output_rgb_buffer, output_sig_buffer);
+                                                  output_rgb_buffer, output_sig_buffer, output_md_buffer);
 
-    printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
-        *frame_width, *frame_height, *num_of_frames);
+    if (ret) {
+        printf("Failed to decode video\n");
+    }
+    else {
+        printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+            *frame_width, *frame_height, *num_of_frames);
 
-    u8* temp_output_rgb_buffer = output_rgb_buffer;
-    u8* temp_output_sig_buffer = output_sig_buffer;
+        u8* temp_output_rgb_buffer = output_rgb_buffer;
+        u8* temp_output_sig_buffer = output_sig_buffer;
+        u8* temp_output_md_buffer = output_md_buffer;
 
-    // To-Do: make the following two lines flexible
-    char* dirname = "../video_data/raw_for_process";
-    mkdir(dirname, 0777);
-    dirname = "../video_data/sig";
-    mkdir(dirname, 0777);
+        // To-Do: make the following two lines flexible
+        char* dirname = "../video_data/raw_for_process";
+        mkdir(dirname, 0777);
+        dirname = "../video_data/sig";
+        mkdir(dirname, 0777);
+        dirname = "../video_data/metadata";
+        mkdir(dirname, 0777);
 
-    for(int i = 0; i < *num_of_frames; ++i){
-        // Write frame to file
-        memset(current_frame_file_name, 0, size_of_current_frame_file_name);
-        memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
-        sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
-        printf("Now writing frame to file: %s\n", current_frame_file_name);
-        rgb_output_file = fopen(current_frame_file_name, "wb");
-        fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
-        temp_output_rgb_buffer += frame_size;
-        fclose(rgb_output_file);
+        for(int i = 0; i < *num_of_frames; ++i){
+            // Write frame to file
+            memset(current_frame_file_name, 0, size_of_current_frame_file_name);
+            memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
+            sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
+            printf("Now writing frame to file: %s\n", current_frame_file_name);
+            rgb_output_file = fopen(current_frame_file_name, "wb");
+            fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
+            temp_output_rgb_buffer += frame_size;
+            fclose(rgb_output_file);
 
-        // Write signature to file
-        memset(current_sig_file_name, 0, size_of_current_sig_file_name);
-        memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
-        sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
-        char* b64_sig = NULL;
-        size_t b64_sig_size = 0;
-        Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
-        temp_output_sig_buffer += sig_size;
-        printf("Now writing sig to file: %s\n", current_sig_file_name);
-        sig_output_file = fopen(current_sig_file_name, "wb");
-        fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
-        fclose(sig_output_file);
-        free(b64_sig);
+            // Write signature to file
+            memset(current_sig_file_name, 0, size_of_current_sig_file_name);
+            memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
+            sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
+            char* b64_sig = NULL;
+            size_t b64_sig_size = 0;
+            Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
+            temp_output_sig_buffer += sig_size;
+            printf("Now writing sig to file: %s, b64_sig: %s, b64_sig_len: %li\n", current_sig_file_name, b64_sig, b64_sig_size);
+            sig_output_file = fopen(current_sig_file_name, "wb");
+            fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
+            fclose(sig_output_file);
+            free(b64_sig);
+
+            // Write metadata to file
+            memset(current_md_file_name, 0, size_of_current_md_file_name);
+            memcpy(current_md_file_name, output_md_path, sizeof(char) * length_of_base_md_file_name);
+            sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
+            printf("Now writing metadata to file: %s\n", current_md_file_name);
+            md_output_file = fopen(current_md_file_name, "wb");
+            fwrite(temp_output_md_buffer, md_size, 1, md_output_file);
+            temp_output_md_buffer += md_size;
+            fclose(md_output_file);
+        }
     }
 
     // Free everything
@@ -991,210 +714,11 @@ void do_decoding(
         free(output_rgb_buffer);
     if(output_sig_buffer)
         free(output_sig_buffer);
+    if(output_md_buffer)
+        free(output_md_buffer);
 
     return;
 }
-
-int verification_reply(
-	int socket_fd,
-	struct sockaddr *saddr_p,
-	socklen_t saddrlen,
-	unsigned char recv_buf[],
-	uint32_t recv_time[],
-    char** argv)
-{
-	fflush(stdout);
-
-    // printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
-
-    auto start_of_reading_public_key = high_resolution_clock::now();
-
-    // Read Public Key
-    /*
-    char absolutePath[MAX_PATH];
-    char *ptr = NULL;
-
-    ptr = realpath(dirname(argv[0]), absolutePath);
-
-    if (ptr == NULL || chdir(absolutePath) != 0)
-        return 1;
-
-    long original_pub_key_str_len;
-    char* original_pub_key_str = read_file_as_str(argv[1], &original_pub_key_str_len);
-
-    auto end_of_reading_public_key = high_resolution_clock::now();
-    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
-    cout << "Processing frame " << (char*)recv_buf << " read public key take time: " << public_key_read_duration.count() << endl; 
-
-    auto start_of_reading_signature = high_resolution_clock::now();
-    */
-
-    // Read Certificate and its vendor public key
-    char absolutePath[MAX_PATH];
-    char *ptr = NULL;
-
-    ptr = realpath(dirname(argv[0]), absolutePath);
-
-    if (ptr == NULL || chdir(absolutePath) != 0)
-        return 1;
-
-    long original_vendor_pub_str_len;
-    char* original_vendor_pub_str = read_file_as_str(argv[1], &original_vendor_pub_str_len);
-
-    long original_cert_str_len;
-    char* original_cert_str = read_file_as_str(argv[2], &original_cert_str_len);
-
-    auto end_of_reading_public_key = high_resolution_clock::now();
-    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
-    cout << "Processing frame " << (char*)recv_buf << " read camera certificate take time: " << public_key_read_duration.count() << endl; 
-
-    auto start_of_reading_signature = high_resolution_clock::now();
-
-    // Read Signature
-    unsigned char* raw_signature;
-    size_t raw_signature_length;
-
-    char raw_file_signature_name[50];
-    snprintf(raw_file_signature_name, 50, "data/out_raw_sign/camera_sign_%s", (char*)recv_buf);
-
-    raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
-    // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
-    // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
-
-    auto end_of_reading_signature = high_resolution_clock::now();
-    auto signature_read_duration = duration_cast<microseconds>(end_of_reading_signature - start_of_reading_signature);
-    cout << "Processing frame " << (char*)recv_buf << " read signature take time: " << signature_read_duration.count() << endl; 
-
-    auto start_of_reading_raw_img = high_resolution_clock::now();
-
-    // Read Raw Image
-    char raw_file_name[50];
-    snprintf(raw_file_name, 50, "data/out_raw/out_raw_%s", (char*)recv_buf);
-
-    int result_of_reading_raw_file = read_raw_file(raw_file_name);
-    // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
-
-    auto end_of_reading_raw_img = high_resolution_clock::now();
-    auto raw_img_read_duration = duration_cast<microseconds>(end_of_reading_raw_img - start_of_reading_raw_img);
-    cout << "Processing frame " << (char*)recv_buf << " read raw img take time: " << raw_img_read_duration.count() << endl; 
-
-    auto start_of_reading_raw_img_hash = high_resolution_clock::now();
-
-    // Read Raw Image Hash
-    int size_of_hoorf = 65;
-    char* hash_of_original_raw_file = (char*) malloc(size_of_hoorf);
-    read_file_as_hash(raw_file_name, hash_of_original_raw_file);
-    // cout << "Hash of the input image file: " << hash_of_original_raw_file << endl;
-
-    auto end_of_reading_raw_img_hash = high_resolution_clock::now();
-    auto raw_img_hash_read_duration = duration_cast<microseconds>(end_of_reading_raw_img_hash - start_of_reading_raw_img_hash);
-    cout << "Processing frame " << (char*)recv_buf << " read raw img hash take time: " << raw_img_hash_read_duration.count() << endl; 
-
-    auto start_of_allocation = high_resolution_clock::now();
-
-    // Prepare processed Image
-    pixel* processed_pixels;
-    processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
-
-    // Allocate char array for encalve to create signature of processed pixels
-    long size_of_char_array_for_processed_img_sign = image_height * image_width * 3 * 4 + 16;
-    // printf("size_of_char_array_for_processed_img_sign: %d\n", size_of_char_array_for_processed_img_sign);
-    char* char_array_for_processed_img_sign = (char*)malloc(size_of_char_array_for_processed_img_sign);
-
-    // Prepare for signature output and its hash
-    size_t size_of_processed_img_signature = 384;
-    unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
-    // printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
-    size_t size_of_actual_processed_img_signature;
-    int size_of_hoprf = 65;
-    char* hash_of_processed_raw_file = (char*) malloc(size_of_hoorf);
-
-    auto end_of_allocation = high_resolution_clock::now();
-    auto allocation_duration = duration_cast<microseconds>(end_of_allocation - start_of_allocation);
-    cout << "Processing frame " << (char*)recv_buf << " allocation take time: " << allocation_duration.count() << endl; 
-
-    // Going to get into enclave
-    int runtime_result = -1;
-    auto start = high_resolution_clock::now();
-    sgx_status_t status = t_sgxver_call_apis(
-        global_eid, image_pixels, sizeof(pixel) * image_width * image_height, image_width, image_height, 
-        hash_of_original_raw_file, size_of_hoorf, raw_signature, raw_signature_length, 
-        original_vendor_pub_str, original_vendor_pub_str_len, 
-        original_cert_str, original_cert_str_len, processed_pixels, &runtime_result, sizeof(int), 
-        char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, 
-        hash_of_processed_raw_file, size_of_hoprf, 
-        processed_img_signature, size_of_processed_img_signature, 
-        &size_of_actual_processed_img_signature, sizeof(size_t));
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Processing frame " << (char*)recv_buf << " in enclave takes time: " << duration.count() << endl; 
-    if (status != SGX_SUCCESS) {
-        printf("Call to t_sgxver_call_apis has failed.\n");
-        return 1;    //Test failed
-    }
-
-    if (runtime_result != 0) {
-        printf("Runtime result verification failed: %d\n", runtime_result);
-        return 1;
-    }
-
-    // cout << "Enclave has successfully run with runtime_result: " << runtime_result << endl;
-    // printf("After successful run of encalve, the first pixel is(passed into enclave): R: %d; G: %d; B: %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
-    // printf("After successful run of encalve, the first pixel is(got out of enclave): R: %d; G: %d; B: %d\n", processed_pixels[0].r, processed_pixels[0].g, processed_pixels[0].b);
-    // cout << "After successful run of encalve, the first pixel is(passed into enclave): R: " << image_pixels[0].r << "; G: " << image_pixels[0].g << "; B: " << image_pixels[0].b << endl;
-    // cout << "After successful run of encalve, the first pixel is(got out of enclave): R: " << processed_pixels[0].r << "; G: " << processed_pixels[0].g << "; B: " << processed_pixels[0].b << endl;
-
-    auto start_of_saving_frame = high_resolution_clock::now();
-
-    // Save processed frame
-    int result_of_frame_saving = save_processed_frame(processed_pixels, (char*) recv_buf);
-    if(result_of_frame_saving != 0){
-        return 1;
-    }
-
-    auto end_of_saving_frame = high_resolution_clock::now();
-    auto saving_frame_duration = duration_cast<microseconds>(end_of_saving_frame - start_of_saving_frame);
-    cout << "Processing frame " << (char*)recv_buf << " save processed frame take time: " << saving_frame_duration.count() << endl; 
-    // cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
-    // char hash_temp[65];
-    // str_to_hash(char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, hash_temp);
-    // cout << "(Outside Enclave)hash of char_array_for_processed_img_sign: " << hash_temp << endl;
-    // save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
-
-    auto start_of_saving_signature = high_resolution_clock::now();
-
-    // Save processed filter singature
-    // printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
-    int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_actual_processed_img_signature, (char*) recv_buf);
-    if(result_of_filter_sign_saving != 0){
-        return 1;
-    }
-
-    auto end_of_saving_signature = high_resolution_clock::now();
-    auto saving_signature_duration = duration_cast<microseconds>(end_of_saving_signature - start_of_saving_signature);
-    cout << "Processing frame " << (char*)recv_buf << " save processed frame's signature take time: " << saving_signature_duration.count() << endl; 
-
-    auto start_of_freeing = high_resolution_clock::now();
-
-    // Free Everything (for video_provenance project)
-    free(image_pixels);
-    free(processed_pixels);
-    free(image_buffer);
-    free(hash_of_original_raw_file);
-    free(raw_signature);
-    free(original_vendor_pub_str);
-    free(original_cert_str);
-    free(char_array_for_processed_img_sign);
-    free(hash_of_processed_raw_file);
-    free(processed_img_signature);
-
-    auto end_of_freeing = high_resolution_clock::now();
-    auto freeing_duration = duration_cast<microseconds>(end_of_freeing - start_of_freeing);
-    cout << "Processing frame " << (char*)recv_buf << " deallocation take time: " << freeing_duration.count() << endl; 
-
-	return 0;
-}
-
 
 void request_process_loop(int fd, int argc, char** argv)
 {
@@ -1218,7 +742,6 @@ void request_process_loop(int fd, int argc, char** argv)
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "decoding with parameters: " << (char*)buf << " takes time: " << duration.count() << endl; 
 }
-
 
 void sgx_server(int argc, char** argv)
 {
@@ -1291,8 +814,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 10){
-        printf("Usage: ./TestApp [frame_width] [frame_height] [num_of_frames] [path_to_video] [path_to_camera_vendor_pubkey] [path_to_video_sig] [path_to_camera_cert] [path_to_output_frame_file] [path_to_output_sig_file]\n");
+    if(argc < 8){
+        printf("Usage: ./TestApp [path_to_camera_vendor_pubkey] [path_to_camera_cert] [path_to_video_sig] [path_to_metadata] [path_to_video] [path_to_output_frame_file] [path_to_output_sig_file] [path_to_output_md_file]\n");
         return 1;
     }
 
@@ -1322,5 +845,3 @@ int main(int argc, char *argv[], char **env)
     sgx_destroy_enclave(global_eid);
 	return 0;
 }
-
-

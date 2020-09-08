@@ -13,6 +13,8 @@
 #include <openssl/err.h>
 #include <openssl/bio.h>
 
+#include "metadata.h"
+
 #define DEFAULT_GOP 20
 #define DEFAULT_QP 33
 #define DEFAULT_DENOISE 0
@@ -137,8 +139,9 @@ void Base64Encode( const unsigned char* buffer,
     BIO_set_close(bio, BIO_NOCLOSE);
     BIO_free_all(bio);
 
-    *actual_base64_len = (*bufferPtr).length;
+    *actual_base64_len = (*bufferPtr).length - 1;
 
+    (*bufferPtr).data[*actual_base64_len] = '\0';
     *base64Text=(*bufferPtr).data;
 }
 
@@ -147,8 +150,10 @@ struct
     const char *input_file;
     const char *output_file;
     const char *sig_file;
+    const char *md_json_file;
     const char *privkey_file;
-    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr, fps, is_yuyv;
+    const char *pubkey_file;
+    int gen, gop, qp, kbps, max_frames, threads, speed, denoise, stats, psnr, fps, is_yuyv, numframes;
 } cmdline[1];
 
 static int str_equal(const char *pattern, char **p)
@@ -161,6 +166,55 @@ static int str_equal(const char *pattern, char **p)
     {
         return 0;
     }
+}
+
+int hash_pubkey (EVP_PKEY* pubkey, char** hash_b64, size_t *hash_b64_len)
+{
+	EVP_MD_CTX *mdctx = NULL;
+    BIO* keybio = BIO_new(BIO_s_mem());
+    EVP_PKEY_print_public(keybio, pubkey, 0, NULL);
+    int ret = 1;
+    char buffer[1024];
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    unsigned int hash_len;
+
+    do {
+        /* Create the Message Digest Context */
+        if(!(mdctx = EVP_MD_CTX_create())){
+            printf("EVP_MD_CTX_create error: %ld. \n", ERR_get_error());
+            break;
+        }
+
+        /* Initialize Digest operation */
+        if(1 != EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL)) {
+            printf("EVP_DigestInit_ex error: %ld. \n", ERR_get_error());
+            break;
+        }
+
+        while (BIO_read(keybio, buffer, 1024) > 0)
+        {
+            /* Update Digest operation */
+            if(1 != EVP_DigestUpdate(mdctx, buffer, strlen(buffer))) {
+                printf("EVP_DigestUpdate error: %ld. \n", ERR_get_error());
+                break;
+            }
+        }
+
+        /* Finalize Digest operation */
+        if(1 != EVP_DigestFinal_ex(mdctx, hash, &hash_len)) {
+            printf("EVP_DigestFinal_ex error: %ld. \n", ERR_get_error());
+            break;
+        }
+
+        /* Encode hash to base 64 format */
+        Base64Encode(hash, SHA256_DIGEST_LENGTH, hash_b64, hash_b64_len);
+
+        ret = 0;
+    } while(0);
+
+    BIO_free(keybio);
+    EVP_MD_CTX_free(mdctx);
+    return ret;
 }
 
 int sign (EVP_PKEY* priv_key, void *data_to_be_signed, size_t size_of_data, char **sig_b64, size_t *sig_len_b64)
@@ -258,6 +312,9 @@ static int read_cmdline_options(int argc, char *argv[])
             } else if (str_equal(("fps"), &p))
             {
                 cmdline->fps = atoi(p);
+            } else if (str_equal(("numframes"), &p))
+            {
+                cmdline->numframes = atoi(p);
             } else if (str_equal(("is_yuyv"), &p))
             {
                 cmdline->is_yuyv = 1;
@@ -269,15 +326,27 @@ static int read_cmdline_options(int argc, char *argv[])
         } else if (!cmdline->input_file && !cmdline->gen)
         {
             cmdline->input_file = p;
+            printf("input: %s\n", p);
         } else if (!cmdline->output_file)
         {
             cmdline->output_file = p;
+            printf("output: %s\n", p);
+        } else if (!cmdline->md_json_file)
+        {
+            cmdline->md_json_file = p;
+            printf("md_json: %s\n", p);
         } else if (!cmdline->sig_file)
         {
             cmdline->sig_file = p;
+            printf("sig: %s\n", p);
         } else if (!cmdline->privkey_file)
         {
             cmdline->privkey_file = p;
+            printf("privkey: %s\n", p);
+        } else if (!cmdline->pubkey_file)
+        {
+            cmdline->pubkey_file = p;
+            printf("pubkey: %s\n", p);
         } else
         {
             printf("ERROR: Unknown option %s\n", p);
@@ -517,8 +586,8 @@ int main(int argc, char *argv[])
 {
     int i, frames = 0;
     const char *fnin, *fnout, *fnsig;
-    FILE *fpriv_key;
-    EVP_PKEY *priv_key;
+    FILE *fpriv_key, *fpub_key, *fmd_json;
+    EVP_PKEY *priv_key, *pub_key;
 
     if (!read_cmdline_options(argc, argv))
         return 1;
@@ -567,7 +636,7 @@ int main(int argc, char *argv[])
     fpriv_key = fopen(cmdline->privkey_file, "r");
     if (!fpriv_key)
     {
-        printf("ERROR: cant open input file %s\n", "data/encoder_pri");
+        printf("ERROR: cant open input file %s\n", cmdline->privkey_file);
         return 1;
     }
     priv_key = EVP_PKEY_new();
@@ -575,6 +644,29 @@ int main(int argc, char *argv[])
     if (!priv_key)
     {
         printf("ERROR: cant read private key\n");
+        return 1;
+    }
+    if (!cmdline->pubkey_file) {
+        printf("ERROR: public key is required\n");
+        return 1;
+    }
+    fpub_key = fopen(cmdline->pubkey_file, "r");
+    if (!fpub_key)
+    {
+        printf("ERROR: cant open input file %s\n", cmdline->pubkey_file);
+        return 1;
+    }
+    pub_key = EVP_PKEY_new();
+    pub_key = PEM_read_PUBKEY(fpub_key, &pub_key, NULL, NULL);
+    if (!pub_key)
+    {
+        printf("ERROR: cant read public key\n");
+        return 1;
+    }
+    fmd_json = fopen(cmdline->md_json_file, "w");
+    if (!fmd_json)
+    {
+        printf("ERROR: cant open output file %s\n", cmdline->md_json_file);
         return 1;
     }
 
@@ -791,21 +883,12 @@ int main(int argc, char *argv[])
 
             if (cmdline->stats)
                 printf("frame=%d, bytes=%d\n", frames++, sizeof_coded_data);
-
-            if (fout)
-            {
-                if (!fwrite(coded_data, sizeof_coded_data, 1, fout))
-                {
-                    printf("ERROR writing output file\n");
-                    break;
-                }
-            }
             if (cmdline->psnr)
                 psnr_add(buf_save, buf_in, g_w, g_h, sizeof_coded_data);
             // Collect coded_data and sizeof_coded_data for future signature calculation
             unsigned char* tmp;
             tmp = (unsigned char*)realloc(total_coded_data, (size_t)(total_sizeof_coded_data + sizeof_coded_data));
-            memcpy(tmp + total_sizeof_coded_data, coded_data, sizeof_coded_data);
+            memcpy(tmp + total_sizeof_coded_data, coded_data, (size_t)sizeof_coded_data);
             total_sizeof_coded_data += sizeof_coded_data;
             if (tmp)
                 total_coded_data = tmp;
@@ -813,6 +896,51 @@ int main(int argc, char *argv[])
         //fprintf(stderr, "%d avr = %6d  [%6d %6d]\n", qp, sum_bytes/299, min_bytes, max_bytes);
         if (cmdline->stats)
             printf("total size of coded data %i\n", total_sizeof_coded_data);
+
+        if (fout)
+        {
+            if (!fwrite(total_coded_data, (size_t)total_sizeof_coded_data, 1, fout))
+            {
+                printf("ERROR writing output file\n");
+                return 1;
+            }
+        }
+
+        if (fmd_json)
+        {
+            metadata* md = (metadata*)malloc(sizeof(metadata));
+            memset(md, 0, sizeof(metadata));
+            size_t hash_len = 0;
+            md->video_id = (char*)malloc(SHA256_DIGEST_LENGTH);
+            hash_pubkey(pub_key, &md->video_id, &hash_len);
+            md->timestamp = time(NULL);
+            md->width = g_w;
+            md->height = g_h;
+            md->segment_id = 0;
+            md->total_segments = 1;
+            md->frame_rate = cmdline->fps;
+            md->total_frames = cmdline->numframes;
+            md->total_filters = 1;
+            md->filters = (char**)malloc(sizeof(char*) * md->total_filters);
+            md->filters[0] = "blur\0";
+            md->total_digests = 0;
+            print_metadata(md);
+            char* json = NULL;
+            json = metadata_2_json(md);
+            unsigned char* tmp;
+            tmp = (unsigned char*)realloc(total_coded_data, (size_t)(total_sizeof_coded_data + strlen(json)));
+            memcpy(tmp + total_sizeof_coded_data, json, strlen(json));
+            total_sizeof_coded_data += strlen(json);
+            if (tmp)
+                total_coded_data = tmp;
+            if (!fwrite(json, strlen(json), 1, fmd_json))
+            {
+                printf("ERROR writing metadata\n");
+                return 1;
+            }
+            free(json);
+            free(md);
+        }
         if (fsig)
         {
             char *sig_b64 = NULL;
@@ -859,8 +987,14 @@ int main(int argc, char *argv[])
         fclose(fout);
     if (fsig)
         fclose(fsig);
+    if (fmd_json)
+        fclose(fmd_json);
     if (fpriv_key)
         fclose(fpriv_key);
+    if (fpub_key)
+        fclose(fpub_key);
+    EVP_PKEY_free(priv_key);
+    EVP_PKEY_free(pub_key);
 #if H264E_MAX_THREADS
     if (thread_pool)
     {

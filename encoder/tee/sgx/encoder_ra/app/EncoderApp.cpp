@@ -72,6 +72,7 @@
 #include <arpa/inet.h>
 
 #include "minih264e.h"
+#include "metadata.h"
 #include <math.h>
 
 #include <time.h> /* for time() and ctime() */
@@ -223,8 +224,8 @@ H264E_io_yuy2_t yuyv;
 uint8_t *buf_in, *buf_save;
 uint8_t *yuyv_buf_in, *temp_buf_in, *p;
 uint8_t *coded_data, *all_coded_data;
-char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_ias_cert_file, *out_ias_cert_file;
-int sizeof_coded_data, g_w, g_h, _qp;
+char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_ias_cert_file, *out_ias_cert_file, *in_md_file, *out_md_file;
+int sizeof_coded_data, _qp;
 cmdline *cl;
 
 void Base64Encode( const unsigned char* buffer,
@@ -249,6 +250,21 @@ void Base64Encode( const unsigned char* buffer,
 
     *base64Text=(*bufferPtr).data;
 }
+
+int num_digits(int x)  
+{  
+    x = abs(x);  
+    return (x < 10 ? 1 :   
+        (x < 100 ? 2 :   
+        (x < 1000 ? 3 :   
+        (x < 10000 ? 4 :   
+        (x < 100000 ? 5 :   
+        (x < 1000000 ? 6 :   
+        (x < 10000000 ? 7 :  
+        (x < 100000000 ? 8 :  
+        (x < 1000000000 ? 9 :  
+        10)))))))));  
+}  
 
 /* Check error conditions for loading enclave */
 void print_error_message(sgx_status_t ret)
@@ -525,6 +541,12 @@ static int read_cmdline_options(int argc, char *argv[])
         } else if (!out_ias_cert_file)
         {
             out_ias_cert_file = p;
+        } else if (!in_md_file)
+        {
+            in_md_file = p;
+        } else if (!out_md_file)
+        {
+            out_md_file = p;
         } else
         {
             printf("ERROR: Unknown option %s\n", p);
@@ -636,6 +658,31 @@ static int guess_format_from_name(const char *file_name, int *w, int *h)
         }
     }
     return found;
+}
+
+char* read_file_as_str(const char* file_name, long* str_len){
+    // Return str_to_return on success, otherwise, return NULL
+    // Need to free the return after finishing using
+    FILE* file = fopen(file_name, "r");
+    if(file == NULL){
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    *str_len = ftell(file) + 1;
+    fseek(file, 0, SEEK_SET);
+
+    char* str_to_return = (char*)malloc(*str_len);
+
+    fread(str_to_return, 1, *str_len - 1, file);
+
+    // printf("When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
+
+    str_to_return[*str_len - 1] = '\0';
+
+    fclose(file);
+
+    return str_to_return;
 }
 
 size_t calcDecodeLength(const char* b64input) {
@@ -782,21 +829,13 @@ void wait_wrapper(int s)
 /* Application entry */
 int main(int argc, char *argv[], char **env)
 {
-    int i, res = -1;
-    char *fnin, *fnout, *fninsig, *fnoutsig, *fniniascert, *fnoutiascert;
-    FILE *fin, *fout, *fsig, *fcert;
+    int i = 0, res = -1;
+    FILE *fin, *fout, *fsig, *fcert, *fmd;
     sgx_status_t status;
 
     // Initialize variables
     if (!read_cmdline_options(argc, argv))
         return 1;
-
-    fnin  = input_file;
-    fnout = output_file;
-    fninsig  = input_file_sig;
-    fnoutsig = output_file_sig;
-    fniniascert = in_ias_cert_file;
-    fnoutiascert = out_ias_cert_file;
 
     // printf("Input parameters:\n\
     //         input_file             : %s\n\
@@ -808,35 +847,12 @@ int main(int argc, char *argv[], char **env)
     //         fnin, fnout, fninsig, fnoutsig, fniniascert, fnoutiascert
     //       );
 
-    if (!cl->gen)
-    {
-        g_w = 1280;
-        g_h = 720;
-        guess_format_from_name(fnin, &g_w, &g_h);
-        printf("The video resolution will be %d x %d\n", g_w, g_h);
-    } else
-    {
-        g_w = 1024;
-        g_h = 768;
-    }
-
-    if (!fnout)
-        fnout = "output.h264";
-    if (!fnoutsig)
-        fnoutsig = "output.sig";
-    if (!fnoutiascert)
-        fnoutiascert = "encoder_cert.der";
-
-    int frame_size = 0;
-    if (cl->is_yuyv) {
-        frame_size = g_w * g_h * 2;
-    }
-    else if (cl->is_rgb) {
-        frame_size = g_w * g_h * 3;
-    }
-    else {
-        frame_size = g_w * g_h * 3/2;
-    }
+    if (!output_file)
+        output_file = "output.h264";
+    if (!output_file_sig)
+        output_file_sig = "output.sig";
+    if (!out_ias_cert_file)
+        out_ias_cert_file = "encoder_cert.der";
 
 	// Initialize and start the enclave
 	start_enclave();
@@ -855,7 +871,7 @@ int main(int argc, char *argv[], char **env)
     cout << "Conducting RA took time: " << duration.count() << endl; 
 
     // Save Enclave cert
-    FILE* out_cert_file = fopen(fnoutiascert, "w");
+    FILE* out_cert_file = fopen(out_ias_cert_file, "w");
     fwrite(der_cert, size_of_cert, 1, out_cert_file);
     fclose(out_cert_file);
 
@@ -863,18 +879,11 @@ int main(int argc, char *argv[], char **env)
 	// signal(SIGCHLD,wait_wrapper);
 	// sgx_server(argv);
 
-    // Initialize variables inside of the enclave
-    status = t_encoder_init(global_eid, &res, cl, sizeof(cmdline), g_w, g_h);
-    if (res || status != SGX_SUCCESS) {
-        printf("t_encoder_init failed\n");
-        return 1;
-    }
-
     // Verify IAS certificate
-    fcert = fopen(fniniascert, "r");
+    fcert = fopen(in_ias_cert_file, "r");
     if (!fcert)
     {
-        printf("ERROR: cant open IAS cert file %s\n", fniniascert);
+        printf("ERROR: cant open IAS cert file %s\n", in_ias_cert_file);
         return 1;
     }
     fseek(fcert, 0, SEEK_END);
@@ -905,20 +914,115 @@ int main(int argc, char *argv[], char **env)
 
     // Set up parameters for the case each frame is in a single file
     // Assume there are at most 999 frames
-    int length_of_base_frame_file_name = (int)strlen(fnin);
-    int size_of_current_frame_file_name = sizeof(char) * (length_of_base_frame_file_name + 3);
+    int max_frames = 999; // Assume there are at most 999 frames
+    int max_frame_digits = num_digits(max_frames);
+    int length_of_base_frame_file_name = (int)strlen(input_file);
+    int size_of_current_frame_file_name = sizeof(char) * (length_of_base_frame_file_name + sizeof(char) * max_frame_digits);
     char current_frame_file_name[size_of_current_frame_file_name];
-    int length_of_base_sig_file_name = (int)strlen(fninsig);
-    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * 3;
+    int length_of_base_sig_file_name = (int)strlen(input_file_sig);
+    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * max_frame_digits;
     char current_sig_file_name[size_of_current_sig_file_name];
+    int length_of_base_md_file_name = (int)strlen(in_md_file);
+    int size_of_current_md_file_name = sizeof(char) * length_of_base_md_file_name + sizeof(char) * max_frame_digits;
+    char current_md_file_name[size_of_current_md_file_name];
+
+    // Initialize variables in host
+    // Read metadata
+    memset(current_md_file_name, 0, size_of_current_md_file_name);
+    memcpy(current_md_file_name, in_md_file, sizeof(char) * length_of_base_md_file_name);
+    sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
+    long md_json_len = 0;
+    char* md_json = read_file_as_str(current_md_file_name, &md_json_len);
+    if (!md_json) {
+        printf("Failed to read metadata from file: %s\n", current_md_file_name);
+        return 1;
+    }
+    metadata *md = json_2_metadata(md_json, md_json_len - 1);
+    if (!md) {
+        printf("Failed to parse metadata\n");
+        return 1;
+    }
+    int g_w = md->width, g_h = md->height;
+    int frame_size = 0;
+    if (cl->is_yuyv) {
+        frame_size = g_w * g_h * 2;
+    }
+    else if (cl->is_rgb) {
+        frame_size = g_w * g_h * 3;
+    }
+    else {
+        frame_size = g_w * g_h * 3/2;
+    }
+    // Read frame
+    uint8_t* frame = new uint8_t [frame_size];
+    memset(current_frame_file_name, 0, size_of_current_frame_file_name);
+    memcpy(current_frame_file_name, input_file, sizeof(char) * length_of_base_frame_file_name);
+    sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
+    printf("Now reading file: %s\n", current_frame_file_name);
+    fin = fopen(current_frame_file_name, "rb");
+    if(!fin){
+        printf("Finished reading frames\n");
+        return 1;
+    }
+    memset(frame, 0, frame_size);
+    if (!fread(frame, frame_size, 1, fin))
+    {
+        printf("Finished reading frames\n");
+        fclose(fin);
+        return 1;
+    }
+    fclose(fin);
+    // Read signature
+    memset(current_sig_file_name, 0, size_of_current_sig_file_name);
+    memcpy(current_sig_file_name, input_file_sig, sizeof(char) * length_of_base_sig_file_name);
+    sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
+    printf("Now reading sig: %s\n", current_sig_file_name);
+    unsigned char* frame_sig = NULL;
+    size_t frame_sig_len = 0;
+    frame_sig = read_signature(current_sig_file_name, &frame_sig_len);
+    if (!frame_sig || frame_sig_len == 0) {
+        printf("ERROR: Reading signature failed\n");
+        delete frame;
+        return 1;
+    }
+    // Initialize variables in Enclave
+    status = t_encoder_init(global_eid, &res,
+                            cl, sizeof(cmdline),
+                            frame_sig, frame_sig_len,
+                            frame, frame_size,
+                            md_json, md_json_len - 1);
+    if (res || status != SGX_SUCCESS) {
+        printf("t_encoder_init failed\n");
+        return 1;
+    }
+    int total_frames = md->total_frames;
+    free(frame_sig);
+    free(md_json);
+    free(md);
 
     // Encode frames
-    uint8_t* frame = new uint8_t [frame_size];
-    for (i = 0; cl->max_frames; i++)
+    for (i = 0; i < total_frames; i++)
     {
+        // Read metadata
+        memset(current_md_file_name, 0, size_of_current_md_file_name);
+        memcpy(current_md_file_name, in_md_file, sizeof(char) * length_of_base_md_file_name);
+        sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
+        printf("Now reading file: %s\n", current_md_file_name);
+        fmd = fopen(current_md_file_name, "rb");
+        if(!fmd){
+            printf("Failed to open file: %s\n", current_md_file_name);
+            break;
+        }
+        long md_json_len = 0;
+        char* md_json = read_file_as_str(current_md_file_name, &md_json_len);
+        if (!md_json) {
+            printf("Failed to read metadata from file: %s\n", current_md_file_name);
+            return 1;
+        }
+
         // Read frame
         memset(current_frame_file_name, 0, size_of_current_frame_file_name);
-        memcpy(current_frame_file_name, fnin, sizeof(char) * length_of_base_frame_file_name);
+        memcpy(current_frame_file_name, input_file, sizeof(char) * length_of_base_frame_file_name);
         sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
         printf("Now reading file: %s\n", current_frame_file_name);
         fin = fopen(current_frame_file_name, "rb");
@@ -937,9 +1041,9 @@ int main(int argc, char *argv[], char **env)
 
         // Read signature
         memset(current_sig_file_name, 0, size_of_current_sig_file_name);
-        memcpy(current_sig_file_name, fninsig, sizeof(char) * length_of_base_sig_file_name);
+        memcpy(current_sig_file_name, input_file_sig, sizeof(char) * length_of_base_sig_file_name);
         sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
-        printf("Now reading fig: %s\n", current_sig_file_name);
+        printf("Now reading sig: %s\n", current_sig_file_name);
         unsigned char* frame_sig = NULL;
         size_t frame_sig_len = 0;
         frame_sig = read_signature(current_sig_file_name, &frame_sig_len);
@@ -950,7 +1054,10 @@ int main(int argc, char *argv[], char **env)
         }
 
         // Encode frame in enclave
-        status = t_encode_frame(global_eid, &res, frame_sig, frame_sig_len, frame, frame_size);
+        status = t_encode_frame(global_eid, &res, 
+                                frame_sig, frame_sig_len,
+                                frame, frame_size,
+                                md_json, md_json_len - 1);
         if (res || status != SGX_SUCCESS)
         {
             printf("ERROR: encoding frame failed\n");
@@ -961,14 +1068,15 @@ int main(int argc, char *argv[], char **env)
 
         // Clean up
         free(frame_sig);
+        free(md_json);
     }
     delete frame;
 
     // Store encoded video
-    fout = fopen(fnout, "wb");
+    fout = fopen(output_file, "wb");
     if (!fout)
     {
-        printf("ERROR: cant open output file %s\n", fnout);
+        printf("ERROR: cant open output file %s\n", output_file);
         return 1;
     }
     else // if (fout)
@@ -1000,10 +1108,10 @@ int main(int argc, char *argv[], char **env)
     }
 
     // Store signature
-    fsig = fopen(fnoutsig, "w");
+    fsig = fopen(output_file_sig, "w");
     if (!fsig)
     {
-        printf("ERROR: cant open output file %s\n", fnoutsig);
+        printf("ERROR: cant open output file %s\n", output_file_sig);
         return 1;
     }
     else // if (fsig)
@@ -1037,6 +1145,34 @@ int main(int argc, char *argv[], char **env)
             printf("\"}\n");
         }
         delete sig;
+    }
+
+    // Store metadata
+    fmd = fopen(out_md_file, "w");
+    if (!fmd)
+    {
+        printf("ERROR: cant open output file %s\n", out_md_file);
+        return 1;
+    }
+    else // if (fmd)
+    {
+        size_t out_md_json_len = 409;
+        char* out_md_json = (char*)malloc(out_md_json_len);
+        status = t_get_metadata(global_eid, out_md_json, out_md_json_len);
+        if (status != SGX_SUCCESS) {
+            printf("t_get_metadata failed\n");
+            return 1;
+        }
+        if (!fwrite(out_md_json, out_md_json_len, 1, fmd))
+        {
+            printf("ERROR writing metadata\n");
+            return 1;
+        }
+        if (cl->stats)
+        {
+            printf ("out_metadata: %s\n", out_md_json);
+        }
+        free(out_md_json);
     }
 
     if (cl->psnr)

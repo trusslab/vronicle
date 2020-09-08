@@ -49,18 +49,39 @@ from "ra_tls.edl" import *;
 
 
     trusted {
-        public int t_encoder_init([in, size=cl_size] cmdline* cl_in, size_t cl_size, int w, int h);
-        public int t_encode_frame([in, size=frame_sig_size] unsigned char* frame_sig, size_t frame_sig_size,
-                                  [in, size=frame_size] uint8_t* frame, size_t frame_size);
+        public int t_encoder_init(
+            [in, size=cl_size] cmdline* cl_in, size_t cl_size,
+            [in, size=frame_sig_size] unsigned char* frame_sig, size_t frame_sig_size,
+            [in, size=frame_size] uint8_t* frame, size_t frame_size,
+            [in, size=md_json_size] char* md_json,  size_t md_json_size
+        );
+        public int t_encode_frame(
+            [in, size=frame_sig_size] unsigned char* frame_sig, size_t frame_sig_size,
+            [in, size=frame_size] uint8_t* frame, size_t frame_size,
+            [in, size=md_json_size] char* md_json,  size_t md_json_size
+        );
         public int t_verify_cert(
             [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert
         );
-        public void t_get_sig_size([out] size_t* sig_size);
-        public void t_get_sig([out, size=sig_size] unsigned char* sig, size_t sig_size);
-        public void t_get_encoded_video_size([out] size_t* video_size);
-        public void t_get_encoded_video([out, size=video_size] unsigned char* video, size_t video_size);
-        public void t_create_key_and_x509([out, size=size_of_cert] void* cert, size_t size_of_cert,
-                                          [out, size=asoc] void* actual_size_of_cert, size_t asoc);
+        public void t_get_sig_size(
+            [out] size_t* sig_size
+        );
+        public void t_get_sig(
+            [out, size=sig_size] unsigned char* sig, size_t sig_size
+        );
+        public void t_get_metadata(
+            [out, size=metadata_size] char* metadata, size_t metadata_size
+        );
+        public void t_get_encoded_video_size(
+            [out] size_t* video_size
+        );
+        public void t_get_encoded_video(
+            [out, size=video_size] unsigned char* video, size_t video_size
+        );
+        public void t_create_key_and_x509(
+            [out, size=size_of_cert] void* cert, size_t size_of_cert,
+            [out, size=asoc] void* actual_size_of_cert, size_t asoc
+        );
         public void t_free(void);
  
     };

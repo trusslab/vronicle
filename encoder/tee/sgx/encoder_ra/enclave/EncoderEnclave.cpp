@@ -56,11 +56,9 @@
 
 #include "yuvconverter.h"
 
-#define ADD_ENTROPY_SIZE    32
-#define MINIH264_IMPLEMENTATION
-
 // Encoder related global variables
 #include "minih264e.h"
+#include "metadata.h"
 #include <math.h>
 
 H264E_persist_t *enc;
@@ -72,10 +70,14 @@ H264E_io_yuy2_t yuyv;
 uint8_t *buf_in, *buf_save;
 uint8_t *temp_buf_in, *p;
 uint8_t *coded_data, *all_coded_data;
-int sizeof_coded_data, frame_size, yuyv_frame_size, temp_frame_size, g_w, g_h, _qp;
+int sizeof_coded_data, frame_size, yuyv_frame_size, temp_frame_size, g_w, g_h, _qp, frame_counter;
 size_t total_coded_data_size;
 unsigned char* total_coded_data;
 cmdline* cl;
+metadata* in_md;
+metadata* out_md;
+char* mrenclave;
+size_t mrenclave_len;
 
 void exit(int status)
 {
@@ -351,13 +353,41 @@ void print_public_key(EVP_PKEY* enc_priv_key){
     free(buf);
 }
 
-int t_encoder_init (cmdline *cl_in, size_t cl_size, int w, int h)
+int t_encoder_init (cmdline *cl_in, size_t cl_size, 
+                    unsigned char* frame_sig, size_t frame_sig_size,
+                    uint8_t* frame, size_t frame_size,
+                    char* md_json,  size_t md_json_size)
 {
+    int res = -1;
+    // Verify first frame and metadata to obtain 
+    // frame-related information from metadata
+    if (!ias_pubkey) {
+        printf("Run t_verify_cert first\n");
+        return res;
+    }
+    unsigned char* buf = (unsigned char*)malloc(frame_size + md_json_size);
+    if (!buf) {
+        printf("No memory left\n");
+        return res;
+    }
+    memset(buf, 0, frame_size + md_json_size);
+    memcpy(buf, frame, frame_size);
+    memcpy(buf + frame_size, md_json, md_json_size);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
+    if (res != 1) {
+        printf("Signature cannot be verified\n");
+        return -1;
+    }
+    md_json[md_json_size - 18] = '}'; // Remove frame_id from metadata
+    memset(md_json + (md_json_size - 17), '\0', 17);
+    in_md = json_2_metadata(md_json, md_json_size - 17);
     cl = (cmdline*)malloc(sizeof(cmdline));
     memset(cl, 0, sizeof(cmdline));
     memcpy(cl, cl_in, sizeof(cmdline));
-    g_h = h;
-    g_w = w;
+    g_h = in_md->height;
+    g_w = in_md->width;
+    free(buf);
+    frame_counter = 0;
 
     create_param.enableNEON = 1;
 #if H264E_SVC_API
@@ -378,7 +408,6 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size, int w, int h)
     create_param.temporal_denoise_flag = cl->denoise;
 
     // Allocate space for yuv420 (the one used for actually process data)
-    int frame_size = g_w*g_h*3/2;
     buf_in   = (uint8_t*)malloc(frame_size);
     memset(buf_in, 0, frame_size);
     buf_save = (uint8_t*)malloc(frame_size);
@@ -438,25 +467,41 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size, int w, int h)
 }
 
 int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
-                    uint8_t* frame, size_t frame_size)
+                    uint8_t* frame, size_t frame_size,
+                    char* md_json,  size_t md_json_size)
 {
     int res = -1;
     // Verify signature of frame
     // The signature should have two information:
     // (1) The frame
     // (2) A metadata of the frame (frame ID, total # of frames, segment ID)
-    if (frame_sig)
-    {
-        if (!ias_pubkey) {
-            printf("Run t_verify_cert first\n");
-            return -1;
-        }
-        res = verify_sig((void*)frame, frame_size, frame_sig, frame_sig_size, ias_pubkey);
-        if (res != 1) {
-            printf("Signature cannot be verified\n");
-            return -1;
-        }
+    if (!ias_pubkey) {
+        printf("Run t_verify_cert first\n");
+        return -1;
     }
+    unsigned char* buf = (unsigned char*)malloc(frame_size + md_json_size);
+    if (!buf) {
+        printf("No memory left\n");
+        return res;
+    }
+    memset(buf, 0, frame_size + md_json_size);
+    memcpy(buf, frame, frame_size);
+    memcpy(buf + frame_size, md_json, md_json_size);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
+    if (res != 1) {
+        printf("Signature cannot be verified\n");
+        return -1;
+    }
+    free(buf);
+    metadata* md;
+    md = json_2_metadata(md_json, md_json_size);
+    if (frame_counter != md->frame_id) {
+        printf("Frame out of order\n");
+        return -1;
+    }
+    int fps = md->frame_rate;
+    free(md);
+    frame_counter++;
     // Encode frame
     if (cl->is_yuyv) {
         p = frame;   // Record head adddress
@@ -532,7 +577,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
 
     run_param.frame_type = 0;
     run_param.encode_speed = cl->speed;
-    run_param.target_fps = cl->fps;
+    run_param.target_fps = fps;
     //run_param.desired_nalu_bytes = 100;
 
     if (cl->kbps)
@@ -602,7 +647,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
         printf("t_encode_frame: ERROR no memory available\n");
         res = -1;
     }
-    
+   
     return res;
 }
 
@@ -638,12 +683,54 @@ int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 
 void t_get_sig_size (size_t* sig_size)
 {
-    sign(enc_priv_key, total_coded_data, total_coded_data_size, NULL, sig_size);
+    // Generate metadata
+    out_md = in_md;
+	int tmp_total_digests = out_md->total_digests;
+	out_md->total_digests = tmp_total_digests + 1;
+	out_md->digests = (char**)realloc(out_md->digests, sizeof(char*) * out_md->total_digests);
+	out_md->digests[tmp_total_digests] = (char*)malloc(mrenclave_len);
+	memset(out_md->digests[tmp_total_digests], 0, mrenclave_len);
+	memcpy(out_md->digests[tmp_total_digests], mrenclave, mrenclave_len);
+	char* output_json = metadata_2_json(out_md);
+
+	// Create buffer for signing
+	unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
+	memset(buf, 0, total_coded_data_size + strlen(output_json));
+	memcpy(buf, total_coded_data, total_coded_data_size);
+	memcpy(buf + total_coded_data_size, output_json, strlen(output_json));
+
+    // Sign
+    sign(enc_priv_key, buf, total_coded_data_size + strlen(output_json), NULL, sig_size);
+
+    free(buf);
+    free(output_json);
 }
 
 void t_get_sig (unsigned char* sig, size_t sig_size)
 {
-    sign(enc_priv_key, total_coded_data, total_coded_data_size, &sig, &sig_size);
+	char* output_json = metadata_2_json(out_md);
+
+	// Create buffer for signing
+	unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
+	memset(buf, 0, total_coded_data_size + strlen(output_json));
+	memcpy(buf, total_coded_data, total_coded_data_size);
+	memcpy(buf + total_coded_data_size, output_json, strlen(output_json));
+
+    // Sign
+    sign(enc_priv_key, buf, total_coded_data_size + strlen(output_json), &sig, &sig_size);
+
+    free(buf);
+    free(output_json);
+}
+
+void t_get_metadata (char* metadata, size_t metadata_size)
+{
+	char* output_json = metadata_2_json(out_md);
+
+    metadata_size = strlen(output_json);
+    memcpy(metadata, output_json, metadata_size);
+
+    free(output_json);
 }
 
 void t_get_encoded_video_size (size_t* out_data_size)
@@ -669,12 +756,18 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
     create_key_and_x509(der_key, &der_key_len,
                         der_cert, &der_cert_len,
                         &my_ra_tls_options);
-    enc_priv_key = 0;
-    const unsigned char *key = (const unsigned char*)der_key;
+    // Get private key
+	enc_priv_key = 0;
+	const unsigned char *key = (const unsigned char*)der_key;
     enc_priv_key = d2i_AutoPrivateKey(&enc_priv_key, &key, der_key_len);
-    memcpy(cert, der_cert, der_cert_len);
-    size_of_cert = der_cert_len;
-    *(size_t*)actual_size_of_cert = der_cert_len;
+
+	// Copy certificate to output
+	memcpy(cert, der_cert, der_cert_len);
+	size_of_cert = der_cert_len;
+	*(size_t*)actual_size_of_cert = der_cert_len;
+
+	// Get MRENCLAVE value from cert
+	get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
 }
 
 void t_free(void)

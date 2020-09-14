@@ -9,13 +9,16 @@
 #include <openssl/err.h>
 #include <assert.h>
 #include "ra-challenger.h"
+#include "metadata.h"
 
 Verifier::Verifier(const std::string &_video_file_name,
                    const std::string &_sig_file_name,
-                   const std::string &_ias_cert_file_name) {
+                   const std::string &_ias_cert_file_name,
+                   const std::string &_md_file_name) {
     video_file_name =  _video_file_name;
     sig_file_name =    _sig_file_name;
     ias_cert_file_name = _ias_cert_file_name;
+    md_file_name = _md_file_name;
 }
 
 size_t Verifier::calcDecodeLength(const char* b64input) {
@@ -53,15 +56,24 @@ void Verifier::verify() {
     FILE* video_file = fopen(video_file_name.c_str(), "rb");
     FILE* sig_file = fopen(sig_file_name.c_str(), "rb");
     FILE* ias_cert_file = fopen(ias_cert_file_name.c_str(), "r");
-	if (video_file && sig_file && ias_cert_file) {
+    FILE* md_json_file = fopen(md_file_name.c_str(), "r");
+
+	if (video_file && sig_file && ias_cert_file && md_json_file) {
 		// Read video file
         fseek(video_file, 0, SEEK_END);
 		size_t video_size = ftell(video_file);
         fseek(video_file, 0, SEEK_SET);
-		char *video = new char [video_size + 1];
+		char *video = new char [video_size];
         fread(video, 1, video_size, video_file);
-        video[video_size + 1] = '\0';
 		fclose(video_file);
+
+		// Read metadata
+        fseek(md_json_file, 0, SEEK_END);
+		size_t md_json_size = ftell(md_json_file);
+        fseek(md_json_file, 0, SEEK_SET);
+		char *md_json = new char [md_json_size];
+        fread(md_json, 1, md_json_size, md_json_file);
+		fclose(md_json_file);
 
 		// Read signature
         fseek(sig_file, 0, SEEK_END);
@@ -102,7 +114,7 @@ void Verifier::verify() {
 			return;
 		}
 
-		// Sign video file using client_privkey (for now)
+		// Verify signature
 		EVP_MD_CTX *mdctx = NULL;
 		const EVP_MD *md = NULL;
 		OpenSSL_add_all_digests();
@@ -128,12 +140,17 @@ void Verifier::verify() {
 				std::cout << "EVP_VerifyUpdate error: " << ERR_error_string(ERR_get_error(), NULL) << std::endl;
 				break;
 			}
+			if(1 != EVP_VerifyUpdate(mdctx, md_json, md_json_size)){
+				std::cout << "EVP_VerifyUpdate error: " << ERR_error_string(ERR_get_error(), NULL) << std::endl;
+				break;
+			}
 			if(1 != EVP_VerifyFinal(mdctx, (const unsigned char*)sig, (unsigned int)sig_size, evp_pubkey)){
 				std::cout << "EVP_VerifyFinal error: " << ERR_error_string(ERR_get_error(), NULL) << std::endl;
 				break;
 			}
 		} while(0);
 		delete[] video;
+		delete[] md_json;
 		delete[] b64_sig;
 		free(sig);
 		EVP_MD_CTX_free(mdctx);

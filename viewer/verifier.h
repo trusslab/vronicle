@@ -5,7 +5,8 @@ class Verifier {
 public:
     Verifier(const std::string &video_file_name,
              const std::string &sig_file_name,
-             const std::string &ias_cert_file_name);
+             const std::string &ias_cert_file_name,
+             const std::string &md_file_name);
     void verify();
 private:
     size_t calcDecodeLength(const char* b64input);
@@ -13,4 +14,5 @@ private:
     std::string video_file_name;
     std::string sig_file_name;
     std::string ias_cert_file_name;
+    std::string md_file_name;
 };

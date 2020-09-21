@@ -40,7 +40,7 @@
 #include "TestEnclave.h"
 #include "TestEnclave_t.h"  /* print_string */
 #include "tSgxSSL_api.h"
-// #include "RawBase.h"
+#include "RawBase.h"
 #include "SampleFilters.h"
 #include "ra-attester.h"
 #include "ra-challenger.h"
@@ -53,6 +53,8 @@
 #include <openssl/rand.h>
 #include <openssl/bio.h>
 #include <openssl/pem.h>
+
+#include "metadata.h"
 
 void exit(int status)
 {
@@ -115,41 +117,8 @@ struct evp_pkey_st {
 
 EVP_PKEY *enc_priv_key;
 EVP_PKEY *ias_pubkey;
-RSA *keypair;
-
-void rsa_key_gen()
-{
-	BIGNUM *bn = BN_new();
-	if (bn == NULL) {
-		printf("BN_new failure: %ld\n", ERR_get_error());
-	    return;
-	}
-	int ret = BN_set_word(bn, RSA_F4);
-    if (!ret) {
-       	printf("BN_set_word failure\n");
-	    return;
-	}
-	
-	keypair = RSA_new();
-	if (keypair == NULL) {
-		printf("RSA_new failure: %ld\n", ERR_get_error());
-	    return;
-	}
-	ret = RSA_generate_key_ex(keypair, 4096, bn, NULL);
-	if (!ret) {
-        printf("RSA_generate_key_ex failure: %ld\n", ERR_get_error());
-	    return;
-	}
-
-	enc_priv_key = EVP_PKEY_new();
-	if (enc_priv_key == NULL) {
-		printf("EVP_PKEY_new failure: %ld\n", ERR_get_error());
-		return;
-	}
-	EVP_PKEY_assign_RSA(enc_priv_key, keypair);
-
-	BN_free(bn);
-}
+char* mrenclave;
+size_t mrenclave_len;
 
 int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 {
@@ -216,8 +185,8 @@ int sign(EVP_PKEY* priKey, void *data_to_be_signed, size_t len_of_data, unsigned
 
 bool verify_hash(void* hash_of_file, size_t size_of_hash, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
 	// Return true on success; otherwise, return false
-	EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
+	EVP_MD_CTX *mdctx = NULL;
+	const EVP_MD *md = NULL;
 	int ret = 1;
 
 	OpenSSL_add_all_digests();
@@ -272,86 +241,6 @@ void print_unsigned_chars(unsigned char* chars_to_print, int len){
 	printf("\"}\n");
 }
 
-EVP_PKEY* unsigned_chars_to_pub_key(const unsigned char* pub_key_str, int len_of_key){
-    EVP_PKEY* result_evp_key;
-    result_evp_key = d2i_PublicKey(EVP_PKEY_RSA, &result_evp_key, &pub_key_str, len_of_key);
-    return result_evp_key;
-}
-
-void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
-{
-    int i = 0;
-
-    for(i = 0; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        sprintf_s(outputBuffer + (i * 2), 65, "%02x", hash[i]);
-    }
-
-    outputBuffer[64] = 0;
-}
-
-int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out){
-    // Return 0 on success, otherwise, return 1
-
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, data, size_of_data);
-    SHA256_Final(hash, &sha256);
-
-    sha256_hash_string(hash, hash_out);
-    return 0;
-}
-
-int str_to_hash(char* str_for_hashing, size_t size_of_str_for_hashing, char* hash_out){
-    // Return 0 on success, otherwise, return 1
-
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, str_for_hashing, size_of_str_for_hashing);
-    SHA256_Final(hash, &sha256);
-
-    sha256_hash_string(hash, hash_out);
-    return 0;
-}
-
-void pixels_to_raw_str(pixel* pixels_to_be_converted, int image_width, int image_height, char* output_str, int size_of_output_str){
-
-    int total_number_of_rgb_values = image_width * image_height;
-
-	char* temp_output_str = output_str;
-
-    sprintf_s(temp_output_str, (size_t)size_of_output_str, "%07d,%07d,", image_width, image_height);
-	temp_output_str += 16;	// For above padding
-    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        sprintf_s(temp_output_str, (size_t)size_of_output_str, "%03d,%03d,%03d,", pixels_to_be_converted[i].r, pixels_to_be_converted[i].g, pixels_to_be_converted[i].b);
-		temp_output_str += 12;	// For above padding
-	}
-    sprintf_s(temp_output_str, (size_t)size_of_output_str, "%03d,%03d,%03d", pixels_to_be_converted[total_number_of_rgb_values - 1].r, 
-				pixels_to_be_converted[total_number_of_rgb_values - 1].g, pixels_to_be_converted[total_number_of_rgb_values - 1].b);
-}
-
-size_t pixels_to_linked_pure_str(pixel* pixels_to_be_converted, int total_number_of_rgb_values, char* output_str){
-	// Return the len of (fake) str
-	char* temp_output_str = output_str;
-	size_t len_of_str = 0;
-	for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        memcpy(temp_output_str++, &pixels_to_be_converted[i].r, 1);
-        memcpy(temp_output_str++, &pixels_to_be_converted[i].g, 1);
-        memcpy(temp_output_str++, &pixels_to_be_converted[i].b, 1);
-		len_of_str += 3;
-	}
-	// printf("Testing if we copy it successfully: %s\n", &(output_str[7692]));
-	return len_of_str;
-}
-
-int verify_cert(X509* cert_to_verify, EVP_PKEY* pubkey_for_verify)
-{
-    int r= X509_verify(cert_to_verify, pubkey_for_verify);
-    return r;
-}
-
 void print_public_key(EVP_PKEY* enc_priv_key){
 	// public key - string
 	int len = i2d_PublicKey(enc_priv_key, NULL);
@@ -369,6 +258,15 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 	printf("\"}\n");
 
 	free(buf);
+}
+
+int get_filter_idx(metadata* md, char* filter_name)
+{
+	for (int i = 0; i < md->total_filters; i++) {
+		if (strcmp(md->filters[i], filter_name) == 0)
+			return i;
+	}
+	return -1;
 }
 
 int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
@@ -403,40 +301,76 @@ int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 
 // Return 0 if success, 1 otherwise
 int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
-					   int img_width, int img_height, 
+					   void* md_json, size_t size_of_md_json,
 					   void* img_sig, size_t size_of_img_sig,
 					   void* out_pixels,
+					   void* out_md_json, size_t size_of_out_md_json,
 					   void* out_img_sig, size_t size_of_out_img_sig)
 {
 	int ret = 1;
+	char* filter_name = "blur";
 	if (!img_pixels) {
 		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
 		return ret;
 	}
 
 	// Verify signature
-	ret = verify_hash((char*)img_pixels, size_of_img_pixels, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);
+	unsigned char* buf = (unsigned char*)malloc(size_of_img_pixels + size_of_md_json);
+	if (!buf) {
+		printf("No memory left\n");
+		ret = 1;
+		return ret;
+	}
+	memset(buf, 0, size_of_img_pixels + size_of_md_json);
+	memcpy(buf, img_pixels, size_of_img_pixels);
+	memcpy(buf + size_of_img_pixels, md_json, size_of_md_json);
+	ret = verify_hash(buf, size_of_img_pixels + size_of_md_json, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);
+	free(buf);
 	if (ret != 1) {
 		ret = 1;
 		printf("Failed to verify signature\n");
 		return ret;
 	}
 
+	// Parse metadata
+	metadata* tmp = json_2_metadata((char*)md_json, size_of_md_json);
+	if (!tmp) {
+		printf("Failed to parse metadata\n");
+		ret = 1;
+		return ret;
+	}
+
 	// Process image
     pixel* processed_pixels;
-	size_t processed_pixels_size = sizeof(pixel) * img_height * img_width;
+	size_t processed_pixels_size = sizeof(pixel) * tmp->height * tmp->width;
     processed_pixels = (pixel*)malloc(processed_pixels_size);
-	// blur_5((pixel*)img_pixels, processed_pixels, img_width, img_width * img_height, 1.0 / 25.0);
-	// sharpen((pixel*)img_pixels, processed_pixels, img_width, img_width * img_height, 5);
-	auto_white_balance((pixel*)img_pixels, processed_pixels, img_width, img_width * img_height);
+	auto_white_balance((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
+
+	// Generate metadata
+	int tmp_total_digests = tmp->total_digests;
+	tmp->total_digests = tmp_total_digests + 1;
+	int filter_idx = get_filter_idx(tmp, filter_name);
+	tmp->digests = (char**)realloc(tmp->digests, sizeof(char*) * (/*decoder*/1 + /*filter*/filter_idx + 1));
+	tmp->digests[filter_idx + 1] = (char*)malloc(mrenclave_len);
+	memset(tmp->digests[filter_idx + 1], 0, mrenclave_len);
+	memcpy(tmp->digests[filter_idx + 1], mrenclave, mrenclave_len);
+	char* output_json = metadata_2_json(tmp);
+	free(tmp);
+
+	// Create buffer for signing
+	unsigned char* data_buf = (unsigned char*)malloc(processed_pixels_size + strlen(output_json));
+	memset(data_buf, 0, processed_pixels_size + strlen(output_json));
+	memcpy(data_buf, processed_pixels, processed_pixels_size);
+	memcpy(data_buf + processed_pixels_size, output_json, strlen(output_json));
 
 	// Generate signature
 	size_t sig_size = 384;
 	unsigned char* sig = (unsigned char*)malloc(sig_size);
-	ret = sign(enc_priv_key, (void*)processed_pixels, processed_pixels_size, sig, &sig_size);
+	ret = sign(enc_priv_key, (void*)data_buf, processed_pixels_size + strlen(output_json), sig, &sig_size);
 	if(ret != 0){
 		free(processed_pixels);
 		free(sig);
+		free(data_buf);
 		printf("Failed to generate signature\n");
 		return ret;
 	}
@@ -446,16 +380,16 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	memcpy(out_pixels, processed_pixels, processed_pixels_size);
 	memset(out_img_sig, 0, sig_size);
 	memcpy(out_img_sig, sig, sig_size);
+	size_of_out_img_sig = sig_size;
+	memset(out_md_json, 0, strlen(output_json));
+	memcpy(out_md_json, output_json, strlen(output_json));
+	size_of_out_md_json = strlen(output_json);
 
 	// Clean up
 	free(processed_pixels);
 	free(sig);
+	free(data_buf);
 	return 0;
-}
-
-void t_sgxssl_call_apis(void* evp_pkey_v)
-{
-	return;
 }
 
 extern struct ra_tls_options my_ra_tls_options;
@@ -470,20 +404,23 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
     create_key_and_x509(der_key, &der_key_len,
                         der_cert, &der_cert_len,
                         &my_ra_tls_options);
+    // Get private key
 	enc_priv_key = 0;
 	const unsigned char *key = (const unsigned char*)der_key;
     enc_priv_key = d2i_AutoPrivateKey(&enc_priv_key, &key, der_key_len);
+
+	// Copy certificate to output
 	memcpy(cert, der_cert, der_cert_len);
 	size_of_cert = der_cert_len;
 	*(size_t*)actual_size_of_cert = der_cert_len;
+
+	// Get MRENCLAVE value from cert
+	get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
 }
 
 void t_free(void)
 {
 	EVP_PKEY_free(enc_priv_key);
-	if (enc_priv_key->pkey.ptr != NULL) {
-	  RSA_free(keypair);
-	}
 
 	if(ias_pubkey)
 		EVP_PKEY_free(ias_pubkey);

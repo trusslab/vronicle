@@ -115,8 +115,8 @@ void get_and_decode_ext
  unsigned int* data_len
 )
 {
-    const unsigned char* ext;
-    int ext_len;
+    const unsigned char* ext = NULL;
+    int ext_len = 0;
     
     get_extension(crt, oid, oid_len, &ext, &ext_len);
     
@@ -412,3 +412,61 @@ int verify_sgx_cert_extensions
     return 0;
 }
 
+void get_mrenclave
+(
+    uint8_t* der_crt,
+    uint32_t der_crt_len,
+    char** mrenclave,
+    size_t* mrenclave_len
+)
+{
+    // First verify all information is correct
+    attestation_verification_report_t attn_report;
+
+    const unsigned char* p = der_crt;
+    X509* crt = d2i_X509(NULL, &p, der_crt_len);
+    assert(crt != NULL);
+
+    openssl_extract_x509_extensions(crt, &attn_report);
+
+    /* Base64 decode IAS report signature. */
+    uint8_t base64[sizeof(attn_report.ias_report_signature)];
+    memcpy(base64, attn_report.ias_report_signature, attn_report.ias_report_signature_len);
+    assert((attn_report.ias_report_signature_len % 4) == 0);
+    memset(attn_report.ias_report_signature, 0, sizeof(attn_report.ias_report_signature));
+    int ret = EVP_DecodeBlock(attn_report.ias_report_signature,
+                              base64, attn_report.ias_report_signature_len);
+    assert(ret > 0);
+    /* Adjust length of decoded data. EVP_DecodeBlock may pad the
+       output with 1 or 2 zero bytes. Remove the zero bytes from the
+       true output length. */
+    if (attn_report.ias_report_signature[ret - 1] == '\0') ret--;
+    if (attn_report.ias_report_signature[ret - 1] == '\0') ret--;
+    attn_report.ias_report_signature_len = ret;
+
+    ret = verify_ias_certificate_chain(&attn_report);
+    assert(ret == 0);
+
+    ret = verify_ias_report_signature(&attn_report);
+    assert(ret == 0);
+
+    ret = verify_enclave_quote_status((const char*) attn_report.ias_report,
+                                      attn_report.ias_report_len);
+    assert(ret == 0);
+    
+    sgx_quote_t quote = {0, };
+    get_quote_from_report(attn_report.ias_report,
+                          attn_report.ias_report_len,
+                          &quote);
+    ret = verify_report_data_against_server_cert(crt, &quote);
+    assert(ret == 0);
+
+    // Then extract the MRENCLAVE value in Base 64 form
+    *mrenclave_len = 45;
+    unsigned char *mr = (unsigned char*)malloc(*mrenclave_len);
+    memset((void*)mr, 0, *mrenclave_len);
+    ret = EVP_EncodeBlock(mr, (const unsigned char*)quote.report_body.mr_enclave.m, SGX_HASH_SIZE);
+    mr[*mrenclave_len] = '\0';
+    printf("MRENCLAVE: %s\n", (char*)mr);
+    *mrenclave = (char*)mr;
+}

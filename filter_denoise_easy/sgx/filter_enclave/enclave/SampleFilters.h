@@ -1,3 +1,4 @@
+#include "ImageProcessing.h"
 
 pixel* blur(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, int v){
     // Inspired (not copy) by https://processing.org/examples/blur.html
@@ -109,6 +110,57 @@ void change_brightness(pixel* image_buffer, pixel* output_buffer, int row_length
     }
 }
 
+void change_brightness_r(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, int target_percentage){
+    int column_length = total_num_of_pixels / row_length;   // or height
+    for(int y = 0; y < column_length; ++y){
+        for(int x = 0; x < row_length; ++x){
+            float temp_r = 0.0, temp_g = 0.0, temp_b = 0.0;
+
+            temp_r = image_buffer[y * row_length + x].r * target_percentage;
+            temp_g = image_buffer[y * row_length + x].g;
+            temp_b = image_buffer[y * row_length + x].b;
+
+            output_buffer[y * row_length + x].r = truncate(temp_r);
+            output_buffer[y * row_length + x].g = truncate(temp_g);
+            output_buffer[y * row_length + x].b = truncate(temp_b);
+        }
+    }
+}
+
+void change_brightness_g(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, int target_percentage){
+    int column_length = total_num_of_pixels / row_length;   // or height
+    for(int y = 0; y < column_length; ++y){
+        for(int x = 0; x < row_length; ++x){
+            float temp_r = 0.0, temp_g = 0.0, temp_b = 0.0;
+
+            temp_r = image_buffer[y * row_length + x].r;
+            temp_g = image_buffer[y * row_length + x].g * target_percentage;
+            temp_b = image_buffer[y * row_length + x].b;
+
+            output_buffer[y * row_length + x].r = truncate(temp_r);
+            output_buffer[y * row_length + x].g = truncate(temp_g);
+            output_buffer[y * row_length + x].b = truncate(temp_b);
+        }
+    }
+}
+
+void change_brightness_b(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, int target_percentage){
+    int column_length = total_num_of_pixels / row_length;   // or height
+    for(int y = 0; y < column_length; ++y){
+        for(int x = 0; x < row_length; ++x){
+            float temp_r = 0.0, temp_g = 0.0, temp_b = 0.0;
+
+            temp_r = image_buffer[y * row_length + x].r;
+            temp_g = image_buffer[y * row_length + x].g;
+            temp_b = image_buffer[y * row_length + x].b * target_percentage;
+
+            output_buffer[y * row_length + x].r = truncate(temp_r);
+            output_buffer[y * row_length + x].g = truncate(temp_g);
+            output_buffer[y * row_length + x].b = truncate(temp_b);
+        }
+    }
+}
+
 void denoise_simple(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels){
     // Modified from https://github.com/m-cody/ImageEditor
     int column_length = total_num_of_pixels / row_length;   // or height
@@ -164,4 +216,30 @@ void denoise_simple(pixel* image_buffer, pixel* output_buffer, int row_length, i
 			output_buffer[y * row_length + x].b = blue / 9;
         }
     }
+}
+
+void gray_frame(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels){
+    // Modified from https://github.com/m-cody/ImageEditor
+    int column_length = total_num_of_pixels / row_length;   // or height
+    int pixelValue;
+	for (int i = 0; i < column_length; i++)
+	{
+		for (int j = 0; j < row_length; j++)
+		{
+            int current_position = i * row_length + j;
+			pixelValue = image_buffer[current_position].r;
+			pixelValue += image_buffer[current_position].g;
+			pixelValue += image_buffer[current_position].b;
+			pixelValue /= 3;
+			output_buffer[current_position].r = pixelValue;
+			output_buffer[current_position].g = pixelValue;
+			output_buffer[current_position].b = pixelValue;
+		}
+	}
+}
+
+void auto_white_balance(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels){
+    // Modified from https://github.com/AFLProjects/White-Balance-Automation
+    int column_length = total_num_of_pixels / row_length;   // or height
+    ImageProcessing::EditImage(image_buffer, output_buffer, row_length, column_length);
 }

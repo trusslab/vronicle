@@ -37,6 +37,17 @@ int verify_sgx_cert_extensions
     uint32_t der_crt_len
 );
 
+/**
+ * Verify SGX-related X.509 extensions and retreive MRENCLAVe value
+ */
+void get_mrenclave
+(
+    uint8_t* der_crt,
+    uint32_t der_crt_len,
+    char** mrenclave,
+    size_t* mrenclave_len
+);
+
 // /**
 //  * Pretty-print information of RA-TLS certificate to file descriptor.
 //  */

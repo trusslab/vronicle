@@ -73,6 +73,8 @@
 
 #include <time.h> /* for time() and ctime() */
 
+#include "metadata.h"
+
 using namespace std;
 
 #include <chrono> 
@@ -86,14 +88,6 @@ typedef struct _sgx_errlist_t {
     const char *msg;
     const char *sug; /* Suggestion */
 } sgx_errlist_t;
-
-unsigned char* image_buffer = NULL;	/* Points to large array of R,G,B-order data */
-unsigned char* pure_input_image_str = NULL; /* for signature verification purpose */
-pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
-int image_height = 0;	/* Number of rows in image */
-int image_width = 0;		/* Number of columns in image */
-
-char* hash_of_file;  /* temp test */
 
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
@@ -219,54 +213,7 @@ void print_error_message(sgx_status_t ret)
         printf("Error: Unexpected error occurred [0x%x].\n", ret);
 }
 
-int read_raw_file(const char* file_name){
-    // Return 0 on success, return 1 on failure
-    // cout << "Going to read raw file: " << file_name << endl;
-    FILE* input_raw_file = fopen(file_name, "r");
-    if(input_raw_file == NULL){
-        return 1;
-    }
-    char buff[257]; // Plus one for eof
-    int counter_for_image_info = 0; // First two are width and height
-    int counter_for_checking_if_all_rgb_values_read_properly = 0;
-    char* info;
-    while(fgets(buff, 257, input_raw_file) != NULL){
-        // printf("buff: %s\n", buff);
-        info = strtok(buff, ",");
-        while(info != NULL){
-            // printf("Info: %d\n", atoi(info));
-            if(counter_for_image_info == 0){
-                image_width = atoi(info);
-                ++counter_for_image_info;
-            } else if (counter_for_image_info == 1){
-                image_height = atoi(info);
-                ++counter_for_image_info;
-                // printf("The image has width: %d, and height: %d.\n", image_width, image_height);
-                image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * image_width * image_height * 3);
-            } else {
-                if(counter_for_checking_if_all_rgb_values_read_properly + 10 >= image_width * image_height * 3){
-                    // printf("Current counter: %d, current limit: %d.\n", counter_for_checking_if_all_rgb_values_read_properly, image_width * image_height * 3);
-                    // printf("Current info: %d\n", atoi(info));
-                }
-                image_buffer[counter_for_checking_if_all_rgb_values_read_properly++] = atoi(info);
-            }
-            info = strtok(NULL, ",");
-        }
-        // printf("Current buff: %s\n", buff);
-    }
-    if(image_buffer == NULL || image_height == 0 || image_width == 0 || 
-        counter_for_checking_if_all_rgb_values_read_properly != image_width * image_height * 3){
-            return 1;
-        }
-    // printf("The very first pixel has RGB value: (%d, %d, %d).\n", image_buffer[0], image_buffer[1], image_buffer[2]);
-
-    int total_number_of_pixels = image_width * image_height;
-    image_pixels = unsigned_chars_to_pixels(image_buffer, total_number_of_pixels);
-
-    return 0;
-}
-
-int read_raw_file_b(const char* file_name, int frame_size){
+int read_raw_file_b(const char* file_name, int frame_size, pixel** image_pixels){
     // Return 0 on success, return 1 on failure
     // cout << "Going to read raw file: " << file_name << endl;
 
@@ -276,10 +223,10 @@ int read_raw_file_b(const char* file_name, int frame_size){
     }
     fseek(input_raw_file, 0, SEEK_SET);
 
-    image_pixels = (pixel*)malloc(frame_size);
-    memset(image_pixels, 0, frame_size);
+    *image_pixels = (pixel*)malloc(frame_size);
+    memset(*image_pixels, 0, frame_size);
 
-    if(!fread(image_pixels, frame_size, 1, input_raw_file)){
+    if(!fread(*image_pixels, frame_size, 1, input_raw_file)){
         return 1;
     }
 
@@ -409,40 +356,9 @@ void log_request_arrive(uint32_t *ntp_time)
 	printf("A request comes at: %s", ctime(&t));
 }
 
-
 void log_ntp_event(char *msg)
 {
 	puts(msg);
-}
-
-int save_processed_frame(pixel* processed_pixels, char* frame_id){
-    // Return 0 on success; otherwise, return 1
-    // First create the folder if not created
-    char* dirname = "../video_data/processed_raw";
-    mkdir(dirname, 0777);
-    
-    // Save data
-    int total_number_of_rgb_values = image_width * image_height * 3;
-
-    char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "../video_data/processed_raw/processed_raw_%s", frame_id);
-
-    FILE* output_file = fopen(processed_raw_file_name, "w+");
-    if(output_file == NULL){
-        return 1;
-    }
-
-    free(image_buffer);
-    image_buffer = pixels_to_unsigned_chars(processed_pixels, total_number_of_rgb_values / 3);
-    
-    fprintf(output_file, "%07d,%07d,", image_width, image_height);
-    for(int i = 0; i < total_number_of_rgb_values - 1; ++i){
-        fprintf(output_file, "%03d,", image_buffer[i]);
-    }
-    fprintf(output_file, "%03d", image_buffer[total_number_of_rgb_values - 1]);
-    fclose(output_file);
-
-    return 0;
 }
 
 int save_processed_frame_b(pixel* processed_pixels, int frame_size, char* path_to_save){
@@ -808,31 +724,41 @@ int verification_reply(
     int ret = 1;
     char* raw_file_sig_path  = argv[2];
     char* raw_file_path      = argv[3];
-    image_width              = atoi(argv[4]);
-    image_height             = atoi(argv[5]);
+    char* raw_md_path        = argv[4];
+    char* output_md_path     = argv[5];
 
-    // printf("Input parameters:\n\
-    //         ias_cert_file_name: %s\n\
-    //         raw_file_sig_path : %s\n\
-    //         raw_file_path     : %s\n\
-    //         image_width       : %i\n\
-    //         image_height      : %i\n",
-    //         ias_cert_file_name, raw_file_sig_path, raw_file_path, image_width, image_height
-    //       );
+    int path_len = 200;
 
-    // printf("Now processing frame : %s, %s\n", recv_buf, (char*)recv_buf);
+    // Read metadata
+    long md_json_len = 0;
+    char input_md_path[path_len];
+    snprintf(input_md_path, path_len, "%s%s.json", raw_md_path, (char*)recv_buf);
+    char* md_json = read_file_as_str(input_md_path, &md_json_len);
+    if (!md_json) {
+        printf("Failed to read metadata\n");
+        return 1;
+    }
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+
+    // Parse metadata
+    metadata* md = json_2_metadata(md_json, md_json_len);
+    if (!md) {
+        printf("Failed to parse metadata\n");
+        return 1;
+    }
 
     // Set up some basic parameters
     // TO-DO: make frame_size flexible
-    int frame_size = 1280 * 720 * 3 * sizeof(unsigned char);
+    int frame_size = md->width * md->height * 3 * sizeof(unsigned char);
 
     // Read Signature
     auto start_of_reading_signature = high_resolution_clock::now();
 
     unsigned char* raw_signature;
     size_t raw_signature_length;
-    char raw_file_signature_name[50];
-    snprintf(raw_file_signature_name, 50, "%s%s", raw_file_sig_path, (char*)recv_buf);
+    char raw_file_signature_name[path_len];
+    snprintf(raw_file_signature_name, path_len, "%s%s", raw_file_sig_path, (char*)recv_buf);
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
     // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
     // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
@@ -845,9 +771,10 @@ int verification_reply(
     // TO-DO: make the base file name flexible
     auto start_of_reading_raw_img = high_resolution_clock::now();
 
-    char raw_file_name[200];
-    snprintf(raw_file_name, 200, "%s%s", raw_file_path, (char*)recv_buf);
-    int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size);
+    pixel* image_pixels;
+    char raw_file_name[path_len];
+    snprintf(raw_file_name, path_len, "%s%s", raw_file_path, (char*)recv_buf);
+    int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size, &image_pixels);
     // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
     
     auto end_of_reading_raw_img = high_resolution_clock::now();
@@ -858,27 +785,43 @@ int verification_reply(
     auto start_of_allocation = high_resolution_clock::now();
 
     pixel* processed_pixels;
-    processed_pixels = (pixel*)malloc(sizeof(pixel) * image_height * image_width);
+    processed_pixels = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
+    if (!processed_pixels) {
+        printf("No memory left\n");
+        return 1;
+    }
 
     // Prepare for signature output and its hash
     size_t size_of_processed_img_signature = 384;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
+    if (!processed_img_signature) {
+        printf("No memory left\n");
+        return 1;
+    }
     // printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
 
     auto end_of_allocation = high_resolution_clock::now();
     auto allocation_duration = duration_cast<microseconds>(end_of_allocation - start_of_allocation);
     cout << "Processing frame " << (char*)recv_buf << " allocation take time: " << allocation_duration.count() << endl; 
 
-    // printf("The very first pixel(Before processed by filter): R: %d; G: %d; B: %d\n", (int)image_pixels[100].r, (int)image_pixels[100].g, (int)image_pixels[100].b);
+    // Prepare buffer for metadata output
+    size_t out_md_json_len = md_json_len + 48;
+    char* out_md_json = (char*)malloc(out_md_json_len + 1);
+    memset(out_md_json, 0, out_md_json_len + 1);
+    if (!out_md_json) {
+        printf("No memory left\n");
+        return 1;
+    }
 
     // Going to get into enclave
     auto start = high_resolution_clock::now();
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, &ret,
-        image_pixels, sizeof(pixel) * image_width * image_height,
-        image_width, image_height, 
+        image_pixels, sizeof(pixel) * md->width * md->height,
+        md_json, md_json_len, 
         raw_signature, raw_signature_length, 
         processed_pixels,
+        out_md_json, out_md_json_len, 
         processed_img_signature, size_of_processed_img_signature);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
@@ -906,15 +849,10 @@ int verification_reply(
     auto end_of_saving_frame = high_resolution_clock::now();
     auto saving_frame_duration = duration_cast<microseconds>(end_of_saving_frame - start_of_saving_frame);
     cout << "Processing frame " << (char*)recv_buf << " save processed frame take time: " << saving_frame_duration.count() << endl; 
-    // cout << "processed frame saved with id: " << (char*) recv_buf << "; with result: " << result << endl;
-    // char hash_temp[65];
-    // str_to_hash(char_array_for_processed_img_sign, size_of_char_array_for_processed_img_sign, hash_temp);
-    // cout << "(Outside Enclave)hash of char_array_for_processed_img_sign: " << hash_temp << endl;
-    // save_char_array_to_file(char_array_for_processed_img_sign, (char*) recv_buf);
 
-    auto start_of_saving_signature = high_resolution_clock::now();
 
     // Save processed filter singature
+    auto start_of_saving_signature = high_resolution_clock::now();
     // printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
     int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_processed_img_signature, (char*) recv_buf);
     if(result_of_filter_sign_saving != 0){
@@ -925,6 +863,15 @@ int verification_reply(
     auto saving_signature_duration = duration_cast<microseconds>(end_of_saving_signature - start_of_saving_signature);
     cout << "Processing frame " << (char*)recv_buf << " save processed frame's signature take time: " << saving_signature_duration.count() << endl; 
 
+    // Save metadata
+    char output_md_file_name[200];
+    memcpy(output_md_file_name, output_md_path, strlen(output_md_path));
+    sprintf(output_md_file_name + strlen(output_md_path), "%s.json", (char*)recv_buf);
+    printf("Now writing metadata to file: %s\n", output_md_file_name);
+    FILE* md_output_file = fopen(output_md_file_name, "wb");
+    fwrite(out_md_json, out_md_json_len, 1, md_output_file);
+    fclose(md_output_file);
+
     auto start_of_freeing = high_resolution_clock::now();
 
     // Free Everything (for video_provenance project)
@@ -932,12 +879,16 @@ int verification_reply(
         free(image_pixels);
     if(processed_pixels)
         free(processed_pixels);
-    if(image_buffer)
-        free(image_buffer);
     if(raw_signature)
         free(raw_signature);
     if(processed_img_signature)
         free(processed_img_signature);
+    if(md)
+        free(md);
+    if(md_json)
+        free(md_json);
+    if(out_md_json)
+        free(out_md_json);
 
     auto end_of_freeing = high_resolution_clock::now();
     auto freeing_duration = duration_cast<microseconds>(end_of_freeing - start_of_freeing);
@@ -1052,7 +1003,7 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 5){
-        printf("Usage: ./TestApp [path_to_ias_cert] [path_to_frame_signature] [path_to_frame] [frame_width] [frame_height]\n");
+        printf("Usage: ./TestApp [path_to_ias_cert] [path_to_frame_signature] [path_to_frame] [path_to_input_md_json] [path_to_output_md_json]\n");
         return 1;
     }
     

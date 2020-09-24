@@ -36,8 +36,13 @@ void* TCPServer::Task(void *arg)
 			   if(num_client>0) num_client--;
 			   break;
 			}
-			msg[n]=0;
-			desc->message = string(msg);
+			// long size_of_file;
+			// memcpy(&size_of_file, msg, 8);
+			// printf("Received file size of: %d\n", size_of_file);
+			//printf("Potential packet size is: %d\n", n);
+			desc->message = msg;
+			// msg[n]=0;
+			// desc->message = string(msg);
 	                std::lock_guard<std::mutex> guard(mt);
 			Message.push_back( desc );
 		}
@@ -118,7 +123,7 @@ int TCPServer::get_last_closed_sockets()
 
 void TCPServer::clean(int id)
 {
-	Message[id]->message = "";
+	Message[id]->message = NULL;
 	memset(msg, 0, MAXPACKETSIZE);
 }
 
@@ -137,7 +142,7 @@ void TCPServer::detach(int id)
 	close(newsockfd[id]->socket);
 	newsockfd[id]->ip = "";
 	newsockfd[id]->id = -1;
-	newsockfd[id]->message = "";
+	newsockfd[id]->message = NULL;
 } 
 
 void TCPServer::closed() 

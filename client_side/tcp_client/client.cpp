@@ -2,7 +2,7 @@
 #include <signal.h>
 #include "TCPClient.h"
 
-#define SIZEOFPACKAGE 500000
+#define SIZEOFPACKAGE 40000
 
 TCPClient tcp;
 
@@ -20,6 +20,19 @@ int send_file(const char* file_name){
 		printf("Cannot read %s\n", file_name);
         return 1;
     }
+
+	// Get size of file and send it
+    fseek(input_file, 0, SEEK_END);
+	long size_of_file = ftell(input_file);
+	printf("Sending file size: %d\n", size_of_file);
+	tcp.Send(&size_of_file, sizeof(long));
+	string rec = tcp.receive();
+	if( rec != "" )
+	{
+		// cout << rec << endl;
+	}
+	// sleep(1);
+	usleep(500);
 	
     fseek(input_file, 0, SEEK_SET);
 	
@@ -44,7 +57,7 @@ int send_file(const char* file_name){
 			// cout << rec << endl;
 		}
 		// sleep(1);
-		usleep(500);
+		usleep(2000);
 	}
 
 	fclose(input_file);
@@ -65,15 +78,15 @@ void send_message(string message){
 
 int main(int argc, char *argv[])
 {
-	if(argc != 4) {
-		cerr << "Usage: ./client ip port file_name" << endl;
+	if(argc != 5) {
+		cerr << "Usage: ./client ip port file_name target_file_name" << endl;
 		return 0;
 	}
 	signal(SIGINT, sig_exit);
 
 	tcp.setup(argv[1],atoi(argv[2]));
 
-	send_message(argv[3]);
+	send_message(argv[4]);
 	send_file(argv[3]);
 
 	// while(1)

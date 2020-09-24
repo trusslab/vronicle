@@ -8,11 +8,12 @@ pthread_t msg1[MAX_CLIENT];
 int num_message = 0;
 int time_send   = 1;
 
-#define SIZEOFPACKAGE 500000
+#define SIZEOFPACKAGE 40000
 
 int num_of_files_received = 0;
-int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file content
+int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
 FILE* output_file = NULL;
+long remaining_file_size = 0;
 
 void close_app(int s) {
 	tcp.closed();
@@ -54,13 +55,11 @@ void * received(void * m)
         pthread_detach(pthread_self());
 	vector<descript_socket*> desc;
 
-	unsigned int current_message_size = 0;
-
 	while(1)
 	{
 		desc = tcp.getMessage();
 		for(unsigned int i = 0; i < desc.size(); i++) {
-			if( desc[i]->message != "" )
+			if( desc[i]->message != NULL )
 			{ 
 				if(!desc[i]->enable_message_runtime) 
 				{
@@ -78,22 +77,36 @@ void * received(void * m)
 				//      << "socket:  " << desc[i]->socket  << endl
 				//      << "enable:  " << desc[i]->enable_message_runtime << endl;
 
-				current_message_size = strlen(desc[i]->message.c_str());
-
 				if(current_mode == 0){
-					output_file = fopen(desc[i]->message.c_str(), "wb");
+					printf("Trying to create new file: %s\n", desc[i]->message);
+					output_file = fopen(desc[i]->message, "wb");
 					if(output_file == NULL){
+						printf("file cannot be created...\n");
 						return 0;
 					}
 					current_mode = 1;
+				} else if (current_mode == 1){
+					memcpy(&remaining_file_size, desc[i]->message, 8);
+					printf("File size got: %d\n", remaining_file_size);
+					current_mode = 2;
 				} else {
+					printf("Remaining message size: %d...\n", remaining_file_size);
 					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
-					fwrite(desc[i]->message.c_str(), 1, current_message_size, output_file);
-					if(current_message_size != SIZEOFPACKAGE){
-						num_of_files_received++;
+					if(remaining_file_size > SIZEOFPACKAGE){
+						fwrite(desc[i]->message, 1, SIZEOFPACKAGE, output_file);
+						remaining_file_size -= SIZEOFPACKAGE;
+					} else {
+						fwrite(desc[i]->message, 1, remaining_file_size, output_file);
+						remaining_file_size = 0;
 						current_mode = 0;
 						fclose(output_file);
 					}
+
+					// if(current_message_size != SIZEOFPACKAGE){
+					// 	num_of_files_received++;
+					// 	current_mode = 0;
+					// 	fclose(output_file);
+					// }
 				}
 				tcp.clean(i);
 			}

@@ -1,5 +1,3 @@
-#include "ImageProcessing.h"
-
 pixel* blur(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, int v){
     // Inspired (not copy) by https://processing.org/examples/blur.html
     float avg_weight = 1.0 / (v * v);
@@ -236,10 +234,4 @@ void gray_frame(pixel* image_buffer, pixel* output_buffer, int row_length, int t
 			output_buffer[current_position].b = pixelValue;
 		}
 	}
-}
-
-void auto_white_balance(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels){
-    // Modified from https://github.com/AFLProjects/White-Balance-Automation
-    int column_length = total_num_of_pixels / row_length;   // or height
-    ImageProcessing::EditImage(image_buffer, output_buffer, row_length, column_length);
 }

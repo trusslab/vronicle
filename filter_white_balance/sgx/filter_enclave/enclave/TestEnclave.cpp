@@ -40,7 +40,6 @@
 #include "TestEnclave.h"
 #include "TestEnclave_t.h"  /* print_string */
 #include "tSgxSSL_api.h"
-#include "RawBase.h"
 #include "SampleFilters.h"
 #include "ra-attester.h"
 #include "ra-challenger.h"

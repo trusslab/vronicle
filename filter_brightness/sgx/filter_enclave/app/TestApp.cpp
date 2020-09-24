@@ -30,6 +30,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +80,8 @@ using namespace std;
 
 #include <chrono> 
 using namespace std::chrono;
+
+ofstream eval_file;
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -749,40 +752,35 @@ int verification_reply(
     }
 
     // Set up some basic parameters
-    // TO-DO: make frame_size flexible
     int frame_size = md->width * md->height * 3 * sizeof(unsigned char);
 
     // Read Signature
-    auto start_of_reading_signature = high_resolution_clock::now();
+    auto start = high_resolution_clock::now();
 
     unsigned char* raw_signature;
     size_t raw_signature_length;
     char raw_file_signature_name[path_len];
     snprintf(raw_file_signature_name, path_len, "%s%s", raw_file_sig_path, (char*)recv_buf);
     raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
-    // cout << "(outside enclave)size of raw signature is: " << raw_signature_length << endl;
-    // cout << "(outside enclave)signature: " << (char*)raw_signature << endl;
 
-    auto end_of_reading_signature = high_resolution_clock::now();
-    auto signature_read_duration = duration_cast<microseconds>(end_of_reading_signature - start_of_reading_signature);
-    cout << "Processing frame " << (char*)recv_buf << " read signature take time: " << signature_read_duration.count() << endl; 
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     // Read Raw Image
-    // TO-DO: make the base file name flexible
-    auto start_of_reading_raw_img = high_resolution_clock::now();
+    start = high_resolution_clock::now();
 
     pixel* image_pixels;
     char raw_file_name[path_len];
     snprintf(raw_file_name, path_len, "%s%s", raw_file_path, (char*)recv_buf);
     int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size, &image_pixels);
-    // cout << "Raw file read result: " << result_of_reading_raw_file << endl;
     
-    auto end_of_reading_raw_img = high_resolution_clock::now();
-    auto raw_img_read_duration = duration_cast<microseconds>(end_of_reading_raw_img - start_of_reading_raw_img);
-    cout << "Processing frame " << (char*)recv_buf << " read raw img take time: " << raw_img_read_duration.count() << endl; 
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     // Prepare processed Image
-    auto start_of_allocation = high_resolution_clock::now();
+    start = high_resolution_clock::now();
 
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
@@ -798,11 +796,10 @@ int verification_reply(
         printf("No memory left\n");
         return 1;
     }
-    // printf("processed_img_signature(Before assigned in enclave): {%s}\n", processed_img_signature);
 
-    auto end_of_allocation = high_resolution_clock::now();
-    auto allocation_duration = duration_cast<microseconds>(end_of_allocation - start_of_allocation);
-    cout << "Processing frame " << (char*)recv_buf << " allocation take time: " << allocation_duration.count() << endl; 
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     // Prepare buffer for metadata output
     size_t out_md_json_len = md_json_len + 48;
@@ -814,7 +811,8 @@ int verification_reply(
     }
 
     // Going to get into enclave
-    auto start = high_resolution_clock::now();
+    start = high_resolution_clock::now();
+
     sgx_status_t status = t_sgxver_call_apis(
         global_eid, &ret,
         image_pixels, sizeof(pixel) * md->width * md->height,
@@ -823,9 +821,10 @@ int verification_reply(
         processed_pixels,
         out_md_json, out_md_json_len, 
         processed_img_signature, size_of_processed_img_signature);
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Processing frame " << (char*)recv_buf << " in enclave takes time: " << duration.count() << endl; 
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
@@ -836,9 +835,9 @@ int verification_reply(
         return 1;
     }
 
-    auto start_of_saving_frame = high_resolution_clock::now();
-
     // Save processed frame
+    start = high_resolution_clock::now();
+
     char processed_raw_file_name[50];
     snprintf(processed_raw_file_name, 50, "../video_data/processed_raw/processed_raw_%s", (char*) recv_buf);
     int result_of_frame_saving = save_processed_frame_b(processed_pixels, frame_size, processed_raw_file_name);
@@ -846,35 +845,33 @@ int verification_reply(
         return 1;
     }
 
-    auto end_of_saving_frame = high_resolution_clock::now();
-    auto saving_frame_duration = duration_cast<microseconds>(end_of_saving_frame - start_of_saving_frame);
-    cout << "Processing frame " << (char*)recv_buf << " save processed frame take time: " << saving_frame_duration.count() << endl; 
-
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     // Save processed filter singature
-    auto start_of_saving_signature = high_resolution_clock::now();
-    // printf("processed_img_signature(After assigned in enclave): {%s}\n", processed_img_signature);
+    start = high_resolution_clock::now();
+
     int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_processed_img_signature, (char*) recv_buf);
     if(result_of_filter_sign_saving != 0){
         return 1;
     }
 
-    auto end_of_saving_signature = high_resolution_clock::now();
-    auto saving_signature_duration = duration_cast<microseconds>(end_of_saving_signature - start_of_saving_signature);
-    cout << "Processing frame " << (char*)recv_buf << " save processed frame's signature take time: " << saving_signature_duration.count() << endl; 
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     // Save metadata
     char output_md_file_name[200];
     memcpy(output_md_file_name, output_md_path, strlen(output_md_path));
     sprintf(output_md_file_name + strlen(output_md_path), "%s.json", (char*)recv_buf);
-    printf("Now writing metadata to file: %s\n", output_md_file_name);
     FILE* md_output_file = fopen(output_md_file_name, "wb");
     fwrite(out_md_json, out_md_json_len, 1, md_output_file);
     fclose(md_output_file);
 
-    auto start_of_freeing = high_resolution_clock::now();
-
     // Free Everything (for video_provenance project)
+    start = high_resolution_clock::now();
+
     if(image_pixels)
         free(image_pixels);
     if(processed_pixels)
@@ -890,9 +887,9 @@ int verification_reply(
     if(out_md_json)
         free(out_md_json);
 
-    auto end_of_freeing = high_resolution_clock::now();
-    auto freeing_duration = duration_cast<microseconds>(end_of_freeing - start_of_freeing);
-    cout << "Processing frame " << (char*)recv_buf << " deallocation take time: " << freeing_duration.count() << endl; 
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", ";
 
 	return 0;
 }
@@ -924,7 +921,7 @@ void request_process_loop(int fd, char** argv)
 		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(stop - start);
-        cout << "Processing frame " << (char*)buf << " takes time: " << duration.count() << endl; 
+        eval_file << duration.count() << endl; 
 
 	}
 }
@@ -1006,6 +1003,13 @@ int main(int argc, char *argv[], char **env)
         printf("Usage: ./TestApp [path_to_ias_cert] [path_to_frame_signature] [path_to_frame] [path_to_input_md_json] [path_to_output_md_json]\n");
         return 1;
     }
+
+    // Open file to store evaluation results
+    eval_file.open("../video_data/eval_filter.csv");
+    if (!eval_file.is_open()) {
+        printf("Could not open eval file.\n");
+        return 1;
+    }
     
 	/* initialize and start the enclave in here */
 	start_enclave(argc, argv);
@@ -1014,9 +1018,9 @@ int main(int argc, char *argv[], char **env)
     unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
     auto start = high_resolution_clock::now();
     t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Conducting RA took time: " << duration.count() << endl; 
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     // Save Enclave certificate
     char* cert_file_name = "../video_data/filter_cert.der";
@@ -1026,7 +1030,7 @@ int main(int argc, char *argv[], char **env)
 
     // Read Certificate and its vendor public key
     char* ias_cert_file_name = argv[1];
-    auto start_of_reading_public_key = high_resolution_clock::now();
+    start = high_resolution_clock::now();
 
     FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
     if (!ias_cert_file) {
@@ -1051,8 +1055,16 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
     fclose(ias_cert_file);
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
+
+    // Verify certificate in enclave
     int ret = 0;
     sgx_status_t status = t_verify_cert(global_eid, &ret, ias_cert, size_of_ias_cert);
+    start = high_resolution_clock::now();
+
     if (status != SGX_SUCCESS) {
         cout << "Failed to read IAS certificate file" << endl;
         free(ias_cert);
@@ -1060,9 +1072,9 @@ int main(int argc, char *argv[], char **env)
     }
     free(ias_cert);
 
-    auto end_of_reading_public_key = high_resolution_clock::now();
-    auto public_key_read_duration = duration_cast<microseconds>(end_of_reading_public_key - start_of_reading_public_key);
-    cout << "Verifying certificate took time: " << public_key_read_duration.count() << endl; 
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << endl; 
 
 	/* create the server waiting for the verification request from the client */
 	int s;
@@ -1070,6 +1082,9 @@ int main(int argc, char *argv[], char **env)
 	sgx_server(argv);
 
     t_free(global_eid);
+
+    // Close eval file
+    eval_file.close();
 
 	/* after verification we destroy the enclave */
     sgx_destroy_enclave(global_eid);

@@ -79,7 +79,15 @@ void * received(void * m)
 
 				if(current_mode == 0){
 					printf("Trying to create new file: %s\n", desc[i]->message);
-					output_file = fopen(desc[i]->message, "wb");
+					char* dirname = "../video_data/src_encoded_video/";
+        			mkdir(dirname, 0777);
+					int size_of_output_actual_path = (strlen(desc[i]->message) + strlen(dirname) + 1) * sizeof(char);
+					char output_actual_path[size_of_output_actual_path];
+					memset(output_actual_path, 0, size_of_output_actual_path);
+            		memcpy(output_actual_path, dirname, sizeof(char) * strlen(dirname));
+            		sprintf(output_actual_path + sizeof(char) * strlen(dirname), "%s", desc[i]->message);
+					printf("File is going to be saved at: %s\n", output_actual_path);
+					output_file = fopen(output_actual_path, "wb");
 					if(output_file == NULL){
 						printf("file cannot be created...\n");
 						return 0;

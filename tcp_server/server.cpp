@@ -2,6 +2,8 @@
 #include <csignal>
 #include <ctime>
 #include "TCPServer.h"
+#include <sys/stat.h> 
+#include <sys/types.h> 
 
 TCPServer tcp;
 pthread_t msg1[MAX_CLIENT];

@@ -1012,14 +1012,18 @@ int main(int argc, char *argv[], char **env)
     }
     
 	/* initialize and start the enclave in here */
+    auto start = high_resolution_clock::now();
 	start_enclave(argc, argv);
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     size_t size_of_cert = 4 * 4096;
     unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
-    auto start = high_resolution_clock::now();
+    start = high_resolution_clock::now();
     t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
-    auto end = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(end - start);
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
 
     // Save Enclave certificate

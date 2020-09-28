@@ -23,6 +23,8 @@ SIG_FILE_NAME="./output/out.sig"
 MD_FILE_NAME="./output/metadata.json"
 PRIVKEY_FILE_NAME="./signer/camera_pri"
 PUBKEY_FILE_NAME="./signer/camera_pub"
+SERVER_IP_ADDR="13.90.224.167"
+SERVER_PORT="10111"
 
 # run
 ./video_capture/take_yuyv_frames $NUM_OF_FRAMES $VIDEO_FILE_NAME
@@ -33,3 +35,7 @@ PUBKEY_FILE_NAME="./signer/camera_pub"
 # sign encoded video
 
 chmod -x,+r $VIDEO_FILE_NAME
+
+# Upload everything to the server
+
+# ./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT 

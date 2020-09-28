@@ -1,9 +1,11 @@
 #include "TCPServer.h" 
 
 char TCPServer::msg[MAXPACKETSIZE];
+
 int TCPServer::num_client;
 int TCPServer::last_closed;
 bool TCPServer::isonline;
+int TCPServer::history_num_of_client;
 vector<descript_socket*> TCPServer::Message;
 vector<descript_socket*> TCPServer::newsockfd;
 std::mutex TCPServer::mt;
@@ -34,19 +36,25 @@ void* TCPServer::Task(void *arg)
 			   newsockfd.erase(new_end, newsockfd.end());
 
 			   if(num_client>0) num_client--;
+			   if(++history_num_of_client == 4){
+					printf("All files received successfully, going to start processing video...\n");
+					exit(0);
+				}
+			   // printf("Now we have a total of %d clients in history...\n", history_num_of_client);
 			   break;
 			}
 			// long size_of_file;
 			// memcpy(&size_of_file, msg, 8);
 			// printf("Received file size of: %d\n", size_of_file);
-			//printf("Potential packet size is: %d\n", n);
+			// printf("Potential packet size is: %d\n", n);
 			desc->message = msg;
+			desc->size_of_packet = n;
 			// msg[n]=0;
 			// desc->message = string(msg);
 	                std::lock_guard<std::mutex> guard(mt);
 			Message.push_back( desc );
 		}
-		usleep(600);
+		usleep(1000);
         }
 	if(desc != NULL)
 		free(desc);
@@ -125,6 +133,7 @@ void TCPServer::clean(int id)
 {
 	Message[id]->message = NULL;
 	memset(msg, 0, MAXPACKETSIZE);
+	Message[id]->size_of_packet = 0;
 }
 
 string TCPServer::get_ip_addr(int id)
@@ -143,10 +152,16 @@ void TCPServer::detach(int id)
 	newsockfd[id]->ip = "";
 	newsockfd[id]->id = -1;
 	newsockfd[id]->message = NULL;
+	Message[id]->size_of_packet = 0;
 } 
 
 void TCPServer::closed() 
 {
 	close(sockfd);
+}
+
+int TCPServer::get_history_num_of_clients()
+{
+	return history_num_of_client;
 }
 

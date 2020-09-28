@@ -7,7 +7,7 @@ import numpy as np
 eval_names = ['filter_blur', 'filter_brightness', 'filter_denoise_easy', 'filter_gray', 'filter_sharpen', 'filter_white_balance']
 legend_names = ['Blur', 'Brightness', 'Denoise', 'Gray Scale', 'Sharpening', 'White Balance']
 fig_name = 'images/filter_latency.png'
-x_ticks = ['Read Sig', 'Read Frame', 'Alloc Mem', 'Filter Frame', 'Write Frame', 'Write Metadata', 'Free Mem', 'Total Time\nto Filter Frame', 'Remote Att.']
+x_ticks = ['Read Sig', 'Read Frame', 'Alloc Mem', 'Filter Frame', 'Write Frame', 'Write Metadata', 'Free Mem', 'Total Time\nto Filter Frame', 'Init Enclave', 'Remote Att.']
 bps = []
 fig = plt.figure(figsize=(16, 9))
 
@@ -16,13 +16,13 @@ for i, e in enumerate(eval_names):
     data = []
     with open(data_file) as f:
         predata = csv.reader(f)
-        for _ in range(9):
+        for _ in range(10):
             data.append([])
         for j, row in enumerate(predata):
             if j == 0:
                 for k, d in enumerate(row):
-                    if k == 0:
-                        data[8].append(int(d)/1000)
+                    if k == 0 or k == 1:
+                        data[8 + k].append(int(d)/1000)
             if j != 0:
                 for k, d in enumerate(row):
                     data[k].append(int(d)/1000)

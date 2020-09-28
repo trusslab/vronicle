@@ -29,6 +29,7 @@ struct descript_socket{
 	string ip      = "";
 	int id         = -1; 
 	char* message;
+	int size_of_packet = 0;
 	bool enable_message_runtime = false;
 };
 
@@ -45,6 +46,7 @@ class TCPServer
 	string get_ip_addr(int id);
 	int get_last_closed_sockets();
 	void closed();
+	int get_history_num_of_clients();
 
 	private:
 	int sockfd, n, pid;
@@ -58,6 +60,7 @@ class TCPServer
 
 	static bool isonline;
 	static int last_closed;
+	static int history_num_of_client;
 	static int num_client;
 	static std::mutex mt;
 	static void * Task(void * argv);

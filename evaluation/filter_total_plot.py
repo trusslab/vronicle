@@ -28,7 +28,7 @@ for i, e in enumerate(eval_names):
         f.close()
 
 plt.legend([bps[x]["boxes"][0] for x in range(0, len(eval_names))], legend_names)
-plt.xticks([x for x in range(0, len(x_ticks))], x_ticks, rotation='vertical')
+plt.xticks([x for x in range(0, len(x_ticks))], x_ticks)
 plt.xlabel("Different Operations")
 plt.ylabel("Latency [ms]")
 plt.yscale("log")

@@ -1,5 +1,4 @@
 #include <iostream>
-#include <csignal>
 #include <ctime>
 #include "TCPServer.h"
 #include <sys/stat.h> 
@@ -16,7 +15,8 @@ int time_send   = 1;
 
 int num_of_files_received = 0;
 
-void close_app(int s) {
+void close_app(int signum) {
+	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp.closed();
 	exit(0);
 }
@@ -85,6 +85,8 @@ FILE* create_folder_and_file_accordingly(string file_name){
 void * received(void * m)
 {
         pthread_detach(pthread_self());
+		
+	// std::signal(SIGPIPE, sigpipe_handler);
 	vector<descript_socket*> desc;
 
 	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
@@ -170,7 +172,7 @@ void * received(void * m)
 		}
 		usleep(1000);
 	}
-	// printf("received completed..\n");
+	printf("received completed..\n");
 	return 0;
 }
 
@@ -183,6 +185,7 @@ int main(int argc, char **argv)
 	if(argc == 3)
 		time_send = atoi(argv[2]);
 	std::signal(SIGINT, close_app);
+	std::signal(SIGPIPE, sigpipe_handler);
 
 	pthread_t msg;
         vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };

@@ -82,6 +82,7 @@ using namespace std;
 using namespace std::chrono;
 
 ofstream eval_file;
+int is_previous_ias_verified = 0;
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -369,12 +370,14 @@ int save_processed_frame_b(pixel* processed_pixels, int frame_size, char* path_t
     // First create the folder if not created
 
     // To-Do: delete the following two lines after making path_to_save flexible
-    char* dirname = "../video_data/processed_raw";
+    char* dirname = "../../../video_data/processed_raw";
     mkdir(dirname, 0777);
     
     // Save data
+    printf("Going to save %s...\n", path_to_save);
     FILE* output_file = fopen(path_to_save, "wb");
     if(output_file == NULL){
+        printf("path_to_save: %s failed to save...\n", path_to_save);
         return 1;
     }
     
@@ -698,11 +701,11 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", strlen(base64_signature), len_of_sign, base64_signature);
     // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", len_of_base64encoded_str, len_of_sign, base64_signature);
 
-    char* dirname = "../video_data/processed_raw_sign";
+    char* dirname = "../../../video_data/processed_raw_sign";
     mkdir(dirname, 0777);
 
-    char processed_raw_sign_file_name[60];
-    snprintf(processed_raw_sign_file_name, 60, "../video_data/processed_raw_sign/processed_raw_sign_%s", frame_id);
+    char processed_raw_sign_file_name[200];
+    snprintf(processed_raw_sign_file_name, 200, "../../../video_data/processed_raw_sign/processed_raw_sign_%s", frame_id);
 
     ofstream signature_file;
     signature_file.open(processed_raw_sign_file_name);
@@ -711,6 +714,8 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     }
     signature_file.write(base64_signature, len_of_base64encoded_str);
     signature_file.close();
+
+    free(base64_signature);
 
     return 0;
 }
@@ -732,10 +737,56 @@ int verification_reply(
 
     int path_len = 200;
 
+    if (is_previous_ias_verified == 0){
+        // Read Certificate and its vendor public key
+        char* ias_cert_file_name = argv[1];
+
+        FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
+        if (!ias_cert_file) {
+            cout << "Could not open IAS certificate file" << endl;
+            return 1;
+        }
+        fseek(ias_cert_file, 0, SEEK_END);
+        size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
+        fseek(ias_cert_file, 0, SEEK_SET);
+        char* ias_cert = (char*)malloc(size_of_ias_cert);
+        if (!ias_cert) {
+            cout << "Not enough memory" << endl;
+            free(ias_cert);
+            fclose(ias_cert_file);
+            return 1;
+        }
+        size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
+        if (fread_result != size_of_ias_cert) {
+            cout << "Failed to read IAS certificate file" << endl;
+            free(ias_cert);
+            fclose(ias_cert_file);
+            return 1;
+        }
+        fclose(ias_cert_file);
+
+        // Verify certificate in enclave
+        sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, size_of_ias_cert);
+
+        if (status_of_verification != SGX_SUCCESS) {
+            cout << "Failed to read IAS certificate file" << endl;
+            free(ias_cert);
+            return ret;
+        }
+        free(ias_cert);
+
+        // Reset ret
+        ret = 1;
+
+        // Set is_previous_ias_verified
+        is_previous_ias_verified = 1;
+    }
+
     // Read metadata
     long md_json_len = 0;
     char input_md_path[path_len];
     snprintf(input_md_path, path_len, "%s%s.json", raw_md_path, (char*)recv_buf);
+    printf("Going to read meatadata: %s\n", input_md_path);
     char* md_json = read_file_as_str(input_md_path, &md_json_len);
     if (!md_json) {
         printf("Failed to read metadata\n");
@@ -838,10 +889,11 @@ int verification_reply(
     // Save processed frame
     start = high_resolution_clock::now();
 
-    char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "../video_data/processed_raw/processed_raw_%s", (char*) recv_buf);
+    char processed_raw_file_name[200];
+    snprintf(processed_raw_file_name, 200, "../../../video_data/processed_raw/processed_raw_%s", (char*) recv_buf);
     int result_of_frame_saving = save_processed_frame_b(processed_pixels, frame_size, processed_raw_file_name);
     if(result_of_frame_saving != 0){
+        printf("Processed frame %s cannot be saved...\n", (char*) recv_buf);
         return 1;
     }
 
@@ -863,6 +915,8 @@ int verification_reply(
 
     // Save metadata
     char output_md_file_name[200];
+    char* dirname = "../../../video_data/processed_raw_md/";
+    mkdir(dirname, 0777);
     memcpy(output_md_file_name, output_md_path, strlen(output_md_path));
     sprintf(output_md_file_name + strlen(output_md_path), "%s.json", (char*)recv_buf);
     FILE* md_output_file = fopen(output_md_file_name, "wb");
@@ -913,7 +967,8 @@ void request_process_loop(int fd, char** argv)
 		gettime64(recv_time);
 
         if(strcmp((char*) buf, "no_more_frame") == 0){
-            printf("No more frame detected, ending encalve server...\n");
+            printf("No more frame detected, calling encode...\n");
+            system("cd ../../../encoder/tee/sgx/encoder_ra/; ./attempt_run_encoder.sh");
             break;
         }
 
@@ -1032,53 +1087,53 @@ int main(int argc, char *argv[], char **env)
     fwrite(der_cert, size_of_cert, 1, cert_file);
     fclose(cert_file);
 
-    // Read Certificate and its vendor public key
-    char* ias_cert_file_name = argv[1];
-    start = high_resolution_clock::now();
+    // // Read Certificate and its vendor public key
+    // char* ias_cert_file_name = argv[1];
+    // start = high_resolution_clock::now();
 
-    FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
-    if (!ias_cert_file) {
-        cout << "Could not open IAS certificate file" << endl;
-        return 1;
-    }
-    fseek(ias_cert_file, 0, SEEK_END);
-    size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
-    fseek(ias_cert_file, 0, SEEK_SET);
-    char* ias_cert = (char*)malloc(size_of_ias_cert);
-    if (!ias_cert) {
-        cout << "Not enough memory" << endl;
-        free(ias_cert);
-        fclose(ias_cert_file);
-        return 1;
-    }
-    size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
-    if (fread_result != size_of_ias_cert) {
-        cout << "Failed to read IAS certificate file" << endl;
-        free(ias_cert);
-        fclose(ias_cert_file);
-        return 1;
-    }
-    fclose(ias_cert_file);
+    // FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
+    // if (!ias_cert_file) {
+    //     cout << "Could not open IAS certificate file" << endl;
+    //     return 1;
+    // }
+    // fseek(ias_cert_file, 0, SEEK_END);
+    // size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
+    // fseek(ias_cert_file, 0, SEEK_SET);
+    // char* ias_cert = (char*)malloc(size_of_ias_cert);
+    // if (!ias_cert) {
+    //     cout << "Not enough memory" << endl;
+    //     free(ias_cert);
+    //     fclose(ias_cert_file);
+    //     return 1;
+    // }
+    // size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
+    // if (fread_result != size_of_ias_cert) {
+    //     cout << "Failed to read IAS certificate file" << endl;
+    //     free(ias_cert);
+    //     fclose(ias_cert_file);
+    //     return 1;
+    // }
+    // fclose(ias_cert_file);
 
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
+    // end = high_resolution_clock::now();
+    // duration = duration_cast<microseconds>(end - start);
+    // eval_file << duration.count() << ", "; 
 
-    // Verify certificate in enclave
-    int ret = 0;
-    sgx_status_t status = t_verify_cert(global_eid, &ret, ias_cert, size_of_ias_cert);
-    start = high_resolution_clock::now();
+    // // Verify certificate in enclave
+    // int ret = 0;
+    // sgx_status_t status = t_verify_cert(global_eid, &ret, ias_cert, size_of_ias_cert);
+    // start = high_resolution_clock::now();
 
-    if (status != SGX_SUCCESS) {
-        cout << "Failed to read IAS certificate file" << endl;
-        free(ias_cert);
-        return ret;
-    }
-    free(ias_cert);
+    // if (status != SGX_SUCCESS) {
+    //     cout << "Failed to read IAS certificate file" << endl;
+    //     free(ias_cert);
+    //     return ret;
+    // }
+    // free(ias_cert);
 
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << endl; 
+    // end = high_resolution_clock::now();
+    // duration = duration_cast<microseconds>(end - start);
+    // eval_file << duration.count() << endl; 
 
 	/* create the server waiting for the verification request from the client */
 	int s;

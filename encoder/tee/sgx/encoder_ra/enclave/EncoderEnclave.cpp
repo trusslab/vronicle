@@ -365,6 +365,7 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
         printf("Run t_verify_cert first\n");
         return res;
     }
+    printf("frame_size: %d, md_json_size: %d\n", frame_size, md_json_size);
     unsigned char* buf = (unsigned char*)malloc(frame_size + md_json_size);
     if (!buf) {
         printf("No memory left\n");

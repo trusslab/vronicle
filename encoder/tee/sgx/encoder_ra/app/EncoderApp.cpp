@@ -880,6 +880,7 @@ int main(int argc, char *argv[], char **env)
 	// sgx_server(argv);
 
     // Verify IAS certificate
+    printf("Reading in_ias_cert_file: %s\n", in_ias_cert_file);
     fcert = fopen(in_ias_cert_file, "r");
     if (!fcert)
     {
@@ -933,6 +934,7 @@ int main(int argc, char *argv[], char **env)
     sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
     long md_json_len = 0;
     char* md_json = read_file_as_str(current_md_file_name, &md_json_len);
+    // printf("md_json_len: %d\n", md_json_len);
     if (!md_json) {
         printf("Failed to read metadata from file: %s\n", current_md_file_name);
         return 1;

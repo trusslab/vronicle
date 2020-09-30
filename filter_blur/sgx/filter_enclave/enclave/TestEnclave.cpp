@@ -358,6 +358,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	free(tmp);
 
 	// Create buffer for signing
+	printf("processed_pixels_size: %d, size of output_json: %d\n", processed_pixels_size, strlen(output_json));
 	unsigned char* data_buf = (unsigned char*)malloc(processed_pixels_size + strlen(output_json));
 	memset(data_buf, 0, processed_pixels_size + strlen(output_json));
 	memcpy(data_buf, processed_pixels, processed_pixels_size);

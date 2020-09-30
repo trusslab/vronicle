@@ -591,7 +591,7 @@ void do_decoding(
     int max_frames = 999; // Assume there are at most 999 frames
     int max_frame_digits = num_digits(max_frames);
     size_t sig_size = 384; // TODO: Remove hardcoded sig size
-    size_t md_size = md_json_len + 16 + 46; // TODO: Remove hardcoded sig size
+    size_t md_size = md_json_len + 16 + 46 + 1;
     int length_of_base_frame_file_name = (int)strlen(output_file_path);
     int size_of_current_frame_file_name = sizeof(char) * length_of_base_frame_file_name + sizeof(char) * max_frame_digits;
     char current_frame_file_name[size_of_current_frame_file_name];
@@ -657,11 +657,11 @@ void do_decoding(
         u8* temp_output_md_buffer = output_md_buffer;
 
         // To-Do: make the following two lines flexible
-        char* dirname = "../video_data/raw_for_process";
+        char* dirname = "../../../video_data/raw_for_process";
         mkdir(dirname, 0777);
-        dirname = "../video_data/sig";
+        dirname = "../../../video_data/raw_for_process_sig";
         mkdir(dirname, 0777);
-        dirname = "../video_data/metadata";
+        dirname = "../../../video_data/raw_for_process_metadata";
         mkdir(dirname, 0777);
 
         for(int i = 0; i < *num_of_frames; ++i){
@@ -714,8 +714,13 @@ void do_decoding(
         free(output_rgb_buffer);
     if(output_sig_buffer)
         free(output_sig_buffer);
+    // TO-DO: the following free causes error: free(): invalid next size (normal)
     if(output_md_buffer)
         free(output_md_buffer);
+
+    if(!ret){
+        system("cd ../../../filter_blur/sgx/filter_enclave/run_enclave/; ./client 127.0.0.1 60");
+    }
 
     return;
 }
@@ -728,13 +733,13 @@ void request_process_loop(int fd, int argc, char** argv)
 	uint32_t recv_time[2];
 	pid_t pid;
 
-    while (recvfrom(fd, buf,
-            200, 0,
-            &src_addr,
-            &src_addrlen)
-        < 200 );  /* invalid request */
+    // while (recvfrom(fd, buf,
+    //         200, 0,
+    //         &src_addr,
+    //         &src_addrlen)
+    //     < 200 );  /* invalid request */
 
-    gettime64(recv_time);
+    // gettime64(recv_time);
 
     auto start = high_resolution_clock::now();
     do_decoding(fd, &src_addr , src_addrlen, buf, recv_time, argc, argv);
@@ -756,7 +761,7 @@ void sgx_server(int argc, char** argv)
 
 	memset(&sinaddr, 0, sizeof(sinaddr));
 	sinaddr.sin_family = AF_INET;
-	sinaddr.sin_port = htons(123);
+	sinaddr.sin_port = htons(124);
 	sinaddr.sin_addr.s_addr = INADDR_ANY;
 
 	if (0 != bind(s, (struct sockaddr *)&sinaddr, sizeof(sinaddr))) {

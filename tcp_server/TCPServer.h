@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cctype>
 #include <mutex>
+#include <csignal>
 
 using namespace std;
 
@@ -32,6 +33,8 @@ struct descript_socket{
 	int size_of_packet = 0;
 	bool enable_message_runtime = false;
 };
+
+void sigpipe_handler(int signum);
 
 class TCPServer
 {

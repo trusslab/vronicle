@@ -79,7 +79,7 @@ endif
 ######## App Settings ########
 
 
-App_Cpp_Files := $(UNTRUSTED_DIR)/TestApp.cpp
+App_Cpp_Files := $(UNTRUSTED_DIR)/TestApp.cpp $(UNTRUSTED_DIR)/TCPServer.cpp $(UNTRUSTED_DIR)/TCPClient.cpp
 App_Cpp_Objects := $(App_Cpp_Files:.cpp=.o)
 
 App_C_Files := $(UNTRUSTED_DIR)/sgxsdk-ra-attester_u.c $(UNTRUSTED_DIR)/ias-ra.c
@@ -123,7 +123,7 @@ test: all
 
 ######## App Objects ########
 
-$(UNTRUSTED_DIR)/TestEnclave_u.c: $(SGX_EDGER8R) enclave/TestEnclave.edl
+$(UNTRUSTED_DIR)/TestEnclave_u.c: $(SGX_EDGER8R) enclave/TestEnclave.edl $(TCP_Server_Library_Compiled_Name)
 	@cd $(UNTRUSTED_DIR) && $(SGX_EDGER8R) --untrusted ../enclave/TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
 	@echo "GEN  =>  $@"
 
@@ -147,5 +147,5 @@ TestApp: $(UNTRUSTED_DIR)/TestEnclave_u.o $(App_Cpp_Objects) $(App_C_Objects)
 .PHONY: clean
 
 clean:
-	@rm -f TestApp  $(App_Cpp_Objects) $(UNTRUSTED_DIR)/TestEnclave_u.* 
+	@rm -f TestApp  $(App_Cpp_Objects) $(UNTRUSTED_DIR)/TestEnclave_u.*
 	

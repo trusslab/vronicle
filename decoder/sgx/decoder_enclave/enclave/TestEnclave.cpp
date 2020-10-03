@@ -284,7 +284,7 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 }
 
 int t_sgxver_decode_content(
-	void* input_content_buffer, size_t size_of_input_content_buffer, 
+	void* input_content_buffer, long size_of_input_content_buffer, 
 	void* md_json, long md_json_len,
 	void* vendor_pub, long vendor_pub_len,
 	void* camera_cert, long camera_cert_len,
@@ -295,7 +295,7 @@ int t_sgxver_decode_content(
     int res = -1;
 	// In: void* input_content_buffer
 	// Out: void* frame_width, void* frame_height, void* num_of_frames, void* output_rgb_buffer
-	// Common: size_t size_of_input_content_buffer, size_t size_of_u32, size_t size_of_int, size_of_u8
+	// Common: long size_of_input_content_buffer, size_t size_of_u32, size_t size_of_int, size_of_u8
 
 	// Verify certificate
 	BIO* bo_pub = BIO_new( BIO_s_mem() );
@@ -330,6 +330,7 @@ int t_sgxver_decode_content(
 	memset(buf, 0, size_of_input_content_buffer + md_json_len);
 	memcpy(buf, input_content_buffer, size_of_input_content_buffer);
 	memcpy(buf + size_of_input_content_buffer, md_json, md_json_len);
+	printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
 	res = verify_hash(buf, size_of_input_content_buffer + md_json_len, (unsigned char*)vid_sig, vid_sig_len, pukey);
 	free(buf);
 	if(res != 1){

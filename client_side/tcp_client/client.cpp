@@ -2,8 +2,6 @@
 #include <signal.h>
 #include "TCPClient.h"
 
-#define SIZEOFPACKAGE 40000
-
 TCPClient tcp;
 
 void sig_exit(int s)
@@ -26,13 +24,13 @@ int send_file(const char* file_name){
 	long size_of_file = ftell(input_file);
 	printf("Sending file size: %d\n", size_of_file);
 	tcp.Send(&size_of_file, sizeof(long));
-	string rec = tcp.receive();
+	string rec = tcp.receive_exact(SIZEOFPACKAGEFORNAME);
 	if( rec != "" )
 	{
 		// cout << rec << endl;
 	}
 	// sleep(1);
-	usleep(500);
+	// usleep(500);
 	
     fseek(input_file, 0, SEEK_SET);
 	
@@ -51,13 +49,13 @@ int send_file(const char* file_name){
 		}
 
 		tcp.Send(buffer, num_of_ele_read);
-		string rec = tcp.receive();
+		string rec = tcp.receive_exact(SIZEOFPACKAGEFORNAME);
 		if( rec != "" )
 		{
 			// cout << rec << endl;
 		}
 		// sleep(1);
-		usleep(2000);
+		// usleep(2000);
 	}
 
 	fclose(input_file);
@@ -67,13 +65,26 @@ int send_file(const char* file_name){
 
 void send_message(string message){
 	tcp.Send(message);
-	string rec = tcp.receive();
+	string rec = tcp.receive_exact(SIZEOFPACKAGEFORNAME);
 	if( rec != "" )
 	{
 		// cout << rec << endl;
 	}
 	// sleep(1);
-	usleep(500);
+	// usleep(500);
+}
+
+void send_message(char* message, int msg_size){
+	tcp.Send(message, msg_size);
+    // printf("(send_message)Going to wait for receive...\n");
+	string rec = tcp.receive_exact(SIZEOFPACKAGEFORNAME);
+    // printf("(send_message)Going to wait for receive(finished)...\n");
+	if( rec != "" )
+	{
+		// cout << "send_message received: " << rec << endl;
+	}
+	// sleep(1);
+	// usleep(500);
 }
 
 int main(int argc, char *argv[])
@@ -86,7 +97,11 @@ int main(int argc, char *argv[])
 
 	tcp.setup(argv[1],atoi(argv[2]));
 
-	send_message(argv[4]);
+	char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
+	
+	memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+	memcpy(msg_to_send, argv[4], strlen(argv[4]));
+	send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
 	send_file(argv[3]);
 
 	// while(1)

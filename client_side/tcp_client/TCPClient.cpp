@@ -95,6 +95,22 @@ string TCPClient::receive(int size)
   	return reply;
 }
 
+string TCPClient::receive_exact(int size)
+{
+  	char buffer[size];
+	memset(&buffer[0], 0, sizeof(buffer));
+
+  	string reply;
+	if( recv(sock , buffer , size, MSG_WAITALL) < 0)
+  	{
+	    	cout << "receive failed!" << endl;
+		return nullptr;
+  	}
+	buffer[size-1]='\0';
+  	reply = buffer;
+  	return reply;
+}
+
 string TCPClient::read()
 {
   	char buffer[1] = {};

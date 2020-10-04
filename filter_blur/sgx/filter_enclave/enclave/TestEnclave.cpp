@@ -324,6 +324,8 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	memset(buf, 0, size_of_img_pixels + size_of_md_json);
 	memcpy(buf, img_pixels, size_of_img_pixels);
 	memcpy(buf + size_of_img_pixels, md_json, size_of_md_json);
+	// printf("Going to call verify signature with size_of_img_pixels: %d, size_of_md_json: %d, size_of_img_sig: %d\n", size_of_img_pixels, size_of_md_json, size_of_img_sig);
+	// print_public_key(ias_pubkey);
 	ret = verify_hash(buf, size_of_img_pixels + size_of_md_json, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);
 	free(buf);
 	if (ret != 1) {
@@ -358,7 +360,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	free(tmp);
 
 	// Create buffer for signing
-	printf("processed_pixels_size: %d, size of output_json: %d\n", processed_pixels_size, strlen(output_json));
+	// printf("processed_pixels_size: %d, size of output_json: %d\n", processed_pixels_size, strlen(output_json));
 	unsigned char* data_buf = (unsigned char*)malloc(processed_pixels_size + strlen(output_json));
 	memset(data_buf, 0, processed_pixels_size + strlen(output_json));
 	memcpy(data_buf, processed_pixels, processed_pixels_size);

@@ -52,7 +52,7 @@
 # define SIZEOFPUKEY 2048
 # define TARGET_NUM_TIMES_RECEIVED 4
 # define TARGET_NUM_FILES_RECEIVED 4
-#define SIZEOFPACKAGE 40000
+// #define SIZEOFPACKAGE 40000
 
 #include <sgx_urts.h>
 
@@ -83,10 +83,10 @@
 
 // For TCP module
 #include <ctime>
-#include "TCPServer.h"
 #include <cerrno>
 #include <cstring>
-#include "TCPClient.h"
+#include "tcp_module/TCPServer.h"
+#include "tcp_module/TCPClient.h"
 
 // For TCP module
 TCPServer tcp_server;
@@ -106,7 +106,9 @@ char* vid_sig_buf = NULL;
 long md_json_len = 0;
 char* md_json = NULL;
 
-#define SIZEOFPACKAGE 40000
+// For outgoing data
+unsigned char *der_cert;
+size_t size_of_cert;
 
 using namespace std;
 
@@ -641,7 +643,7 @@ void * received(void * m)
 				//      << "socket:  " << desc[i]->socket  << endl
 				//      << "enable:  " << desc[i]->enable_message_runtime << endl;
 
-				printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
 
 				if(current_mode == 0){
 					// printf("Trying to create new file: %s\n", desc[i]->message);
@@ -661,7 +663,7 @@ void * received(void * m)
 					// printf("Checking if remaining size is 0: %ld\n", remaining_file_size);
 
                     string file_name = desc[i]->message;
-                    printf("Got new file_name: %s\n", file_name.c_str());
+                    // printf("Got new file_name: %s\n", file_name.c_str());
                     if(file_name == "vid"){
                         current_file_indicator = 0;
                         current_writing_size = &contentSize;
@@ -682,7 +684,7 @@ void * received(void * m)
 				} else if (current_mode == 1){
                     memcpy(current_writing_size, desc[i]->message, 8);
 					memcpy(&remaining_file_size, desc[i]->message, 8);
-					printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
+					// printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
                     // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
                     switch(current_file_indicator){
                         case 0:
@@ -733,65 +735,74 @@ void * received(void * m)
 	return 0;
 }
 
-int send_buffer(const char* file_name){
+int send_buffer(void* buffer, long buffer_lenth){
     // Return 0 on success, return 1 on failure
 
-    FILE* input_file = fopen(file_name, "rb");
-	if(input_file == NULL){
-		printf("Cannot read %s\n", file_name);
-        return 1;
-    }
-
-	// Get size of file and send it
-    fseek(input_file, 0, SEEK_END);
-	long size_of_file = ftell(input_file);
-	printf("Sending file size: %d\n", size_of_file);
-	tcp_client.Send(&size_of_file, sizeof(long));
+	// Send size of buffer
+	printf("Sending buffer size: %d\n", buffer_lenth);
+	tcp_client.Send(&buffer_lenth, sizeof(long));
+    // printf("Going to wait for receive...\n");
 	string rec = tcp_client.receive();
+    // printf("Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
 		// cout << rec << endl;
 	}
 	// sleep(1);
 	usleep(500);
-	
-    fseek(input_file, 0, SEEK_SET);
-	
-	unsigned char* buffer = (unsigned char*)malloc(SIZEOFPACKAGE);
+
+    long remaining_size_of_buffer = buffer_lenth;
+    void* temp_buffer = buffer;
+    int is_finished = 0;
 
 	while(1)
 	{
-   		memset(buffer, 0, SIZEOFPACKAGE);
-
-		size_t num_of_ele_read = fread(buffer, 1, SIZEOFPACKAGE, input_file);
-
-		// printf("Things have been read(%d): %s\n", num_of_ele_read, buffer);
-
-		if(num_of_ele_read == 0){
-			break;
-		}
-
-		tcp_client.Send(buffer, num_of_ele_read);
+        if(remaining_size_of_buffer > SIZEOFPACKAGE){
+		    tcp_client.Send(temp_buffer, SIZEOFPACKAGE);
+            remaining_size_of_buffer -= SIZEOFPACKAGE;
+            temp_buffer += SIZEOFPACKAGE;
+        } else {
+		    tcp_client.Send(temp_buffer, remaining_size_of_buffer);
+            is_finished = 1;
+        }
+        // printf("(inside)Going to wait for receive...\n");
 		string rec = tcp_client.receive();
+        // printf("(inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
-			// cout << rec << endl;
+			// cout << "send_buffer received: " << rec << endl;
 		}
+        if(is_finished){
+            break;
+        }
 		// sleep(1);
-		usleep(2000);
+		usleep(500);
 	}
-
-	fclose(input_file);
 
     return 0;
 }
 
 void send_message(string message){
 	tcp_client.Send(message);
+    // printf("(send_message)Going to wait for receive...\n");
 	string rec = tcp_client.receive();
+    // printf("(send_message)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
-		// cout << rec << endl;
+		// cout << "send_message received: " << rec << endl;
+	}
+	// sleep(1);
+	usleep(500);
+}
+
+void send_message(char* message, int msg_size){
+	tcp_client.Send(message, msg_size);
+    // printf("(send_message)Going to wait for receive...\n");
+	string rec = tcp_client.receive();
+    // printf("(send_message)Going to wait for receive(finished)...\n");
+	if( rec != "" )
+	{
+		// cout << "send_message received: " << rec << endl;
 	}
 	// sleep(1);
 	usleep(500);
@@ -928,9 +939,9 @@ void do_decoding(
         printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
             *frame_width, *frame_height, *num_of_frames);
 
-        // u8* temp_output_rgb_buffer = output_rgb_buffer;
-        // u8* temp_output_sig_buffer = output_sig_buffer;
-        // u8* temp_output_md_buffer = output_md_buffer;
+        u8* temp_output_rgb_buffer = output_rgb_buffer;
+        u8* temp_output_sig_buffer = output_sig_buffer;
+        u8* temp_output_md_buffer = output_md_buffer;
 
         // // To-Do: make the following two lines flexible
         // char* dirname = "../../../video_data/raw_for_process";
@@ -940,41 +951,102 @@ void do_decoding(
         // dirname = "../../../video_data/raw_for_process_metadata";
         // mkdir(dirname, 0777);
 
-        // for(int i = 0; i < *num_of_frames; ++i){
-        //     // Write frame to file
-        //     memset(current_frame_file_name, 0, size_of_current_frame_file_name);
-        //     memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
-        //     sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
-        //     printf("Now writing frame to file: %s\n", current_frame_file_name);
-        //     rgb_output_file = fopen(current_frame_file_name, "wb");
-        //     fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
-        //     temp_output_rgb_buffer += frame_size;
-        //     fclose(rgb_output_file);
+        // Prepare buf for sending message
+        int size_of_msg_buf = 100;
+        char* msg_buf = (char*) malloc(size_of_msg_buf);
 
-        //     // Write signature to file
-        //     memset(current_sig_file_name, 0, size_of_current_sig_file_name);
-        //     memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
-        //     sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
-        //     char* b64_sig = NULL;
-        //     size_t b64_sig_size = 0;
-        //     Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
-        //     temp_output_sig_buffer += sig_size;
-        //     printf("Now writing sig to file: %s, b64_sig: %s, b64_sig_len: %li\n", current_sig_file_name, b64_sig, b64_sig_size);
-        //     sig_output_file = fopen(current_sig_file_name, "wb");
-        //     fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
-        //     fclose(sig_output_file);
-        //     free(b64_sig);
+        // Prepare tcp client
+        tcp_client.setup(argv[3], atoi(argv[4]));
 
-        //     // Write metadata to file
-        //     memset(current_md_file_name, 0, size_of_current_md_file_name);
-        //     memcpy(current_md_file_name, output_md_path, sizeof(char) * length_of_base_md_file_name);
-        //     sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
-        //     printf("Now writing metadata to file: %s\n", current_md_file_name);
-        //     md_output_file = fopen(current_md_file_name, "wb");
-        //     fwrite(temp_output_md_buffer, md_size, 1, md_output_file);
-        //     temp_output_md_buffer += md_size;
-        //     fclose(md_output_file);
-        // }
+        // Send certificate
+        memset(msg_buf, 0, size_of_msg_buf);
+        memcpy(msg_buf, "cert", 4);
+        send_message(msg_buf, size_of_msg_buf);
+        send_buffer(der_cert, size_of_cert);
+
+        // Start sending frames 
+        for(int i = 0; i < *num_of_frames; ++i){
+            string frame_num = to_string(i);
+
+            printf("Sending frame_num: %d\n", i);
+            
+            // Send frame
+            memset(msg_buf, 0, size_of_msg_buf);
+            memcpy(msg_buf, "frame", 5);
+            send_message(msg_buf, size_of_msg_buf);
+            // printf("Very first set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[0], temp_output_rgb_buffer[1], temp_output_rgb_buffer[2]);
+            // int last_pixel_position = 1280 * 720 * 3 - 3;
+            // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
+            send_buffer(temp_output_rgb_buffer, frame_size);
+            temp_output_rgb_buffer += frame_size;
+
+            // Send signature
+            char* b64_sig = NULL;
+            size_t b64_sig_size = 0;
+            Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
+            temp_output_sig_buffer += sig_size;
+            memset(msg_buf, 0, size_of_msg_buf);
+            memcpy(msg_buf, "sig", 3);
+            send_message(msg_buf, size_of_msg_buf);
+            printf("signature going to be sent is: [%s]\n", b64_sig);
+            send_buffer(b64_sig, b64_sig_size);
+            free(b64_sig);
+
+            // Send metadata
+            memset(msg_buf, 0, size_of_msg_buf);
+            memcpy(msg_buf, "meta", 4);
+            send_message(msg_buf, size_of_msg_buf);
+            // int md_size_for_sending = md_size + 1;
+            // char* md_for_print = (char*) malloc(md_size_for_sending);
+            // memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
+            // md_for_print[md_size_for_sending - 1] = '\0';
+            // printf("metadata(%d) going to be sent is: [%s]\n", md_size_for_sending, md_for_print);
+            // send_buffer(md_for_print, md_size_for_sending);
+            send_buffer(temp_output_md_buffer, md_size);
+            // free(md_for_print);
+            temp_output_md_buffer += md_size;
+
+            // // Write frame to file
+            // memset(current_frame_file_name, 0, size_of_current_frame_file_name);
+            // memcpy(current_frame_file_name, output_file_path, sizeof(char) * length_of_base_frame_file_name);
+            // sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
+            // printf("Now writing frame to file: %s\n", current_frame_file_name);
+            // rgb_output_file = fopen(current_frame_file_name, "wb");
+            // fwrite(temp_output_rgb_buffer, frame_size, 1, rgb_output_file);
+            // temp_output_rgb_buffer += frame_size;
+            // fclose(rgb_output_file);
+
+            // // Write signature to file
+            // memset(current_sig_file_name, 0, size_of_current_sig_file_name);
+            // memcpy(current_sig_file_name, output_sig_path, sizeof(char) * length_of_base_sig_file_name);
+            // sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
+            // char* b64_sig = NULL;
+            // size_t b64_sig_size = 0;
+            // Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
+            // temp_output_sig_buffer += sig_size;
+            // printf("Now writing sig to file: %s, b64_sig: %s, b64_sig_len: %li\n", current_sig_file_name, b64_sig, b64_sig_size);
+            // sig_output_file = fopen(current_sig_file_name, "wb");
+            // fwrite(b64_sig, b64_sig_size, 1, sig_output_file);
+            // fclose(sig_output_file);
+            // free(b64_sig);
+
+            // // Write metadata to file
+            // memset(current_md_file_name, 0, size_of_current_md_file_name);
+            // memcpy(current_md_file_name, output_md_path, sizeof(char) * length_of_base_md_file_name);
+            // sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
+            // printf("Now writing metadata to file: %s\n", current_md_file_name);
+            // md_output_file = fopen(current_md_file_name, "wb");
+            // fwrite(temp_output_md_buffer, md_size, 1, md_output_file);
+            // temp_output_md_buffer += md_size;
+            // fclose(md_output_file);
+        }
+
+        // Send no_more_frame msg
+        memset(msg_buf, 0, size_of_msg_buf);
+        memcpy(msg_buf, "no_more_frame", 13);
+        send_message(msg_buf, size_of_msg_buf);
+        free(msg_buf);
+
     }
 
     // Free everything
@@ -1114,8 +1186,8 @@ int main(int argc, char *argv[], char **env)
 	/* initialize and start the enclave in here */
 	start_enclave(argc, argv);
 
-    size_t size_of_cert = 4 * 4096;
-    unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
+    size_of_cert = 4 * 4096;
+    der_cert = (unsigned char *)malloc(size_of_cert);
     auto start = high_resolution_clock::now();
     t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     auto stop = high_resolution_clock::now();

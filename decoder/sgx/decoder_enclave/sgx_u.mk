@@ -79,7 +79,7 @@ endif
 ######## App Settings ########
 
 
-App_Cpp_Files := $(UNTRUSTED_DIR)/TestApp.cpp $(UNTRUSTED_DIR)/TCPServer.cpp $(UNTRUSTED_DIR)/TCPClient.cpp
+App_Cpp_Files := $(UNTRUSTED_DIR)/TestApp.cpp $(UNTRUSTED_DIR)/tcp_module/TCPServer.cpp $(UNTRUSTED_DIR)/tcp_module/TCPClient.cpp
 App_Cpp_Objects := $(App_Cpp_Files:.cpp=.o)
 
 App_C_Files := $(UNTRUSTED_DIR)/sgxsdk-ra-attester_u.c $(UNTRUSTED_DIR)/ias-ra.c

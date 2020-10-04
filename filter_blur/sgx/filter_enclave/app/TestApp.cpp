@@ -50,6 +50,7 @@
 # define SIZEOFHASH 256
 # define SIZEOFSIGN 512
 # define SIZEOFPUKEY 2048
+# define TARGET_NUM_FILES_RECEIVED 3
 
 #include <sgx_urts.h>
 
@@ -75,6 +76,35 @@
 #include <time.h> /* for time() and ctime() */
 
 #include "metadata.h"
+
+// For TCP module
+#include <ctime>
+#include <cerrno>
+#include <cstring>
+#include "tcp_module/TCPServer.h"
+#include "tcp_module/TCPClient.h"
+
+// For TCP module
+TCPServer tcp_server;
+TCPClient tcp_client;
+pthread_t msg1[MAX_CLIENT];
+int num_message = 0;
+int time_send   = 1;
+int num_of_times_received = 0;
+
+// For incoming data
+long size_of_ias_cert = 0;
+char *ias_cert = NULL;
+long md_json_len = 0;
+char* md_json = NULL;
+long raw_signature_length = 0;
+char* raw_signature = NULL;
+long raw_frame_buf_len = 0;
+char* raw_frame_buf = NULL;
+
+// For outgoing data
+unsigned char *der_cert;
+size_t size_of_cert;
 
 using namespace std;
 
@@ -496,6 +526,18 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     return signature;
 }
 
+unsigned char* decode_signature(char* encoded_sig, long encoded_sig_len, size_t* signatureLength){
+    // Return signature on success, otherwise, return NULL
+    // Need to free the return after finishing using
+    // Make sure you have extra char space for puting EOF at the end of encoded_sig
+
+    encoded_sig[encoded_sig_len] = '\0';
+    unsigned char* signature;
+    Base64Decode(encoded_sig, &signature, signatureLength);
+
+    return signature;
+}
+
 void sha256_hash_string (unsigned char hash[SHA256_DIGEST_LENGTH], char outputBuffer[65])
 {
     int i = 0;
@@ -720,6 +762,263 @@ int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
     return 0;
 }
 
+void close_app(int signum) {
+	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
+	tcp_server.closed();
+	tcp_client.exit();
+	exit(0);
+}
+
+void * received_cert(void * m)
+{
+    // pthread_detach(pthread_self());
+		
+	// std::signal(SIGPIPE, sigpipe_handler);
+	vector<descript_socket*> desc;
+
+	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
+	long remaining_file_size = 0;
+    void* current_writing_location = NULL;
+
+    // Set uniformed msg to skip sleeping
+    int size_of_reply = 100;
+    char* reply_msg = (char*) malloc(size_of_reply);
+
+	while(1)
+	{
+		desc = tcp_server.getMessage();
+		for(unsigned int i = 0; i < desc.size(); i++) {
+			if( desc[i]->message != NULL )
+			{ 
+				// if(!desc[i]->enable_message_runtime) 
+				// {
+				// 	desc[i]->enable_message_runtime = true;
+			    //             if( pthread_create(&msg1[num_message], NULL, send_client, (void *) desc[i]) == 0) {
+				// 		cerr << "ATTIVA THREAD INVIO MESSAGGI" << endl;
+				// 	}
+				// 	num_message++;
+				// 	// start message background thread
+				// }
+
+				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+
+				if(current_mode == 0){
+                    string file_name = desc[i]->message;
+                    // printf("Got new file_name: %s\n", file_name.c_str());
+                    if (file_name != "cert"){
+                        printf("The file_name is not valid: %s\n", file_name);
+                        free(reply_msg);
+                        return 0;
+                    }
+					current_mode = 1;
+				} else if (current_mode == 1){
+					memcpy(&size_of_ias_cert, desc[i]->message, 8);
+					memcpy(&remaining_file_size, desc[i]->message, 8);
+					// printf("File size got: %ld\n", remaining_file_size);
+                    ias_cert = (char*) malloc(size_of_ias_cert * sizeof(char));
+                    current_writing_location = ias_cert;
+					current_mode = 2;
+				} else {
+					// printf("Remaining message size: %ld, where we recevied packet with size: %d, and it is going to be written in file_indicator: %d\n", remaining_file_size, desc[i]->size_of_packet, current_file_indicator);
+					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
+					if(remaining_file_size > desc[i]->size_of_packet){
+                        memcpy(current_writing_location, desc[i]->message, desc[i]->size_of_packet);
+                        current_writing_location += desc[i]->size_of_packet;
+						remaining_file_size -= desc[i]->size_of_packet;
+					} else {
+                        memcpy(current_writing_location, desc[i]->message, remaining_file_size);
+						remaining_file_size = 0;
+						current_mode = 0;
+				        tcp_server.clean(i);
+                        memset(reply_msg, 0, size_of_reply);
+                        memcpy(reply_msg, "received from received_cert 1", 29);
+                        tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+                        free(reply_msg);
+						return 0;
+					}
+				}
+                memset(reply_msg, 0, size_of_reply);
+                memcpy(reply_msg, "received from received_cert 0", 29);
+                tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+				tcp_server.clean(i);
+			}
+		}
+		usleep(1000);
+	}
+    free(reply_msg);
+	return 0;
+}
+
+void * received(void * m)
+{
+    // pthread_detach(pthread_self());
+		
+	// std::signal(SIGPIPE, sigpipe_handler);
+	vector<descript_socket*> desc;
+
+	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
+    int current_file_indicator = -1;   // 0 means frame; 1 means metadata; 2 means signature
+    void* current_writing_location = NULL;
+    long* current_writing_size = NULL;
+	long remaining_file_size = 0;
+
+	int num_of_files_received = 0;
+
+    // Set uniformed msg to skip sleeping
+    int size_of_reply = 100;
+    char* reply_msg = (char*) malloc(size_of_reply);
+
+	while(1)
+	{
+		desc = tcp_server.getMessage();
+		for(unsigned int i = 0; i < desc.size(); i++) {
+			if( desc[i]->message != NULL )
+			{ 
+				// if(!desc[i]->enable_message_runtime) 
+				// {
+				// 	desc[i]->enable_message_runtime = true;
+			    //             if( pthread_create(&msg1[num_message], NULL, send_client, (void *) desc[i]) == 0) {
+				// 		cerr << "ATTIVA THREAD INVIO MESSAGGI" << endl;
+				// 	}
+				// 	num_message++;
+				// 	// start message background thread
+				// }
+
+				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+
+				if(current_mode == 0){
+
+                    string file_name = desc[i]->message;
+                    // printf("Got new file_name: %s\n", file_name.c_str());
+                    if(file_name == "frame"){
+                        current_file_indicator = 0;
+                        current_writing_size = &raw_frame_buf_len;
+                    } else if (file_name == "meta"){
+                        current_file_indicator = 1;
+                        current_writing_size = &md_json_len;
+                    } else if (file_name == "sig"){
+                        current_file_indicator = 2;
+                        current_writing_size = &raw_signature_length;
+                    } else if (file_name == "no_more_frame"){
+                        printf("no_more_frame received...finished processing...\n");
+                        free(reply_msg);
+                        return 0;
+                    } else {
+                        printf("The file_name is not valid: %s\n", file_name);
+                        free(reply_msg);
+                        return 0;
+                    }
+					current_mode = 1;
+				} else if (current_mode == 1){
+                    memcpy(current_writing_size, desc[i]->message, 8);
+					memcpy(&remaining_file_size, desc[i]->message, 8);
+					// printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
+                    // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
+                    switch(current_file_indicator){
+                        case 0:
+                            raw_frame_buf = (char*) malloc(*current_writing_size * sizeof(char));
+                            current_writing_location = raw_frame_buf;
+                            break;
+                        case 1:
+                            md_json = (char*) malloc(*current_writing_size * sizeof(char));
+                            current_writing_location = md_json;
+                            break;
+                        case 2:
+                            raw_signature = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                            current_writing_location = raw_signature;
+                            break;
+                        default:
+                            printf("No file indicator is set, aborted...\n");
+                            free(reply_msg);
+                            return 0;
+                    }
+					current_mode = 2;
+				} else {
+					// printf("Remaining message size: %ld, where we recevied packet with size: %d, and it is going to be written in file_indicator: %d\n", remaining_file_size, desc[i]->size_of_packet, current_file_indicator);
+					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
+					if(remaining_file_size > desc[i]->size_of_packet){
+                        // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
+                        memcpy(current_writing_location, desc[i]->message, desc[i]->size_of_packet);
+                        current_writing_location += desc[i]->size_of_packet;
+						remaining_file_size -= desc[i]->size_of_packet;
+					} else {
+                        // printf("!!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
+                        memcpy(current_writing_location, desc[i]->message, remaining_file_size);
+						remaining_file_size = 0;
+						current_mode = 0;
+						++num_of_files_received;
+                        // printf("num_of_files_received: %d\n", num_of_files_received);
+						if(num_of_files_received == TARGET_NUM_FILES_RECEIVED){
+				            tcp_server.clean(i);
+                            memset(reply_msg, 0, size_of_reply);
+                            memcpy(reply_msg, "received from received 1", 24);
+                            tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+                            free(reply_msg);
+							return 0;
+						}
+					}
+				}
+                memset(reply_msg, 0, size_of_reply);
+                memcpy(reply_msg, "received from received 0", 24);
+                tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+				tcp_server.clean(i);
+			}
+		}
+		usleep(1000);
+	}
+    free(reply_msg);
+	return 0;
+}
+
+int send_buffer(void* buffer, long buffer_lenth){
+    // Return 0 on success, return 1 on failure
+
+	// Send size of buffer
+	printf("Sending buffer size: %d\n", buffer_lenth);
+	tcp_client.Send(&buffer_lenth, sizeof(long));
+	string rec = tcp_client.receive();
+	if( rec != "" )
+	{
+		// cout << rec << endl;
+	}
+	// sleep(1);
+	usleep(2000);
+
+    long remaining_size_of_buffer = buffer_lenth;
+    void* temp_buffer = buffer;
+
+	while(1)
+	{
+        if(remaining_size_of_buffer > SIZEOFPACKAGE){
+		    tcp_client.Send(temp_buffer, SIZEOFPACKAGE);
+            remaining_size_of_buffer -= SIZEOFPACKAGE;
+            temp_buffer += SIZEOFPACKAGE;
+        } else {
+		    tcp_client.Send(temp_buffer, remaining_size_of_buffer);
+        }
+		string rec = tcp_client.receive();
+		if( rec != "" )
+		{
+			// cout << rec << endl;
+		}
+		// sleep(1);
+		usleep(2000);
+	}
+
+    return 0;
+}
+
+void send_message(string message){
+	tcp_client.Send(message);
+	string rec = tcp_client.receive();
+	if( rec != "" )
+	{
+		// cout << rec << endl;
+	}
+	// sleep(1);
+	usleep(500);
+}
+
 int verification_reply(
 	int socket_fd,
 	struct sockaddr *saddr_p,
@@ -728,6 +1027,7 @@ int verification_reply(
 	uint32_t recv_time[],
     char** argv)
 {
+    // Return 0 for finish successfully for a single frame; 1 for failure
 	fflush(stdout);
     int ret = 1;
     char* raw_file_sig_path  = argv[2];
@@ -737,65 +1037,21 @@ int verification_reply(
 
     int path_len = 200;
 
-    if (is_previous_ias_verified == 0){
-        // Read Certificate and its vendor public key
-        char* ias_cert_file_name = argv[1];
-
-        FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
-        if (!ias_cert_file) {
-            cout << "Could not open IAS certificate file" << endl;
-            return 1;
-        }
-        fseek(ias_cert_file, 0, SEEK_END);
-        size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
-        fseek(ias_cert_file, 0, SEEK_SET);
-        char* ias_cert = (char*)malloc(size_of_ias_cert);
-        if (!ias_cert) {
-            cout << "Not enough memory" << endl;
-            free(ias_cert);
-            fclose(ias_cert_file);
-            return 1;
-        }
-        size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
-        if (fread_result != size_of_ias_cert) {
-            cout << "Failed to read IAS certificate file" << endl;
-            free(ias_cert);
-            fclose(ias_cert_file);
-            return 1;
-        }
-        fclose(ias_cert_file);
-
-        // Verify certificate in enclave
-        sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, size_of_ias_cert);
-
-        if (status_of_verification != SGX_SUCCESS) {
-            cout << "Failed to read IAS certificate file" << endl;
-            free(ias_cert);
-            return ret;
-        }
-        free(ias_cert);
-
-        // Reset ret
-        ret = 1;
-
-        // Set is_previous_ias_verified
-        is_previous_ias_verified = 1;
-    }
-
-    // Read metadata
-    long md_json_len = 0;
-    char input_md_path[path_len];
-    snprintf(input_md_path, path_len, "%s%s.json", raw_md_path, (char*)recv_buf);
-    printf("Going to read meatadata: %s\n", input_md_path);
-    char* md_json = read_file_as_str(input_md_path, &md_json_len);
-    if (!md_json) {
-        printf("Failed to read metadata\n");
-        return 1;
-    }
-    if (md_json[md_json_len - 1] == '\0') md_json_len--;
-    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    // // Read metadata
+    // long md_json_len = 0;
+    // char input_md_path[path_len];
+    // snprintf(input_md_path, path_len, "%s%s.json", raw_md_path, (char*)recv_buf);
+    // printf("Going to read meatadata: %s\n", input_md_path);
+    // char* md_json = read_file_as_str(input_md_path, &md_json_len);
+    // if (!md_json) {
+    //     printf("Failed to read metadata\n");
+    //     return 1;
+    // }
 
     // Parse metadata
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    // printf("md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
         printf("Failed to parse metadata\n");
@@ -805,41 +1061,39 @@ int verification_reply(
     // Set up some basic parameters
     int frame_size = md->width * md->height * 3 * sizeof(unsigned char);
 
-    // Read Signature
+    // Parse Signature
+    // printf("raw_signature going to be used is: [%s]\n", raw_signature);
     auto start = high_resolution_clock::now();
-
-    unsigned char* raw_signature;
-    size_t raw_signature_length;
-    char raw_file_signature_name[path_len];
-    snprintf(raw_file_signature_name, path_len, "%s%s", raw_file_sig_path, (char*)recv_buf);
-    raw_signature = read_signature(raw_file_signature_name, &raw_signature_length);
-
+    size_t vid_sig_length = 0;
+    unsigned char* vid_sig = decode_signature(raw_signature, raw_signature_length, &vid_sig_length);
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
 
-    // Read Raw Image
+    // Parse Raw Image
+    // printf("Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size * sizeof(char), raw_frame_buf_len);
     start = high_resolution_clock::now();
-
-    pixel* image_pixels;
-    char raw_file_name[path_len];
-    snprintf(raw_file_name, path_len, "%s%s", raw_file_path, (char*)recv_buf);
-    int result_of_reading_raw_file = read_raw_file_b(raw_file_name, frame_size, &image_pixels);
-    
+    pixel* image_pixels = (pixel*)malloc(frame_size * sizeof(char));
+    if (!image_pixels) {
+        printf("No memory left(image_pixels)\n");
+        return 1;
+    }
+    memcpy(image_pixels, raw_frame_buf, raw_frame_buf_len);
+    // printf("Very first set of image pixel: %d, %d, %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
+    // int last_pixel_position = md->height * md->width - 1;
+    // printf("Very last set of image pixel: %d, %d, %d\n", image_pixels[last_pixel_position].r, image_pixels[last_pixel_position].g, image_pixels[last_pixel_position].b);
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
 
     // Prepare processed Image
     start = high_resolution_clock::now();
-
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
     if (!processed_pixels) {
-        printf("No memory left\n");
+        printf("No memory left(processed_pixels)\n");
         return 1;
     }
-
     // Prepare for signature output and its hash
     size_t size_of_processed_img_signature = 384;
     unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
@@ -847,7 +1101,6 @@ int verification_reply(
         printf("No memory left\n");
         return 1;
     }
-
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
@@ -857,7 +1110,7 @@ int verification_reply(
     char* out_md_json = (char*)malloc(out_md_json_len + 1);
     memset(out_md_json, 0, out_md_json_len + 1);
     if (!out_md_json) {
-        printf("No memory left\n");
+        printf("No memory left(out_md_json)\n");
         return 1;
     }
 
@@ -868,7 +1121,7 @@ int verification_reply(
         global_eid, &ret,
         image_pixels, sizeof(pixel) * md->width * md->height,
         md_json, md_json_len, 
-        raw_signature, raw_signature_length, 
+        vid_sig, vid_sig_length, 
         processed_pixels,
         out_md_json, out_md_json_len, 
         processed_img_signature, size_of_processed_img_signature);
@@ -886,58 +1139,66 @@ int verification_reply(
         return 1;
     }
 
-    // Save processed frame
-    start = high_resolution_clock::now();
+    // // Save processed frame
+    // start = high_resolution_clock::now();
 
-    char processed_raw_file_name[200];
-    snprintf(processed_raw_file_name, 200, "../../../video_data/processed_raw/processed_raw_%s", (char*) recv_buf);
-    int result_of_frame_saving = save_processed_frame_b(processed_pixels, frame_size, processed_raw_file_name);
-    if(result_of_frame_saving != 0){
-        printf("Processed frame %s cannot be saved...\n", (char*) recv_buf);
-        return 1;
-    }
+    // char processed_raw_file_name[200];
+    // snprintf(processed_raw_file_name, 200, "../../../video_data/processed_raw/processed_raw_%s", (char*) recv_buf);
+    // int result_of_frame_saving = save_processed_frame_b(processed_pixels, frame_size, processed_raw_file_name);
+    // if(result_of_frame_saving != 0){
+    //     printf("Processed frame %s cannot be saved...\n", (char*) recv_buf);
+    //     return 1;
+    // }
 
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
+    // end = high_resolution_clock::now();
+    // duration = duration_cast<microseconds>(end - start);
+    // eval_file << duration.count() << ", "; 
 
-    // Save processed filter singature
-    start = high_resolution_clock::now();
+    // // Save processed filter singature
+    // start = high_resolution_clock::now();
 
-    int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_processed_img_signature, (char*) recv_buf);
-    if(result_of_filter_sign_saving != 0){
-        return 1;
-    }
+    // int result_of_filter_sign_saving = save_signature(processed_img_signature, size_of_processed_img_signature, (char*) recv_buf);
+    // if(result_of_filter_sign_saving != 0){
+    //     return 1;
+    // }
 
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
+    // end = high_resolution_clock::now();
+    // duration = duration_cast<microseconds>(end - start);
+    // eval_file << duration.count() << ", "; 
 
-    // Save metadata
-    char output_md_file_name[200];
-    char* dirname = "../../../video_data/processed_raw_md/";
-    mkdir(dirname, 0777);
-    memcpy(output_md_file_name, output_md_path, strlen(output_md_path));
-    sprintf(output_md_file_name + strlen(output_md_path), "%s.json", (char*)recv_buf);
-    FILE* md_output_file = fopen(output_md_file_name, "wb");
-    fwrite(out_md_json, out_md_json_len, 1, md_output_file);
-    fclose(md_output_file);
+    // // Save metadata
+    // char output_md_file_name[200];
+    // char* dirname = "../../../video_data/processed_raw_md/";
+    // mkdir(dirname, 0777);
+    // memcpy(output_md_file_name, output_md_path, strlen(output_md_path));
+    // sprintf(output_md_file_name + strlen(output_md_path), "%s.json", (char*)recv_buf);
+    // FILE* md_output_file = fopen(output_md_file_name, "wb");
+    // fwrite(out_md_json, out_md_json_len, 1, md_output_file);
+    // fclose(md_output_file);
 
     // Free Everything (for video_provenance project)
     start = high_resolution_clock::now();
 
+    if(raw_frame_buf){
+        free(raw_frame_buf);
+        raw_frame_buf = NULL;
+    }
     if(image_pixels)
         free(image_pixels);
     if(processed_pixels)
         free(processed_pixels);
-    if(raw_signature)
+    if(raw_signature){
         free(raw_signature);
+        raw_signature = NULL;
+    }
     if(processed_img_signature)
         free(processed_img_signature);
     if(md)
         free(md);
-    if(md_json)
+    if(md_json){
         free(md_json);
+        md_json = NULL;
+    }
     if(out_md_json)
         free(out_md_json);
 
@@ -957,28 +1218,75 @@ void request_process_loop(int fd, char** argv)
 	uint32_t recv_time[2];
 	pid_t pid;
 
-	while (1) {
-		while (recvfrom(fd, buf,
-				48, 0,
-				&src_addr,
-				&src_addrlen)
-			< 48 );  /* invalid request */
+    
+    // Register signal handlers
+    std::signal(SIGINT, close_app);
+	std::signal(SIGPIPE, sigpipe_handler);
 
-		gettime64(recv_time);
-
-        if(strcmp((char*) buf, "no_more_frame") == 0){
-            printf("No more frame detected, calling encode...\n");
-            system("cd ../../../encoder/tee/sgx/encoder_ra/; ./attempt_run_encoder.sh");
-            break;
+    // First we receive IAS certificate and verify it
+    pthread_t msg;
+    // Receive ias cert
+    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
+    if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
+        if( pthread_create(&msg, NULL, received_cert, (void *)0) == 0)
+        {
+            while(1) {
+                tcp_server.accepted();
+                cerr << "Accepted" << endl;
+                pthread_join(msg, NULL);
+                printf("ias cert received successfully...\n");
+                break;
+            }
         }
+    }
+    else
+        cerr << "Errore apertura socket" << endl;
 
-        auto start = high_resolution_clock::now();
-		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
-        auto stop = high_resolution_clock::now();
-        auto duration = duration_cast<microseconds>(stop - start);
-        eval_file << duration.count() << endl; 
+    // Verify certificate in enclave
+    int ret;
+    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
 
-	}
+    if (status_of_verification != SGX_SUCCESS) {
+        cout << "Failed to read IAS certificate file" << endl;
+        free(ias_cert);
+        return;
+    }
+    free(ias_cert);
+
+    printf("ias certificate verified successfully, going to start receving and processing frames...\n");
+	// tcp_server.closed();
+
+    // if( tcp_server.setup(atoi(argv[1]),opts) != 0){
+    //     printf("Second time of setting up tcp server failed...\n");
+    // }
+
+    while(1) {
+        // Receive frame info
+        if( pthread_create(&msg, NULL, received, (void *)0) == 0)
+        {
+            // tcp_server.accepted();
+            // cerr << "Accepted" << endl;
+            ++num_of_times_received;
+            // printf("num_of_times_received: %d\n", num_of_times_received);
+            pthread_join(msg, NULL);
+            if(md_json == NULL){
+                printf("No more frame to be processed...\n");
+                break;
+            }
+            auto start = high_resolution_clock::now();
+            int process_status = verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
+            if(process_status != 0){
+                printf("frame process error...exiting...\n");
+                break;
+            }
+            auto stop = high_resolution_clock::now();
+            auto duration = duration_cast<microseconds>(stop - start);
+            eval_file << duration.count() << endl; 
+            printf("frame %d processed successfully\n", num_of_times_received);
+        } else {
+            printf("pthread created failed...\n");
+        }
+    }
 }
 
 
@@ -1054,8 +1362,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 5){
-        printf("Usage: ./TestApp [path_to_ias_cert] [path_to_frame_signature] [path_to_frame] [path_to_input_md_json] [path_to_output_md_json]\n");
+    if(argc < 4){
+        printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
         return 1;
     }
 
@@ -1073,67 +1381,13 @@ int main(int argc, char *argv[], char **env)
     auto duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
 
-    size_t size_of_cert = 4 * 4096;
-    unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
+    size_of_cert = 4 * 4096;
+    der_cert = (unsigned char *)malloc(size_of_cert);
     start = high_resolution_clock::now();
     t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
-
-    // Save Enclave certificate
-    char* cert_file_name = "../video_data/filter_cert.der";
-    FILE* cert_file = fopen(cert_file_name, "wb");
-    fwrite(der_cert, size_of_cert, 1, cert_file);
-    fclose(cert_file);
-
-    // // Read Certificate and its vendor public key
-    // char* ias_cert_file_name = argv[1];
-    // start = high_resolution_clock::now();
-
-    // FILE* ias_cert_file = fopen(ias_cert_file_name, "rb");
-    // if (!ias_cert_file) {
-    //     cout << "Could not open IAS certificate file" << endl;
-    //     return 1;
-    // }
-    // fseek(ias_cert_file, 0, SEEK_END);
-    // size_t size_of_ias_cert = (size_t)ftell(ias_cert_file);
-    // fseek(ias_cert_file, 0, SEEK_SET);
-    // char* ias_cert = (char*)malloc(size_of_ias_cert);
-    // if (!ias_cert) {
-    //     cout << "Not enough memory" << endl;
-    //     free(ias_cert);
-    //     fclose(ias_cert_file);
-    //     return 1;
-    // }
-    // size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, ias_cert_file);
-    // if (fread_result != size_of_ias_cert) {
-    //     cout << "Failed to read IAS certificate file" << endl;
-    //     free(ias_cert);
-    //     fclose(ias_cert_file);
-    //     return 1;
-    // }
-    // fclose(ias_cert_file);
-
-    // end = high_resolution_clock::now();
-    // duration = duration_cast<microseconds>(end - start);
-    // eval_file << duration.count() << ", "; 
-
-    // // Verify certificate in enclave
-    // int ret = 0;
-    // sgx_status_t status = t_verify_cert(global_eid, &ret, ias_cert, size_of_ias_cert);
-    // start = high_resolution_clock::now();
-
-    // if (status != SGX_SUCCESS) {
-    //     cout << "Failed to read IAS certificate file" << endl;
-    //     free(ias_cert);
-    //     return ret;
-    // }
-    // free(ias_cert);
-
-    // end = high_resolution_clock::now();
-    // duration = duration_cast<microseconds>(end - start);
-    // eval_file << duration.count() << endl; 
 
 	/* create the server waiting for the verification request from the client */
 	int s;

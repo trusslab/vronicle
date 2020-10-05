@@ -48,6 +48,7 @@
 # define SIZEOFHASH 256
 # define SIZEOFSIGN 512
 # define SIZEOFPUKEY 2048
+# define TARGET_NUM_FILES_RECEIVED 3
 
 #include <sgx_urts.h>
 
@@ -77,6 +78,13 @@
 
 #include <time.h> /* for time() and ctime() */
 
+// For TCP module
+#include <ctime>
+#include <cerrno>
+#include <cstring>
+#include "tcp_module/TCPServer.h"
+#include "tcp_module/TCPClient.h"
+
 using namespace std;
 
 #include <chrono> 
@@ -93,11 +101,56 @@ typedef struct _sgx_errlist_t {
 
 unsigned char* image_buffer = NULL;	/* Points to large array of R,G,B-order data */
 unsigned char* pure_input_image_str = NULL; /* for signature verification purpose */
-pixel* image_pixels;    /* also RGB, but all 3 vales in a single instance (used for processing filter) */
 int image_height = 0;	/* Number of rows in image */
 int image_width = 0;		/* Number of columns in image */
 
 char* hash_of_file;  /* temp test */
+
+/* Encoder Related definitions and variables */
+#define DEFAULT_GOP 20
+#define DEFAULT_QP 33
+#define DEFAULT_DENOISE 0
+#define DEFAULT_FPS 30
+#define DEFAULT_IS_YUYV 0
+#define DEFAULT_IS_RGB 0
+
+#define ENABLE_TEMPORAL_SCALABILITY 0
+#define MAX_LONG_TERM_FRAMES        8 // used only if ENABLE_TEMPORAL_SCALABILITY==1
+
+#define DEFAULT_MAX_FRAMES  99999
+
+H264E_create_param_t create_param;
+H264E_run_param_t run_param;
+H264E_io_yuv_t yuv;
+H264E_io_yuy2_t yuyv;
+uint8_t *buf_in, *buf_save;
+uint8_t *yuyv_buf_in, *temp_buf_in, *p;
+uint8_t *coded_data, *all_coded_data;
+char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_ias_cert_file, *out_ias_cert_file, *in_md_file, *out_md_file;
+int sizeof_coded_data, _qp;
+cmdline *cl;
+
+// TCP Related parameters
+int incoming_port = 0;
+int port_for_viewer = 0;
+TCPServer tcp_server;
+TCPServer tcp_server_for_viewer;
+pthread_t msg1[MAX_CLIENT];
+int num_message = 0;
+int time_send   = 1;
+int num_of_times_received = 0;
+int size_of_msg_buf = 100;
+char* msg_buf;
+
+// For incoming data
+long size_of_ias_cert = 0;
+char *ias_cert = NULL;
+long md_json_len = 0;
+char* md_json = NULL;
+long raw_signature_length = 0;
+char* raw_signature = NULL;
+long raw_frame_buf_len = 0;
+char* raw_frame_buf = NULL;
 
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
@@ -203,30 +256,6 @@ struct evp_pkey_st {
     STACK_OF(X509_ATTRIBUTE) *attributes; /* [ 0 ] */
     CRYPTO_RWLOCK *lock;
 } /* EVP_PKEY */ ;
-
-/* Encoder Related definitions and variables */
-#define DEFAULT_GOP 20
-#define DEFAULT_QP 33
-#define DEFAULT_DENOISE 0
-#define DEFAULT_FPS 30
-#define DEFAULT_IS_YUYV 0
-#define DEFAULT_IS_RGB 0
-
-#define ENABLE_TEMPORAL_SCALABILITY 0
-#define MAX_LONG_TERM_FRAMES        8 // used only if ENABLE_TEMPORAL_SCALABILITY==1
-
-#define DEFAULT_MAX_FRAMES  99999
-
-H264E_create_param_t create_param;
-H264E_run_param_t run_param;
-H264E_io_yuv_t yuv;
-H264E_io_yuy2_t yuyv;
-uint8_t *buf_in, *buf_save;
-uint8_t *yuyv_buf_in, *temp_buf_in, *p;
-uint8_t *coded_data, *all_coded_data;
-char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_ias_cert_file, *out_ias_cert_file, *in_md_file, *out_md_file;
-int sizeof_coded_data, _qp;
-cmdline *cl;
 
 void Base64Encode( const unsigned char* buffer,
                    size_t length,
@@ -523,40 +552,22 @@ static int read_cmdline_options(int argc, char *argv[])
                 printf("ERROR: Unknown option %s\n", p - 1);
                 return 0;
             }
-        } else if (!input_file && !cl->gen)
+        } else if (!incoming_port && !cl->gen)
         {
-            input_file = p;
-        } else if (!output_file)
+            incoming_port = atoi(p);
+        } else if (!port_for_viewer)
         {
-            output_file = p;
-        } else if (!input_file_sig)
-        {
-            input_file_sig = p;
-        } else if (!output_file_sig)
-        {
-            output_file_sig = p;
-        } else if (!in_ias_cert_file)
-        {
-            in_ias_cert_file = p;
-        } else if (!out_ias_cert_file)
-        {
-            out_ias_cert_file = p;
-        } else if (!in_md_file)
-        {
-            in_md_file = p;
-        } else if (!out_md_file)
-        {
-            out_md_file = p;
+            port_for_viewer = atoi(p);
         } else
         {
             printf("ERROR: Unknown option %s\n", p);
             return 0;
         }
     }
-    if (!input_file && !cl->gen)
+    if (!incoming_port && !cl->gen)
     {
         printf("Usage:\n"
-               "    h264e_test [options] <path_to_input_frames> <output.264> <path_to_input_frame_sigs> <output.sig> <path_to_filter_cert> <encoder_cert.der>\n"
+               "    EncoderApp [options] <incoming_port> <port_for_viewer>\n"
                "Frame size can be: WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif\n"
                "    4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA\n"
                "Options:\n"
@@ -572,7 +583,7 @@ static int read_cmdline_options(int argc, char *argv[])
                "    -psnr           - print psnr statistics\n"
                "    -fps<n>         - set target fps of the video, default is 30\n"
                "    -is_yuyv        - if the frames' chroma is in yuyv 4:2:2 packed format(note that psnr might not work when using yuyv)\n"
-               "    -is_rgb         - if the frames' chroma is in rgb packed format(note that psnr might not work when using rgb)");
+               "    -is_rgb         - if the frames' chroma is in rgb packed format(note that psnr might not work when using rgb)\n");
         return 0;
     }
     return 1;
@@ -747,68 +758,17 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     return signature;
 }
 
-// Keep the following two functions in case we need it in the future
+unsigned char* decode_signature(char* encoded_sig, long encoded_sig_len, size_t* signatureLength){
+    // Return signature on success, otherwise, return NULL
+    // Need to free the return after finishing using
+    // Make sure you have extra char space for puting EOF at the end of encoded_sig
 
-// void request_process_loop(int fd, char** argv)
-// {
-// 	struct sockaddr src_addr;
-// 	socklen_t src_addrlen = sizeof(src_addr);
-// 	unsigned char buf[48];
-// 	uint32_t recv_time[2];
-// 	pid_t pid;
+    encoded_sig[encoded_sig_len] = '\0';
+    unsigned char* signature;
+    Base64Decode(encoded_sig, &signature, signatureLength);
 
-// 	while (1) {
-// 		while (recvfrom(fd, buf,
-// 				48, 0,
-// 				&src_addr,
-// 				&src_addrlen)
-// 			< 48 );  /* invalid request */
-
-// 		gettime64(recv_time);
-
-//         if(strcmp((char*) buf, "no_more_frame") == 0){
-//             printf("No more frame detected, ending encalve server...\n");
-//             break;
-//         }
-
-//         auto start = high_resolution_clock::now();
-// 		verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
-//         auto stop = high_resolution_clock::now();
-//         auto duration = duration_cast<microseconds>(stop - start);
-//         cout << "Processing frame " << (char*)buf << " takes time: " << duration.count() << endl; 
-
-// 	}
-// }
-
-
-// void sgx_server(char** argv)
-// {
-// 	int s;
-// 	struct sockaddr_in sinaddr;
-
-// 	s = socket(AF_INET, SOCK_DGRAM, 0);
-// 	if (s == -1) {
-// 		perror("Can not create socket.");
-// 		die(NULL);
-// 	}
-
-// 	memset(&sinaddr, 0, sizeof(sinaddr));
-// 	sinaddr.sin_family = AF_INET;
-// 	sinaddr.sin_port = htons(123);
-// 	sinaddr.sin_addr.s_addr = INADDR_ANY;
-
-// 	if (0 != bind(s, (struct sockaddr *)&sinaddr, sizeof(sinaddr))) {
-// 		perror("Bind error");
-// 		die(NULL);
-// 	}
-
-// 	log_ntp_event(	"\n========================================\n"
-// 			"= Server started, waiting for requests =\n"
-// 			"========================================\n");
-
-// 	request_process_loop(s, argv);
-// 	close(s);
-// }
+    return signature;
+}
 
 int start_enclave()
 {
@@ -825,6 +785,208 @@ void wait_wrapper(int s)
 	wait(&s);
 }
 
+void close_app(int signum) {
+	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
+    tcp_server.closed();
+    tcp_server_for_viewer.closed();
+	exit(0);
+}
+
+void * received_cert(void * m)
+{
+    // pthread_detach(pthread_self());
+	usleep(500);
+	// std::signal(SIGPIPE, sigpipe_handler);
+	vector<descript_socket*> desc;
+
+	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
+	long remaining_file_size = 0;
+    void* current_writing_location = NULL;
+
+    // Set uniformed msg to skip sleeping
+    int size_of_reply = 100;
+    char* reply_msg = (char*) malloc(size_of_reply);
+
+	while(1)
+	{
+        
+		desc = tcp_server.getMessage();
+		for(unsigned int i = 0; i < desc.size(); i++) {
+			if( desc[i]->message != NULL )
+			{ 
+				// if(!desc[i]->enable_message_runtime) 
+				// {
+				// 	desc[i]->enable_message_runtime = true;
+			    //             if( pthread_create(&msg1[num_message], NULL, send_client, (void *) desc[i]) == 0) {
+				// 		cerr << "ATTIVA THREAD INVIO MESSAGGI" << endl;
+				// 	}
+				// 	num_message++;
+				// 	// start message background thread
+				// }
+
+				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+
+				if(current_mode == 0){
+                    string file_name = desc[i]->message;
+                    // printf("Got new file_name: %s\n", file_name.c_str());
+                    if (file_name != "cert"){
+                        printf("The file_name is not valid: %s\n", file_name);
+                        free(reply_msg);
+                        return 0;
+                    }
+					current_mode = 1;
+				} else if (current_mode == 1){
+					memcpy(&size_of_ias_cert, desc[i]->message, 8);
+					memcpy(&remaining_file_size, desc[i]->message, 8);
+					// printf("File size got: %ld\n", remaining_file_size);
+                    ias_cert = (char*) malloc(size_of_ias_cert * sizeof(char));
+                    current_writing_location = ias_cert;
+					current_mode = 2;
+				} else {
+					// printf("Remaining message size: %ld, where we recevied packet with size: %d, and it is going to be written in file_indicator: %d\n", remaining_file_size, desc[i]->size_of_packet, current_file_indicator);
+					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
+					if(remaining_file_size > desc[i]->size_of_packet){
+                        memcpy(current_writing_location, desc[i]->message, desc[i]->size_of_packet);
+                        current_writing_location += desc[i]->size_of_packet;
+						remaining_file_size -= desc[i]->size_of_packet;
+					} else {
+                        memcpy(current_writing_location, desc[i]->message, remaining_file_size);
+						remaining_file_size = 0;
+						current_mode = 0;
+				        tcp_server.clean(i);
+                        memset(reply_msg, 0, size_of_reply);
+                        memcpy(reply_msg, "received from received_cert 1", 29);
+                        tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+                        free(reply_msg);
+						return 0;
+					}
+				}
+                memset(reply_msg, 0, size_of_reply);
+                memcpy(reply_msg, "received from received_cert 0", 29);
+                tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+				tcp_server.clean(i);
+			}
+		}
+		usleep(500);
+	}
+    free(reply_msg);
+	return 0;
+}
+
+void * received(void * m)
+{
+    // pthread_detach(pthread_self());
+	usleep(500);
+	// std::signal(SIGPIPE, sigpipe_handler);
+	vector<descript_socket*> desc;
+
+	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
+    int current_file_indicator = -1;   // 0 means frame; 1 means metadata; 2 means signature
+    void* current_writing_location = NULL;
+    long* current_writing_size = NULL;
+	long remaining_file_size = 0;
+
+	int num_of_files_received = 0;
+
+    // Set uniformed msg to skip sleeping
+    int size_of_reply = 100;
+    char* reply_msg = (char*) malloc(size_of_reply);
+
+	while(1)
+	{
+        // printf("In received...\n");
+		desc = tcp_server.getMessage();
+        // printf("Got message..\n");
+		for(unsigned int i = 0; i < desc.size(); i++) {
+            // printf("Checking i: %d\n", i);
+			if( desc[i]->message != NULL )
+			{ 
+				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+
+				if(current_mode == 0){
+
+                    string file_name = desc[i]->message;
+                    // printf("Got new file_name: %s\n", file_name.c_str());
+                    if(file_name == "frame"){
+                        current_file_indicator = 0;
+                        current_writing_size = &raw_frame_buf_len;
+                    } else if (file_name == "meta"){
+                        current_file_indicator = 1;
+                        current_writing_size = &md_json_len;
+                    } else if (file_name == "sig"){
+                        current_file_indicator = 2;
+                        current_writing_size = &raw_signature_length;
+                    } else if (file_name == "no_more_frame"){
+                        printf("no_more_frame received...finished processing...\n");
+                        free(reply_msg);
+                        return 0;
+                    } else {
+                        printf("The file_name is not valid: %s\n", file_name);
+                        free(reply_msg);
+                        return 0;
+                    }
+					current_mode = 1;
+				} else if (current_mode == 1){
+                    memcpy(current_writing_size, desc[i]->message, 8);
+					memcpy(&remaining_file_size, desc[i]->message, 8);
+					// printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
+                    // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
+                    switch(current_file_indicator){
+                        case 0:
+                            raw_frame_buf = (char*) malloc(*current_writing_size * sizeof(char));
+                            current_writing_location = raw_frame_buf;
+                            break;
+                        case 1:
+                            md_json = (char*) malloc(*current_writing_size * sizeof(char));
+                            current_writing_location = md_json;
+                            break;
+                        case 2:
+                            raw_signature = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                            current_writing_location = raw_signature;
+                            break;
+                        default:
+                            printf("No file indicator is set, aborted...\n");
+                            free(reply_msg);
+                            return 0;
+                    }
+					current_mode = 2;
+				} else {
+					// printf("Remaining message size: %ld, where we recevied packet with size: %d, and it is going to be written in file_indicator: %d\n", remaining_file_size, desc[i]->size_of_packet, current_file_indicator);
+					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
+					if(remaining_file_size > desc[i]->size_of_packet){
+                        // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
+                        memcpy(current_writing_location, desc[i]->message, desc[i]->size_of_packet);
+                        current_writing_location += desc[i]->size_of_packet;
+						remaining_file_size -= desc[i]->size_of_packet;
+					} else {
+                        // printf("!!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
+                        memcpy(current_writing_location, desc[i]->message, remaining_file_size);
+						remaining_file_size = 0;
+						current_mode = 0;
+						++num_of_files_received;
+                        // printf("num_of_files_received: %d\n", num_of_files_received);
+						if(num_of_files_received == TARGET_NUM_FILES_RECEIVED){
+				            tcp_server.clean(i);
+                            memset(reply_msg, 0, size_of_reply);
+                            memcpy(reply_msg, "received from received 1", 24);
+                            tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+                            // printf("One time finished...going to call free for reply_msg and return...\n");
+                            free(reply_msg);
+							return 0;
+						}
+					}
+				}
+                memset(reply_msg, 0, size_of_reply);
+                memcpy(reply_msg, "received from received 0", 24);
+                tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+				tcp_server.clean(i);
+			}
+		}
+		usleep(500);
+	}
+    free(reply_msg);
+	return 0;
+}
 
 /* Application entry */
 int main(int argc, char *argv[], char **env)
@@ -833,26 +995,19 @@ int main(int argc, char *argv[], char **env)
     FILE *fin, *fout, *fsig, *fcert, *fmd;
     sgx_status_t status;
 
+    // Register signal handlers
+    std::signal(SIGINT, close_app);
+	std::signal(SIGPIPE, sigpipe_handler);
+
     // Initialize variables
     if (!read_cmdline_options(argc, argv))
         return 1;
 
-    // printf("Input parameters:\n\
-    //         input_file             : %s\n\
-    //         output_file            : %s\n\
-    //         input_file_sig         : %s\n\
-    //         output_file_sig        : %s\n\
-    //         in_ias_cert_file       : %s\n\
-    //         out_ias_cert_file      : %s\n",
-    //         fnin, fnout, fninsig, fnoutsig, fniniascert, fnoutiascert
-    //       );
-
-    if (!output_file)
-        output_file = "output.h264";
-    if (!output_file_sig)
-        output_file_sig = "output.sig";
-    if (!out_ias_cert_file)
-        out_ias_cert_file = "encoder_cert.der";
+    // Check if incoming_port and port_for_viewer are set correctly
+    if(incoming_port <= 0 || port_for_viewer <= 0){
+        printf("Incoming port: %d or Port for viewer %d is invalid\n", incoming_port, port_for_viewer);
+    }
+    printf("Incoming port: %d; Port for viewer %d\n", incoming_port, port_for_viewer);
 
 	// Initialize and start the enclave
 	start_enclave();
@@ -868,82 +1023,68 @@ int main(int argc, char *argv[], char **env)
     }
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Conducting RA took time: " << duration.count() << endl; 
+    cout << "Conducting RA took time: " << duration.count() << endl;
 
-    // Save Enclave cert
-    FILE* out_cert_file = fopen(out_ias_cert_file, "w");
-    fwrite(der_cert, size_of_cert, 1, out_cert_file);
-    fclose(out_cert_file);
-
-	/* create the server waiting for the verification request from the client */
-	// signal(SIGCHLD,wait_wrapper);
-	// sgx_server(argv);
-
-    // Verify IAS certificate
-    printf("Reading in_ias_cert_file: %s\n", in_ias_cert_file);
-    fcert = fopen(in_ias_cert_file, "r");
-    if (!fcert)
-    {
-        printf("ERROR: cant open IAS cert file %s\n", in_ias_cert_file);
-        return 1;
+    // Receive and verify IAS certificate
+    pthread_t msg;
+    // Receive ias cert
+    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
+    if( tcp_server.setup(incoming_port,opts) == 0) {
+        if( pthread_create(&msg, NULL, received_cert, (void *)0) == 0)
+        {
+            printf("Waiting for incoming connection for ias certificate...\n");
+            while(1) {
+                tcp_server.accepted();
+                cerr << "Accepted" << endl;
+                pthread_join(msg, NULL);
+                printf("ias cert received successfully...\n");
+                break;
+            }
+        }
     }
-    fseek(fcert, 0, SEEK_END);
-    size_t size_of_ias_cert = (size_t)ftell(fcert);
-    fseek(fcert, 0, SEEK_SET);
-    char* ias_cert = (char*)malloc(size_of_ias_cert);
-    if (!ias_cert) {
-        cout << "Not enough memory" << endl;
-        free(ias_cert);
-        fclose(fcert);
-        return 1;
-    }
-    size_t fread_result = fread(ias_cert, 1, size_of_ias_cert, fcert);
-    if (fread_result != size_of_ias_cert) {
+    else
+        cerr << "Errore apertura socket" << endl;
+    // Verify certificate in enclave
+    int ret;
+    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
+
+    if (status_of_verification != SGX_SUCCESS) {
         cout << "Failed to read IAS certificate file" << endl;
         free(ias_cert);
-        fclose(fcert);
         return 1;
-    }
-    fclose(fcert);
-    status = t_verify_cert(global_eid, &res, ias_cert, size_of_ias_cert);
-    if (status != SGX_SUCCESS || res) {
-        cout << "Failed to read IAS certificate file" << endl;
-        free(ias_cert);
-        return res;
     }
     free(ias_cert);
+    printf("ias certificate verified successfully, going to start receving and processing frames...\n");
 
     // Set up parameters for the case each frame is in a single file
     // Assume there are at most 999 frames
     int max_frames = 999; // Assume there are at most 999 frames
     int max_frame_digits = num_digits(max_frames);
-    int length_of_base_frame_file_name = (int)strlen(input_file);
-    int size_of_current_frame_file_name = sizeof(char) * (length_of_base_frame_file_name + sizeof(char) * max_frame_digits);
-    char current_frame_file_name[size_of_current_frame_file_name];
-    int length_of_base_sig_file_name = (int)strlen(input_file_sig);
-    int size_of_current_sig_file_name = sizeof(char) * length_of_base_sig_file_name + sizeof(char) * max_frame_digits;
-    char current_sig_file_name[size_of_current_sig_file_name];
-    int length_of_base_md_file_name = (int)strlen(in_md_file);
-    int size_of_current_md_file_name = sizeof(char) * length_of_base_md_file_name + sizeof(char) * max_frame_digits;
-    char current_md_file_name[size_of_current_md_file_name];
+
+    // Receive the very first frame for setting up Encoder
+    if( pthread_create(&msg, NULL, received, (void *)0) == 0)
+    {
+        // tcp_server.accepted();
+        // cerr << "Accepted" << endl;
+        ++num_of_times_received;
+        // printf("num_of_times_received: %d\n", num_of_times_received);
+        pthread_join(msg, NULL);
+    } else {
+        printf("pthread created failed...\n");
+    }
 
     // Initialize variables in host
-    // Read metadata
-    memset(current_md_file_name, 0, size_of_current_md_file_name);
-    memcpy(current_md_file_name, in_md_file, sizeof(char) * length_of_base_md_file_name);
-    sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
-    long md_json_len = 0;
-    char* md_json = read_file_as_str(current_md_file_name, &md_json_len);
-    // printf("md_json_len: %d\n", md_json_len);
-    if (!md_json) {
-        printf("Failed to read metadata from file: %s\n", current_md_file_name);
-        return 1;
-    }
-    metadata *md = json_2_metadata(md_json, md_json_len - 1);
+    // Parse metadata
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    if (md_json[md_json_len - 1] == '\0') md_json_len--;
+    // printf("md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
+    metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
         printf("Failed to parse metadata\n");
         return 1;
     }
+
+    // Use metadata to setup some info
     int g_w = md->width, g_h = md->height;
     int frame_size = 0;
     if (cl->is_yuyv) {
@@ -955,239 +1096,246 @@ int main(int argc, char *argv[], char **env)
     else {
         frame_size = g_w * g_h * 3/2;
     }
-    // Read frame
+    int total_frames = md->total_frames;
+
+    // Parse frame
     uint8_t* frame = new uint8_t [frame_size];
-    memset(current_frame_file_name, 0, size_of_current_frame_file_name);
-    memcpy(current_frame_file_name, input_file, sizeof(char) * length_of_base_frame_file_name);
-    sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
-    printf("Now reading file: %s\n", current_frame_file_name);
-    fin = fopen(current_frame_file_name, "rb");
-    if(!fin){
-        printf("Finished reading frames\n");
-        return 1;
-    }
     memset(frame, 0, frame_size);
-    if (!fread(frame, frame_size, 1, fin))
-    {
-        printf("Finished reading frames\n");
-        fclose(fin);
-        return 1;
-    }
-    fclose(fin);
-    // Read signature
-    memset(current_sig_file_name, 0, size_of_current_sig_file_name);
-    memcpy(current_sig_file_name, input_file_sig, sizeof(char) * length_of_base_sig_file_name);
-    sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
-    printf("Now reading sig: %s\n", current_sig_file_name);
+    memcpy(frame, raw_frame_buf, raw_frame_buf_len);
+
+    // Free frame raw
+    free(raw_frame_buf);
+    raw_frame_buf = NULL;
+    raw_frame_buf_len = 0;
+
+    // Parse signature
     unsigned char* frame_sig = NULL;
     size_t frame_sig_len = 0;
-    frame_sig = read_signature(current_sig_file_name, &frame_sig_len);
-    if (!frame_sig || frame_sig_len == 0) {
-        printf("ERROR: Reading signature failed\n");
-        delete frame;
-        return 1;
-    }
+    frame_sig = decode_signature(raw_signature, raw_signature_length, &frame_sig_len);
+
+    // Free signature raw
+    free(raw_signature);
+    raw_signature = NULL;
+    raw_signature_length = 0;
+
+    printf("Going to initialize encoder...\n");
+
     // Initialize variables in Enclave
     status = t_encoder_init(global_eid, &res,
                             cl, sizeof(cmdline),
                             frame_sig, frame_sig_len,
                             frame, frame_size,
-                            md_json, md_json_len - 1);
+                            md_json, md_json_len);
     if (res || status != SGX_SUCCESS) {
         printf("t_encoder_init failed\n");
         return 1;
     }
-    int total_frames = md->total_frames;
-    free(frame_sig);
-    free(md_json);
+
+    // Do not free everything that will used for encoding the first frame as we only receive it once
+    // free(frame_sig);
+    // free(md_json);
     free(md);
+    
+    printf("Going to receive and encode frame 0\n");
+
+    // Instead, we encode the very first frame now
+    status = t_encode_frame(global_eid, &res, 
+                                frame_sig, frame_sig_len,
+                                frame, frame_size,
+                                md_json, md_json_len);
+    if (res || status != SGX_SUCCESS)
+    {
+        printf("ERROR: encoding frame failed\n");
+        free(frame_sig);
+        delete frame;
+        return 1;
+    }
+
+    // Now clean metadata raw data as we directly use it for encoding
+    free(md_json);
+    md_json = NULL;
+    md_json_len = 0;
+
+    // Clean up first frame
+    free(frame_sig);
+
+    printf("Going to encode remaining frames...\n");
 
     // Encode frames
-    for (i = 0; i < total_frames; i++)
+    for (i = 1; i < total_frames; i++)
     {
-        // Read metadata
-        memset(current_md_file_name, 0, size_of_current_md_file_name);
-        memcpy(current_md_file_name, in_md_file, sizeof(char) * length_of_base_md_file_name);
-        sprintf(current_md_file_name + sizeof(char) * length_of_base_md_file_name, "%d.json", i);
-        printf("Now reading file: %s\n", current_md_file_name);
-        fmd = fopen(current_md_file_name, "rb");
-        if(!fmd){
-            printf("Failed to open file: %s\n", current_md_file_name);
-            break;
-        }
-        long md_json_len = 0;
-        char* md_json = read_file_as_str(current_md_file_name, &md_json_len);
-        if (!md_json) {
-            printf("Failed to read metadata from file: %s\n", current_md_file_name);
-            return 1;
-        }
+        printf("Going to receive and encode frame %d\n", i);
 
-        // Read frame
-        memset(current_frame_file_name, 0, size_of_current_frame_file_name);
-        memcpy(current_frame_file_name, input_file, sizeof(char) * length_of_base_frame_file_name);
-        sprintf(current_frame_file_name + sizeof(char) * length_of_base_frame_file_name, "%d", i);
-        printf("Now reading file: %s\n", current_frame_file_name);
-        fin = fopen(current_frame_file_name, "rb");
-        if(!fin){
-            printf("Finished reading frames\n");
-            break;
-        }
-        memset(frame, 0, frame_size);
-        if (!fread(frame, frame_size, 1, fin))
+        // Receive frame
+        if( pthread_create(&msg, NULL, received, (void *)0) == 0)
         {
-            printf("Finished reading frames\n");
-            fclose(fin);
-            break;
+            // tcp_server.accepted();
+            // cerr << "Accepted" << endl;
+            ++num_of_times_received;
+            // printf("num_of_times_received: %d\n", num_of_times_received);
+            pthread_join(msg, NULL);
+        } else {
+            printf("pthread created failed...\n");
         }
-        fclose(fin);
 
-        // Read signature
-        memset(current_sig_file_name, 0, size_of_current_sig_file_name);
-        memcpy(current_sig_file_name, input_file_sig, sizeof(char) * length_of_base_sig_file_name);
-        sprintf(current_sig_file_name + sizeof(char) * length_of_base_sig_file_name, "%d", i);
-        printf("Now reading sig: %s\n", current_sig_file_name);
-        unsigned char* frame_sig = NULL;
-        size_t frame_sig_len = 0;
-        frame_sig = read_signature(current_sig_file_name, &frame_sig_len);
-        if (!frame_sig || frame_sig_len == 0) {
-            printf("ERROR: Reading signature failed\n");
-            delete frame;
-            return 1;
-        }
+        // Parse frame
+        memset(frame, 0, frame_size);
+        memcpy(frame, raw_frame_buf, raw_frame_buf_len);
+
+        // Free frame raw
+        free(raw_frame_buf);
+        raw_frame_buf = NULL;
+        raw_frame_buf_len = 0;
+
+        // Parse signature
+        frame_sig_len = 0;
+        frame_sig = decode_signature(raw_signature, raw_signature_length, &frame_sig_len);
+
+        // Free signature raw
+        free(raw_signature);
+        raw_signature = NULL;
+        raw_signature_length = 0;
 
         // Encode frame in enclave
         status = t_encode_frame(global_eid, &res, 
                                 frame_sig, frame_sig_len,
                                 frame, frame_size,
-                                md_json, md_json_len - 1);
+                                md_json, md_json_len);
         if (res || status != SGX_SUCCESS)
         {
             printf("ERROR: encoding frame failed\n");
             free(frame_sig);
+            free(md_json);
             delete frame;
             return 1;
         }
 
         // Clean up
         free(frame_sig);
+
+        // Now clean metadata raw data as we directly use it for encoding
         free(md_json);
+        md_json = NULL;
+        md_json_len = 0;
     }
+
+    // More clean up
     delete frame;
 
-    // Store encoded video
-    fout = fopen(output_file, "wb");
-    if (!fout)
-    {
-        printf("ERROR: cant open output file %s\n", output_file);
-        return 1;
-    }
-    else // if (fout)
-    {
-        size_t total_coded_data_size = 0;
-        status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
-        if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
-            printf("t_get_encoded_video_size failed\n");
-            return 1;
-        }
-        unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
-        status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
-        if (status != SGX_SUCCESS) {
-            printf("t_get_encoded_video failed\n");
-            return 1;
-        }
-        // printf("coded_data_size: %li\n", total_coded_data_size);
-        if (!total_coded_data)
-        {
-            printf("ERROR obtaining encoded video\n");
-            return 1;
-        }
-        if (!fwrite(total_coded_data, total_coded_data_size, 1, fout))
-        {
-            printf("ERROR writing encoded video\n");
-            return 1;
-        }
-        delete total_coded_data;
-    }
+    // // Store encoded video
+    // fout = fopen(output_file, "wb");
+    // if (!fout)
+    // {
+    //     printf("ERROR: cant open output file %s\n", output_file);
+    //     return 1;
+    // }
+    // else // if (fout)
+    // {
+    //     size_t total_coded_data_size = 0;
+    //     status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
+    //     if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
+    //         printf("t_get_encoded_video_size failed\n");
+    //         return 1;
+    //     }
+    //     unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
+    //     status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
+    //     if (status != SGX_SUCCESS) {
+    //         printf("t_get_encoded_video failed\n");
+    //         return 1;
+    //     }
+    //     // printf("coded_data_size: %li\n", total_coded_data_size);
+    //     if (!total_coded_data)
+    //     {
+    //         printf("ERROR obtaining encoded video\n");
+    //         return 1;
+    //     }
+    //     if (!fwrite(total_coded_data, total_coded_data_size, 1, fout))
+    //     {
+    //         printf("ERROR writing encoded video\n");
+    //         return 1;
+    //     }
+    //     delete total_coded_data;
+    // }
 
-    // Store signature
-    fsig = fopen(output_file_sig, "w");
-    if (!fsig)
-    {
-        printf("ERROR: cant open output file %s\n", output_file_sig);
-        return 1;
-    }
-    else // if (fsig)
-    {
-        size_t sig_size = 0;
-        status = t_get_sig_size(global_eid, &sig_size);
-        if (sig_size == 0 || status != SGX_SUCCESS) {
-            printf("t_get_sig_size failed\n");
-            return 1;
-        }
-        unsigned char *sig = new unsigned char [sig_size];
-        status = t_get_sig(global_eid, sig, sig_size);
-        if (status != SGX_SUCCESS) {
-            printf("t_get_sig failed\n");
-            return 1;
-        }
-        char* b64_sig = NULL;
-        size_t b64_sig_size = 0;
-        Base64Encode(sig, sig_size, &b64_sig, &b64_sig_size);
-        if (!fwrite(b64_sig, b64_sig_size, 1, fsig))
-        {
-            printf("ERROR writing signature\n");
-            return 1;
-        }
-        if (cl->stats)
-        {
-            printf ("{\"sig\":\"");
-            for (int i = 0; i < (int)sig_size; i++) {
-                printf("%02x", (unsigned char) sig[i]);
-            }
-            printf("\"}\n");
-        }
-        delete sig;
-    }
+    // // Store signature
+    // fsig = fopen(output_file_sig, "w");
+    // if (!fsig)
+    // {
+    //     printf("ERROR: cant open output file %s\n", output_file_sig);
+    //     return 1;
+    // }
+    // else // if (fsig)
+    // {
+    //     size_t sig_size = 0;
+    //     status = t_get_sig_size(global_eid, &sig_size);
+    //     if (sig_size == 0 || status != SGX_SUCCESS) {
+    //         printf("t_get_sig_size failed\n");
+    //         return 1;
+    //     }
+    //     unsigned char *sig = new unsigned char [sig_size];
+    //     status = t_get_sig(global_eid, sig, sig_size);
+    //     if (status != SGX_SUCCESS) {
+    //         printf("t_get_sig failed\n");
+    //         return 1;
+    //     }
+    //     char* b64_sig = NULL;
+    //     size_t b64_sig_size = 0;
+    //     Base64Encode(sig, sig_size, &b64_sig, &b64_sig_size);
+    //     if (!fwrite(b64_sig, b64_sig_size, 1, fsig))
+    //     {
+    //         printf("ERROR writing signature\n");
+    //         return 1;
+    //     }
+    //     if (cl->stats)
+    //     {
+    //         printf ("{\"sig\":\"");
+    //         for (int i = 0; i < (int)sig_size; i++) {
+    //             printf("%02x", (unsigned char) sig[i]);
+    //         }
+    //         printf("\"}\n");
+    //     }
+    //     delete sig;
+    // }
 
-    // Store metadata
-    fmd = fopen(out_md_file, "w");
-    if (!fmd)
-    {
-        printf("ERROR: cant open output file %s\n", out_md_file);
-        return 1;
-    }
-    else // if (fmd)
-    {
-        size_t out_md_json_len = 409;
-        char* out_md_json = (char*)malloc(out_md_json_len);
-        status = t_get_metadata(global_eid, out_md_json, out_md_json_len);
-        if (status != SGX_SUCCESS) {
-            printf("t_get_metadata failed\n");
-            return 1;
-        }
-        if (!fwrite(out_md_json, out_md_json_len, 1, fmd))
-        {
-            printf("ERROR writing metadata\n");
-            return 1;
-        }
-        if (cl->stats)
-        {
-            printf ("out_metadata: %s\n", out_md_json);
-        }
-        free(out_md_json);
-    }
+    // // Store metadata
+    // fmd = fopen(out_md_file, "w");
+    // if (!fmd)
+    // {
+    //     printf("ERROR: cant open output file %s\n", out_md_file);
+    //     return 1;
+    // }
+    // else // if (fmd)
+    // {
+    //     size_t out_md_json_len = 409;
+    //     char* out_md_json = (char*)malloc(out_md_json_len);
+    //     status = t_get_metadata(global_eid, out_md_json, out_md_json_len);
+    //     if (status != SGX_SUCCESS) {
+    //         printf("t_get_metadata failed\n");
+    //         return 1;
+    //     }
+    //     if (!fwrite(out_md_json, out_md_json_len, 1, fmd))
+    //     {
+    //         printf("ERROR writing metadata\n");
+    //         return 1;
+    //     }
+    //     if (cl->stats)
+    //     {
+    //         printf ("out_metadata: %s\n", out_md_json);
+    //     }
+    //     free(out_md_json);
+    // }
 
     if (cl->psnr)
         psnr_print(psnr_get());
 
-    if (fin)
-        fclose(fin);
-    if (fout)
-        fclose(fout);
-    if (fsig)
-        fclose(fsig);
-    if (cl)
-        free(cl);
+    // if (fin)
+    //     fclose(fin);
+    // if (fout)
+    //     fclose(fout);
+    // if (fsig)
+    //     fclose(fsig);
+    // if (cl)
+    //     free(cl);
 
     status = t_free(global_eid);
     if (status != SGX_SUCCESS) {

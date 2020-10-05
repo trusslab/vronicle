@@ -121,6 +121,7 @@ char* metadata_2_json(metadata *md)
 
 metadata* json_2_metadata(char* json, size_t json_len)
 {
+    // TO-DO: FIX the memory leakage
     metadata* md = (metadata*)malloc(sizeof(metadata));
     jsmn_parser p;
     jsmntok_t t[128];
@@ -137,8 +138,11 @@ metadata* json_2_metadata(char* json, size_t json_len)
             i++;
         }
         else if (jsoneq(json, &t[i], "timestamp") == 0)
-        {
-            md->timestamp = atoi(get_token_data(t[i+1], json));
+        {  
+            // Part of an example fix for all memory leak happened
+            char* temp_pointer = get_token_data(t[i+1], json);
+            md->timestamp = atoi(temp_pointer);
+            free(temp_pointer);
             i++;
         }
         else if (jsoneq(json, &t[i], "width") == 0)

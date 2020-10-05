@@ -621,49 +621,22 @@ void * received(void * m)
 
 	int num_of_files_received = 0;
 
+    // Set uniformed msg to skip sleeping
+    int size_of_reply = 100;
+    char* reply_msg = (char*) malloc(size_of_reply);
+
 	while(1)
 	{
 		desc = tcp_server.getMessage();
 		for(unsigned int i = 0; i < desc.size(); i++) {
 			if( desc[i]->message != NULL )
 			{ 
-				if(!desc[i]->enable_message_runtime) 
-				{
-					desc[i]->enable_message_runtime = true;
-			                if( pthread_create(&msg1[num_message], NULL, send_client, (void *) desc[i]) == 0) {
-						cerr << "ATTIVA THREAD INVIO MESSAGGI" << endl;
-					}
-					num_message++;
-					// start message background thread
-				}
-
-				// cout << "id:      " << desc[i]->id      << endl
-				//      << "ip:      " << desc[i]->ip      << endl
-				//      << "message: " << desc[i]->message << endl
-				//      << "socket:  " << desc[i]->socket  << endl
-				//      << "enable:  " << desc[i]->enable_message_runtime << endl;
-
-				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+				// printf("current_mode is: %d, with remaining size: %ld, and num_of_files_received: %d\n", current_mode, remaining_file_size, num_of_files_received);
 
 				if(current_mode == 0){
-					// printf("Trying to create new file: %s\n", desc[i]->message);
-					// char* dirname = "../video_data/src_encoded_video/";
-        			// mkdir(dirname, 0777);
-					// int size_of_output_actual_path = (strlen(desc[i]->message) + strlen(dirname) + 1) * sizeof(char);
-					// char output_actual_path[size_of_output_actual_path];
-					// memset(output_actual_path, 0, size_of_output_actual_path);
-            		// memcpy(output_actual_path, dirname, sizeof(char) * strlen(dirname));
-            		// sprintf(output_actual_path + sizeof(char) * strlen(dirname), "%s", desc[i]->message);
-					// printf("File is going to be saved at: %s\n", output_actual_path);
-					// output_file = fopen(output_actual_path, "wb");
-					// if(output_file == NULL){
-					// 	printf("file cannot be created...\n");
-					// 	return 0;
-					// }
-					// printf("Checking if remaining size is 0: %ld\n", remaining_file_size);
 
                     string file_name = desc[i]->message;
-                    // printf("Got new file_name: %s\n", file_name.c_str());
+                    printf("Got new file_name: %s\n", file_name.c_str());
                     if(file_name == "vid"){
                         current_file_indicator = 0;
                         current_writing_size = &contentSize;
@@ -678,9 +651,13 @@ void * received(void * m)
                         current_writing_size = &camera_cert_len;
                     } else {
                         printf("The file_name is not valid: %s\n", file_name);
+                        free(reply_msg);
                         return 0;
                     }
 					current_mode = 1;
+                    memset(reply_msg, 0, size_of_reply);
+                    memcpy(reply_msg, "received from received 0", 24);
+                    tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
 				} else if (current_mode == 1){
                     memcpy(current_writing_size, desc[i]->message, 8);
 					memcpy(&remaining_file_size, desc[i]->message, 8);
@@ -705,9 +682,13 @@ void * received(void * m)
                             break;
                         default:
                             printf("No file indicator is set, aborted...\n");
+                            free(reply_msg);
                             return 0;
                     }
 					current_mode = 2;
+                    memset(reply_msg, 0, size_of_reply);
+                    memcpy(reply_msg, "received from received 2", 24);
+                    tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
 				} else {
 					// printf("Remaining message size: %ld, where we recevied packet with size: %d, and it is going to be written in file_indicator: %d\n", remaining_file_size, desc[i]->size_of_packet, current_file_indicator);
 					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
@@ -716,40 +697,56 @@ void * received(void * m)
                         memcpy(current_writing_location, desc[i]->message, desc[i]->size_of_packet);
                         current_writing_location += desc[i]->size_of_packet;
 						remaining_file_size -= desc[i]->size_of_packet;
+                        memset(reply_msg, 0, size_of_reply);
+                        memcpy(reply_msg, "received from received 3", 24);
+                        tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
 					} else {
-                        // printf("!!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
+                        // printf("???????????????????Last write to the current file location: %d\n", current_file_indicator);
                         memcpy(current_writing_location, desc[i]->message, remaining_file_size);
 						remaining_file_size = 0;
 						current_mode = 0;
 						++num_of_files_received;
+                        // printf("num_of_files_received: %d\n", num_of_files_received);
 						if(num_of_files_received == TARGET_NUM_FILES_RECEIVED){
+                            printf("Got all files...going to return...\n");
+                            memset(reply_msg, 0, size_of_reply);
+                            memcpy(reply_msg, "received from received 1", 24);
+                            tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
+                            free(reply_msg);
 							return 0;
 						}
+                        memset(reply_msg, 0, size_of_reply);
+                        memcpy(reply_msg, "received from received 4", 24);
+                        tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
 					}
 				}
 				tcp_server.clean(i);
 			}
 		}
-		usleep(1000);
+		usleep(3000);
 	}
+    free(reply_msg);
 	return 0;
 }
 
 int send_buffer(void* buffer, long buffer_lenth){
     // Return 0 on success, return 1 on failure
+	
+    usleep(100);
 
 	// Send size of buffer
-	printf("Sending buffer size: %d\n", buffer_lenth);
+	// printf("Sending buffer size: %d\n", buffer_lenth);
 	tcp_client.Send(&buffer_lenth, sizeof(long));
     // printf("Going to wait for receive...\n");
-	string rec = tcp_client.receive();
+	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
     // printf("Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
 		// cout << rec << endl;
 	}
 	// sleep(1);
-	usleep(500);
+    // printf("send_buffer: Received reply: [%s], going to send actual info...\n", rec.c_str());
+	usleep(100);
 
     long remaining_size_of_buffer = buffer_lenth;
     void* temp_buffer = buffer;
@@ -757,55 +754,47 @@ int send_buffer(void* buffer, long buffer_lenth){
 
 	while(1)
 	{
-        if(remaining_size_of_buffer > SIZEOFPACKAGE){
-		    tcp_client.Send(temp_buffer, SIZEOFPACKAGE);
-            remaining_size_of_buffer -= SIZEOFPACKAGE;
-            temp_buffer += SIZEOFPACKAGE;
+        if(remaining_size_of_buffer > SIZEOFPACKAGE_HIGH){
+		    tcp_client.Send(temp_buffer, SIZEOFPACKAGE_HIGH);
+            remaining_size_of_buffer -= SIZEOFPACKAGE_HIGH;
+            temp_buffer += SIZEOFPACKAGE_HIGH;
         } else {
 		    tcp_client.Send(temp_buffer, remaining_size_of_buffer);
             is_finished = 1;
         }
-        // printf("(inside)Going to wait for receive...\n");
-		string rec = tcp_client.receive();
+        // printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
+		string rec = tcp_client.receive_exact(REPLYMSGSIZE);
         // printf("(inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
-			// cout << "send_buffer received: " << rec << endl;
+			// cout << "send_buffer received: " << rec << "where remaining size is: " << remaining_size_of_buffer << endl;
 		}
+        // if(rec == "received from received 1"){
+        //     printf("send_buffer: Buffer should be sent completed: %d\n", is_finished);
+        // }
         if(is_finished){
+            // printf("send_buffer: This buffer should be all sent: [%s]\n", rec.c_str());
             break;
         }
 		// sleep(1);
-		usleep(500);
+		usleep(100);
 	}
 
     return 0;
 }
 
-void send_message(string message){
-	tcp_client.Send(message);
-    // printf("(send_message)Going to wait for receive...\n");
-	string rec = tcp_client.receive();
-    // printf("(send_message)Going to wait for receive(finished)...\n");
-	if( rec != "" )
-	{
-		// cout << "send_message received: " << rec << endl;
-	}
-	// sleep(1);
-	usleep(500);
-}
-
 void send_message(char* message, int msg_size){
+    usleep(50);
 	tcp_client.Send(message, msg_size);
     // printf("(send_message)Going to wait for receive...\n");
-	string rec = tcp_client.receive();
+	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
     // printf("(send_message)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
 		// cout << "send_message received: " << rec << endl;
 	}
 	// sleep(1);
-	usleep(500);
+	usleep(50);
 }
 
 void do_decoding(
@@ -968,16 +957,22 @@ void do_decoding(
         for(int i = 0; i < *num_of_frames; ++i){
             string frame_num = to_string(i);
 
-            printf("Sending frame_num: %d\n", i);
+            printf("Going to send frame: %d\n", i);
             
             // Send frame
+            char* b64_frame = NULL;
+            size_t b64_frame_size = 0;
+            Base64Encode(temp_output_rgb_buffer, frame_size, &b64_frame, &b64_frame_size);
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "frame", 5);
+            // printf("Going to send frame %d's name...\n", i);
             send_message(msg_buf, size_of_msg_buf);
             // printf("Very first set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[0], temp_output_rgb_buffer[1], temp_output_rgb_buffer[2]);
             // int last_pixel_position = 1280 * 720 * 3 - 3;
             // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
-            send_buffer(temp_output_rgb_buffer, frame_size);
+            // printf("Going to send frame %d's info...\n", i);
+            send_buffer(b64_frame, b64_frame_size);
+            free(b64_frame);
             temp_output_rgb_buffer += frame_size;
 
             // Send signature
@@ -987,23 +982,27 @@ void do_decoding(
             temp_output_sig_buffer += sig_size;
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "sig", 3);
+            // printf("Going to send frame %d's sig's name...\n", i);
             send_message(msg_buf, size_of_msg_buf);
-            printf("signature going to be sent is: [%s]\n", b64_sig);
+            // printf("signature going to be sent is: [%s]\n", b64_sig);
+            // printf("Going to send frame %d's sig's info...\n", i);
             send_buffer(b64_sig, b64_sig_size);
             free(b64_sig);
 
             // Send metadata
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "meta", 4);
+            // printf("Going to send frame %d's md's name...\n", i);
             send_message(msg_buf, size_of_msg_buf);
-            // int md_size_for_sending = md_size + 1;
-            // char* md_for_print = (char*) malloc(md_size_for_sending);
-            // memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
-            // md_for_print[md_size_for_sending - 1] = '\0';
+            int md_size_for_sending = md_size + 1;
+            char* md_for_print = (char*) malloc(md_size_for_sending);
+            memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
+            md_for_print[md_size_for_sending - 1] = '\0';
             // printf("metadata(%d) going to be sent is: [%s]\n", md_size_for_sending, md_for_print);
-            // send_buffer(md_for_print, md_size_for_sending);
-            send_buffer(temp_output_md_buffer, md_size);
-            // free(md_for_print);
+            // printf("Going to send frame %d's md's info...\n", i);
+            send_buffer(md_for_print, md_size_for_sending);
+            // send_buffer(temp_output_md_buffer, md_size);
+            free(md_for_print);
             temp_output_md_buffer += md_size;
 
             // // Write frame to file
@@ -1179,6 +1178,8 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 5){
+        printf("argc: %d\n", argc);
+        printf("%s, %s, %s, %s...\n", argv[0], argv[1], argv[2], argv[3]);
         printf("Usage: ./TestApp [path_to_camera_vendor_pubkey] [incoming_port] [outgoing_ip_address] [outgoing_port]\n");
         return 1;
     }

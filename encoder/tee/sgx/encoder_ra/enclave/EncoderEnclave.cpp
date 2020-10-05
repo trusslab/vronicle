@@ -365,7 +365,7 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
         printf("Run t_verify_cert first\n");
         return res;
     }
-    printf("frame_size: %d, md_json_size: %d\n", frame_size, md_json_size);
+    // printf("frame_size: %d, md_json_size: %d\n", frame_size, md_json_size);
     unsigned char* buf = (unsigned char*)malloc(frame_size + md_json_size);
     if (!buf) {
         printf("No memory left\n");
@@ -374,6 +374,7 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
     memset(buf, 0, frame_size + md_json_size);
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
+    // printf("md_json(%d): %s\n", md_json_size, md_json);
     res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
     if (res != 1) {
         printf("Signature cannot be verified\n");

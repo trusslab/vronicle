@@ -53,7 +53,12 @@ void* TCPServer::Task(void *arg)
 				break;
 			case 2:
 				// printf("Going to receive file...\n");
-				n = recv(desc->socket, msg, SIZEOFPACKAGE, 0);
+				if(remaining_to_target_file_size > SIZEOFPACKAGE){
+					n = recv(desc->socket, msg, SIZEOFPACKAGE, MSG_WAITALL);
+				} else {
+					n = recv(desc->socket, msg, remaining_to_target_file_size, MSG_WAITALL);
+				}
+				// n = recv(desc->socket, msg, SIZEOFPACKAGE, 0);
 				// printf("Going to receive file(finished..\n)...\n");
 				remaining_to_target_file_size -= n;
 				if(remaining_to_target_file_size <= 0){
@@ -110,7 +115,7 @@ void* TCPServer::Task(void *arg)
 			printf("Okay..., now we received a -1...\n");
 		}
 		// printf("Going to call usleep...\n");
-		// usleep(1000);
+		// usleep(20000);
 		// printf("After usleep...\n");
         }
 	if(desc != NULL){

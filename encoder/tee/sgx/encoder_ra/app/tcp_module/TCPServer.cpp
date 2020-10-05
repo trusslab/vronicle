@@ -30,7 +30,7 @@ void* TCPServer::Task(void *arg)
 
         cerr << "open client[ id:"<< desc->id <<" ip:"<< desc->ip <<" socket:"<< desc->socket<<" send:"<< desc->enable_message_runtime <<" ]" << endl;
 	// Below is another attempt to reduce the chance of BROKENPIPE (potentially failed??)
-	int rounds_left_for_retrying = 0;
+	int rounds_left_for_retrying = 3;
 
 	int current_mode = 0;	// 0 is receiving file name; 1 is receiving file size; 2 is receiving file
 	int invalid_current_mode_detected = 0;
@@ -63,7 +63,7 @@ void* TCPServer::Task(void *arg)
 				} else {
 					n = recv(desc->socket, msg, remaining_to_target_file_size, MSG_WAITALL);
 				}
-				// printf("Task: Received with packet: size %d, where remaining_to_target_file_size is: %d\n", n, remaining_to_target_file_size);
+				// printf("Going to wait for buf of file...(finished with size %d)\n", n);
 				remaining_to_target_file_size -= n;
 				if(remaining_to_target_file_size <= 0){
 					current_mode = 0;
@@ -110,22 +110,18 @@ void* TCPServer::Task(void *arg)
 					break;
 				}
 			} else {
-				// printf("Going to assign size_of_packet as: %d\n", n);
-				desc->size_of_packet = n;
-				// printf("After assigned, size_of_packet is: %d\n", desc->size_of_packet);
 				desc->message = msg;
+				desc->size_of_packet = n;
 				// std::lock_guard<std::mutex> guard(mt);
-				// std::unique_lock<std::mutex> sync_lock(mt);
-				std::lock_guard<std::mutex> guard(mt);
+				std::unique_lock<std::mutex> sync_lock(mt);
 				Message.push_back( desc );
-				// printf("After push_back the latest desc, the size of Message vector is: %d\n", Message.size());
-				// sync_lock.unlock();
+				sync_lock.unlock();
 			}
 		} else {
 			printf("Okay..., now we received a -1...\n");
 		}
 		// printf("Going to call usleep...\n");
-		// usleep(10);
+		// usleep(100);
 		// Set to processing to run next time
 		// printf("After usleep...\n");
     }
@@ -217,7 +213,6 @@ void TCPServer::clean(int id)
 	// if(Message[id]->message){
 	// 	free(Message[id]->message);
 	// }
-	std::lock_guard<std::mutex> guard(mt);
 	Message[id]->message = NULL;
 	memset(msg, 0, MAXPACKETSIZE);
 	Message[id]->size_of_packet = 0;

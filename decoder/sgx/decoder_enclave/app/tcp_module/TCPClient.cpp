@@ -52,7 +52,7 @@ bool TCPClient::Send(string data)
 {
 	if(sock != -1) 
 	{
-		if( send(sock , data.c_str() , strlen( data.c_str() ) , 0) < 0)
+		if( send(sock , data.c_str() , strlen( data.c_str() ) , 0) != strlen( data.c_str() ))
 		{
 			cout << "Send failed : " << data << endl;
 			return false;
@@ -68,7 +68,7 @@ bool TCPClient::Send(void* data, size_t len)
 {
 	if(sock != -1) 
 	{
-		if( send(sock , data , len , 0) < 0)
+		if( send(sock , data , len , 0) != len)
 		{
 			cout << "Send failed with data size: " << len << endl;
 			return false;
@@ -86,6 +86,22 @@ string TCPClient::receive(int size)
 
   	string reply;
 	if( recv(sock , buffer , size, 0) < 0)
+  	{
+	    	cout << "receive failed!" << endl;
+		return nullptr;
+  	}
+	buffer[size-1]='\0';
+  	reply = buffer;
+  	return reply;
+}
+
+string TCPClient::receive_exact(int size)
+{
+  	char buffer[size];
+	memset(&buffer[0], 0, sizeof(buffer));
+
+  	string reply;
+	if( recv(sock , buffer , size, MSG_WAITALL) < 0)
   	{
 	    	cout << "receive failed!" << endl;
 		return nullptr;

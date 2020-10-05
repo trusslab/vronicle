@@ -1,4 +1,4 @@
-INCLUDE_PATHS = -I. -I/opt/intel/sgxsdk/include/
+INCLUDE_PATHS = -I. -I/opt/intel/sgxsdk/include/ -I/home/myles/Downloads/sgxsdk/include/
 CXX = g++
 COMMON_FLAGS = -g3 -D__STDC_CONSTANT_MACROS \
 		       -Wall -Wextra -Wextra -pedantic \

@@ -856,7 +856,7 @@ void * received_cert(void * m)
 void * received(void * m)
 {
     // pthread_detach(pthread_self());
-	usleep(500);
+	usleep(2000);
 	// std::signal(SIGPIPE, sigpipe_handler);
 	vector<descript_socket*> desc;
 
@@ -993,7 +993,7 @@ void * received(void * m)
 				tcp_server.clean(i);
 			}
 		}
-		usleep(500);
+		usleep(2000);
 	}
     free(reply_msg);
 	return 0;

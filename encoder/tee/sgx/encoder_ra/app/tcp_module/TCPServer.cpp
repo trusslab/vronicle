@@ -4,6 +4,7 @@
 char TCPServer::msg[MAXPACKETSIZE];
 
 int TCPServer::num_client;
+int TCPServer::last_client_num;
 int TCPServer::last_closed;
 bool TCPServer::isonline;
 vector<descript_socket*> TCPServer::Message;
@@ -138,6 +139,22 @@ void* TCPServer::Task(void *arg)
 	return 0;
 }
 
+string TCPServer::receive_exact(int size)
+{
+  	char buffer[size + 1];
+	memset(&buffer[0], 0, sizeof(buffer));
+
+  	string reply;
+	if( recv(newsockfd[last_client_num]->socket, buffer, size, MSG_WAITALL) < 0)
+  	{
+	    	cout << "receive failed!" << endl;
+		return nullptr;
+  	}
+	buffer[size]='\0';
+  	reply = buffer;
+  	return reply;
+}
+
 int TCPServer::setup(int port, vector<int> opts)
 {
 	int opt = 1;
@@ -187,6 +204,22 @@ void TCPServer::accepted()
 	num_client++;
 }
 
+void TCPServer::accepted_for_viewer()
+{
+	socklen_t sosize    = sizeof(clientAddress);
+	descript_socket *so = new descript_socket;
+	so->socket          = accept(sockfd,(struct sockaddr*)&clientAddress,&sosize);
+	so->id              = num_client;
+	last_client_num = num_client;
+	so->ip              = inet_ntoa(clientAddress.sin_addr);
+	newsockfd.push_back( so );
+	cerr << "accept client[ id:" << newsockfd[num_client]->id << 
+	                      " ip:" << newsockfd[num_client]->ip << 
+		              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
+	isonline=true;
+	num_client++;
+}
+
 vector<descript_socket*> TCPServer::getMessage()
 {
 	std::lock_guard<std::mutex> guard(mt);
@@ -201,6 +234,16 @@ void TCPServer::Send(string msg, int id)
 void TCPServer::Send(char* msg, int msg_len, int id)
 {
 	send(newsockfd[id]->socket,msg,msg_len,0);
+}
+
+// void TCPServer::send_viewer_msg(string msg)
+// {
+// 	send(newsockfd[last_client_num]->socket,msg,msg_len,0);
+// }
+
+void TCPServer::send_viewer_data(void* data, int data_size)
+{
+	send(newsockfd[last_client_num]->socket,data,data_size,0);
 }
 
 int TCPServer::get_last_closed_sockets()

@@ -876,7 +876,7 @@ void * received_cert(void * m)
 void * received(void * m)
 {
     // pthread_detach(pthread_self());
-	usleep(500);
+	usleep(1000);
 	// std::signal(SIGPIPE, sigpipe_handler);
 	vector<descript_socket*> desc;
 
@@ -982,10 +982,58 @@ void * received(void * m)
 				tcp_server.clean(i);
 			}
 		}
-		usleep(500);
+		usleep(100);
 	}
     free(reply_msg);
 	return 0;
+}
+
+int send_buffer_to_viewer(void* buffer, long buffer_lenth){
+    // Return 0 on success, return 1 on failure
+
+	// Send size of buffer
+	// printf("Sending buffer size: %d\n", buffer_lenth);
+	tcp_server_for_viewer.send_viewer_data(&buffer_lenth, sizeof(long));
+    // printf("Going to wait for receive...\n");
+	string rec = tcp_server_for_viewer.receive_exact(REPLYMSGSIZE);
+    // printf("Going to wait for receive(finished)...\n");
+	if( rec != "" )
+	{
+		// cout << rec << endl;
+	}
+
+    long remaining_size_of_buffer = buffer_lenth;
+    void* temp_buffer = buffer;
+    int is_finished = 0;
+
+    printf("Going to start sending buffer...\n");
+
+	while(1)
+	{
+        if(remaining_size_of_buffer > SIZEOFPACKAGE){
+		    tcp_server_for_viewer.send_viewer_data(temp_buffer, SIZEOFPACKAGE);
+            remaining_size_of_buffer -= SIZEOFPACKAGE;
+            temp_buffer += SIZEOFPACKAGE;
+        } else {
+		    tcp_server_for_viewer.send_viewer_data(temp_buffer, remaining_size_of_buffer);
+            remaining_size_of_buffer = 0;
+            is_finished = 1;
+        }
+        printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
+		string rec = tcp_server_for_viewer.receive_exact(REPLYMSGSIZE);
+        // printf("(inside)Going to wait for receive(finished)...\n");
+		if( rec != "" )
+		{
+			cout << "send_buffer received: " << rec << endl;
+		}
+        if(is_finished){
+            break;
+        }
+		// sleep(1);
+        usleep(500);
+	}
+
+    return 0;
 }
 
 /* Application entry */
@@ -1222,108 +1270,122 @@ int main(int argc, char *argv[], char **env)
     // More clean up
     delete frame;
 
-    // // Store encoded video
-    // fout = fopen(output_file, "wb");
-    // if (!fout)
-    // {
-    //     printf("ERROR: cant open output file %s\n", output_file);
-    //     return 1;
-    // }
-    // else // if (fout)
-    // {
-    //     size_t total_coded_data_size = 0;
-    //     status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
-    //     if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
-    //         printf("t_get_encoded_video_size failed\n");
-    //         return 1;
-    //     }
-    //     unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
-    //     status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
-    //     if (status != SGX_SUCCESS) {
-    //         printf("t_get_encoded_video failed\n");
-    //         return 1;
-    //     }
-    //     // printf("coded_data_size: %li\n", total_coded_data_size);
-    //     if (!total_coded_data)
-    //     {
-    //         printf("ERROR obtaining encoded video\n");
-    //         return 1;
-    //     }
-    //     if (!fwrite(total_coded_data, total_coded_data_size, 1, fout))
-    //     {
-    //         printf("ERROR writing encoded video\n");
-    //         return 1;
-    //     }
-    //     delete total_coded_data;
-    // }
+    tcp_server.closed();
 
-    // // Store signature
-    // fsig = fopen(output_file_sig, "w");
-    // if (!fsig)
-    // {
-    //     printf("ERROR: cant open output file %s\n", output_file_sig);
-    //     return 1;
-    // }
-    // else // if (fsig)
-    // {
-    //     size_t sig_size = 0;
-    //     status = t_get_sig_size(global_eid, &sig_size);
-    //     if (sig_size == 0 || status != SGX_SUCCESS) {
-    //         printf("t_get_sig_size failed\n");
-    //         return 1;
-    //     }
-    //     unsigned char *sig = new unsigned char [sig_size];
-    //     status = t_get_sig(global_eid, sig, sig_size);
-    //     if (status != SGX_SUCCESS) {
-    //         printf("t_get_sig failed\n");
-    //         return 1;
-    //     }
-    //     char* b64_sig = NULL;
-    //     size_t b64_sig_size = 0;
-    //     Base64Encode(sig, sig_size, &b64_sig, &b64_sig_size);
-    //     if (!fwrite(b64_sig, b64_sig_size, 1, fsig))
-    //     {
-    //         printf("ERROR writing signature\n");
-    //         return 1;
-    //     }
-    //     if (cl->stats)
-    //     {
-    //         printf ("{\"sig\":\"");
-    //         for (int i = 0; i < (int)sig_size; i++) {
-    //             printf("%02x", (unsigned char) sig[i]);
-    //         }
-    //         printf("\"}\n");
-    //     }
-    //     delete sig;
-    // }
+    printf("Encoding completed...goingt to try sending frames\n");
 
-    // // Store metadata
-    // fmd = fopen(out_md_file, "w");
-    // if (!fmd)
-    // {
-    //     printf("ERROR: cant open output file %s\n", out_md_file);
-    //     return 1;
-    // }
-    // else // if (fmd)
-    // {
-    //     size_t out_md_json_len = 409;
-    //     char* out_md_json = (char*)malloc(out_md_json_len);
-    //     status = t_get_metadata(global_eid, out_md_json, out_md_json_len);
-    //     if (status != SGX_SUCCESS) {
-    //         printf("t_get_metadata failed\n");
-    //         return 1;
-    //     }
-    //     if (!fwrite(out_md_json, out_md_json_len, 1, fmd))
-    //     {
-    //         printf("ERROR writing metadata\n");
-    //         return 1;
-    //     }
-    //     if (cl->stats)
-    //     {
-    //         printf ("out_metadata: %s\n", out_md_json);
-    //     }
-    //     free(out_md_json);
-    // }
+    if( tcp_server_for_viewer.setup(port_for_viewer,opts) == 0) {
+        printf("Ready for viewer to connect...\n");
+        tcp_server_for_viewer.accepted_for_viewer();
+        cerr << "Accepted viewer" << endl;
+    }
+    else
+        cerr << "Errore apertura socket" << endl;
+    
+    // string msg_from_viewer = tcp_server_for_viewer.receive_exact();
+    // if(msg_from_viewer)
+
+    // Init msg_buf
+    msg_buf = (char*) malloc(size_of_msg_buf);
+    string msg_reply_from_viewer;
+
+    // Send ias cert
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "cert", 4);
+    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    if(msg_reply_from_viewer != "ready"){
+        printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
+        return 1;
+    }
+
+    send_buffer_to_viewer(der_cert, size_of_cert);
+
+    free(der_cert);
+
+    // Send encoded video
+    size_t total_coded_data_size = 0;
+    status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
+    if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
+        printf("t_get_encoded_video_size failed\n");
+        return 1;
+    }
+    unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
+    status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
+    if (status != SGX_SUCCESS) {
+        printf("t_get_encoded_video failed\n");
+        return 1;
+    }
+
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "vid", 3);
+    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    if(msg_reply_from_viewer != "ready"){
+        printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
+        return 1;
+    }
+
+    send_buffer_to_viewer(total_coded_data, total_coded_data_size);
+
+    delete total_coded_data;
+
+    // Send signature
+    size_t sig_size = 0;
+    status = t_get_sig_size(global_eid, &sig_size);
+    if (sig_size == 0 || status != SGX_SUCCESS) {
+        printf("t_get_sig_size failed\n");
+        return 1;
+    }
+    unsigned char *sig = new unsigned char [sig_size];
+    status = t_get_sig(global_eid, sig, sig_size);
+    if (status != SGX_SUCCESS) {
+        printf("t_get_sig failed\n");
+        return 1;
+    }
+    char* b64_sig = NULL;
+    size_t b64_sig_size = 0;
+    Base64Encode(sig, sig_size, &b64_sig, &b64_sig_size);
+
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "sig", 3);
+    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    if(msg_reply_from_viewer != "ready"){
+        printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
+        return 1;
+    }
+
+    send_buffer_to_viewer(b64_sig, b64_sig_size);
+
+    delete sig;
+    free(b64_sig);
+
+    // Send metadata
+    size_t out_md_json_len = 409;
+    char* out_md_json = (char*)malloc(out_md_json_len);
+    status = t_get_metadata(global_eid, out_md_json, out_md_json_len);
+    if (status != SGX_SUCCESS) {
+        printf("t_get_metadata failed\n");
+        return 1;
+    }
+    if (cl->stats)
+    {
+        printf ("out_metadata: %s\n", out_md_json);
+    }
+
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "meta", 4);
+    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    if(msg_reply_from_viewer != "ready"){
+        printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
+        return 1;
+    }
+
+    send_buffer_to_viewer(out_md_json, out_md_json_len);
+
+    free(out_md_json);
 
     if (cl->psnr)
         psnr_print(psnr_get());

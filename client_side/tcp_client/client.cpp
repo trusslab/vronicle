@@ -49,7 +49,7 @@ int send_file(const char* file_name){
 		}
 
 		tcp.Send(buffer, num_of_ele_read);
-		string rec = tcp.receive_exact(SIZEOFPACKAGEFORNAME);
+		string rec = tcp.receive_exact(REPLYMSGSIZE);
 		if( rec != "" )
 		{
 			// cout << rec << endl;
@@ -103,6 +103,12 @@ int main(int argc, char *argv[])
 	memcpy(msg_to_send, argv[4], strlen(argv[4]));
 	send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
 	send_file(argv[3]);
+
+	// declaring argument of time() 
+    time_t my_time = time(NULL); 
+  
+    // ctime() used to give the present time 
+    printf("File uploading completed at: %s", ctime(&my_time)); 
 
 	// while(1)
 	// {

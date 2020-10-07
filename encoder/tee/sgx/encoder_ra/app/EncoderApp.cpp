@@ -792,96 +792,12 @@ void close_app(int signum) {
 	exit(0);
 }
 
-void * received_cert(void * m)
-{
-    // pthread_detach(pthread_self());
-	usleep(500);
-	// std::signal(SIGPIPE, sigpipe_handler);
-	vector<descript_socket*> desc;
-
-	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
-	long remaining_file_size = 0;
-    void* current_writing_location = NULL;
-
-    // Set uniformed msg to skip sleeping
-    int size_of_reply = 100;
-    char* reply_msg = (char*) malloc(size_of_reply);
-
-	while(1)
-	{
-        
-		desc = tcp_server.getMessage();
-		for(unsigned int i = 0; i < desc.size(); i++) {
-			if( desc[i]->message != NULL )
-			{ 
-				// if(!desc[i]->enable_message_runtime) 
-				// {
-				// 	desc[i]->enable_message_runtime = true;
-			    //             if( pthread_create(&msg1[num_message], NULL, send_client, (void *) desc[i]) == 0) {
-				// 		cerr << "ATTIVA THREAD INVIO MESSAGGI" << endl;
-				// 	}
-				// 	num_message++;
-				// 	// start message background thread
-				// }
-
-				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
-
-				if(current_mode == 0){
-                    string file_name = desc[i]->message;
-                    // printf("Got new file_name: %s\n", file_name.c_str());
-                    if (file_name != "cert"){
-                        printf("The file_name is not valid: %s\n", file_name);
-                        free(reply_msg);
-                        return 0;
-                    }
-					current_mode = 1;
-				} else if (current_mode == 1){
-					memcpy(&size_of_ias_cert, desc[i]->message, 8);
-					memcpy(&remaining_file_size, desc[i]->message, 8);
-					// printf("File size got: %ld\n", remaining_file_size);
-                    ias_cert = (char*) malloc(size_of_ias_cert * sizeof(char));
-                    current_writing_location = ias_cert;
-					current_mode = 2;
-				} else {
-					// printf("Remaining message size: %ld, where we recevied packet with size: %d, and it is going to be written in file_indicator: %d\n", remaining_file_size, desc[i]->size_of_packet, current_file_indicator);
-					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
-					if(remaining_file_size > desc[i]->size_of_packet){
-                        memcpy(current_writing_location, desc[i]->message, desc[i]->size_of_packet);
-                        current_writing_location += desc[i]->size_of_packet;
-						remaining_file_size -= desc[i]->size_of_packet;
-					} else {
-                        memcpy(current_writing_location, desc[i]->message, remaining_file_size);
-						remaining_file_size = 0;
-						current_mode = 0;
-				        tcp_server.clean(i);
-                        memset(reply_msg, 0, size_of_reply);
-                        memcpy(reply_msg, "received from received_cert 1", 29);
-                        tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
-                        free(reply_msg);
-						return 0;
-					}
-				}
-                memset(reply_msg, 0, size_of_reply);
-                memcpy(reply_msg, "received from received_cert 0", 29);
-                tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
-				tcp_server.clean(i);
-			}
-		}
-		usleep(500);
-	}
-    free(reply_msg);
-	return 0;
-}
-
 void * received(void * m)
 {
     // pthread_detach(pthread_self());
-	usleep(1000);
-	// std::signal(SIGPIPE, sigpipe_handler);
-	vector<descript_socket*> desc;
 
 	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
-    int current_file_indicator = -1;   // 0 means frame; 1 means metadata; 2 means signature
+    int current_file_indicator = -1;   // 0 means frame; 1 means metadata; 2 means signature; 3 menas cert
     void* current_writing_location = NULL;
     long* current_writing_size = NULL;
 	long remaining_file_size = 0;
@@ -892,97 +808,87 @@ void * received(void * m)
     int size_of_reply = 100;
     char* reply_msg = (char*) malloc(size_of_reply);
 
-	while(1)
+    // Prepare temp_buf for receiving data
+    char* temp_buf;
+
+	while(num_of_files_received < TARGET_NUM_FILES_RECEIVED)
 	{
-        // printf("In received...\n");
-		desc = tcp_server.getMessage();
-        // printf("Got message..\n");
-		for(unsigned int i = 0; i < desc.size(); i++) {
-            // printf("Checking i: %d\n", i);
-			if( desc[i]->message != NULL )
-			{ 
-				// printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
-
-				if(current_mode == 0){
-
-                    string file_name = desc[i]->message;
-                    // printf("Got new file_name: %s\n", file_name.c_str());
-                    if(file_name == "frame"){
-                        current_file_indicator = 0;
-                        current_writing_size = &raw_frame_buf_len;
-                    } else if (file_name == "meta"){
-                        current_file_indicator = 1;
-                        current_writing_size = &md_json_len;
-                    } else if (file_name == "sig"){
-                        current_file_indicator = 2;
-                        current_writing_size = &raw_signature_length;
-                    } else if (file_name == "no_more_frame"){
-                        printf("no_more_frame received...finished processing...\n");
-                        free(reply_msg);
-                        return 0;
-                    } else {
-                        printf("The file_name is not valid: %s\n", file_name);
-                        free(reply_msg);
-                        return 0;
-                    }
-					current_mode = 1;
-				} else if (current_mode == 1){
-                    memcpy(current_writing_size, desc[i]->message, 8);
-					memcpy(&remaining_file_size, desc[i]->message, 8);
-					// printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
-                    // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
-                    switch(current_file_indicator){
-                        case 0:
-                            raw_frame_buf = (char*) malloc(*current_writing_size * sizeof(char));
-                            current_writing_location = raw_frame_buf;
-                            break;
-                        case 1:
-                            md_json = (char*) malloc(*current_writing_size * sizeof(char));
-                            current_writing_location = md_json;
-                            break;
-                        case 2:
-                            raw_signature = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                            current_writing_location = raw_signature;
-                            break;
-                        default:
-                            printf("No file indicator is set, aborted...\n");
-                            free(reply_msg);
-                            return 0;
-                    }
-					current_mode = 2;
-				} else {
-					// printf("Remaining message size: %ld, where we recevied packet with size: %d, and it is going to be written in file_indicator: %d\n", remaining_file_size, desc[i]->size_of_packet, current_file_indicator);
-					// printf("Message with size: %d, with content: %s to be written...\n", current_message_size, desc[i]->message.c_str());
-					if(remaining_file_size > desc[i]->size_of_packet){
-                        // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
-                        memcpy(current_writing_location, desc[i]->message, desc[i]->size_of_packet);
-                        current_writing_location += desc[i]->size_of_packet;
-						remaining_file_size -= desc[i]->size_of_packet;
-					} else {
-                        // printf("!!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
-                        memcpy(current_writing_location, desc[i]->message, remaining_file_size);
-						remaining_file_size = 0;
-						current_mode = 0;
-						++num_of_files_received;
-                        // printf("num_of_files_received: %d\n", num_of_files_received);
-						if(num_of_files_received == TARGET_NUM_FILES_RECEIVED){
-				            tcp_server.clean(i);
-                            memset(reply_msg, 0, size_of_reply);
-                            memcpy(reply_msg, "received from received 1", 24);
-                            tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
-                            // printf("One time finished...going to call free for reply_msg and return...\n");
-                            free(reply_msg);
-							return 0;
-						}
-					}
-				}
-                memset(reply_msg, 0, size_of_reply);
-                memcpy(reply_msg, "received from received 0", 24);
-                tcp_server.Send(reply_msg, size_of_reply, desc[i]->id);
-				tcp_server.clean(i);
-			}
-		}
-		usleep(100);
+        // printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+        if(current_mode == 0){
+            string file_name = tcp_server.receive_name();
+            // printf("Got new file_name: %s\n", file_name.c_str());
+            if(file_name == "frame"){
+                current_file_indicator = 0;
+                current_writing_size = &raw_frame_buf_len;
+            } else if (file_name == "meta"){
+                current_file_indicator = 1;
+                current_writing_size = &md_json_len;
+            } else if (file_name == "sig"){
+                current_file_indicator = 2;
+                current_writing_size = &raw_signature_length;
+            } else if (file_name == "cert"){
+                current_file_indicator = 3;
+                current_writing_size = &size_of_ias_cert;
+                // Let's cheat the logic as we only need to receive cert once
+                num_of_files_received = TARGET_NUM_FILES_RECEIVED - 1;
+            } else if (file_name == "no_more_frame"){
+                printf("no_more_frame received...finished processing...\n");
+                free(reply_msg);
+                return 0;
+            } else {
+                printf("The file_name is not valid: %s\n", file_name);
+                free(reply_msg);
+                return 0;
+            }
+            current_mode = 1;
+        } else if (current_mode == 1){
+            *current_writing_size = tcp_server.receive_size_of_data();
+            remaining_file_size = *current_writing_size;
+            // printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
+            // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
+            switch(current_file_indicator){
+                case 0:
+                    raw_frame_buf = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = raw_frame_buf;
+                    break;
+                case 1:
+                    md_json = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = md_json;
+                    break;
+                case 2:
+                    raw_signature = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = raw_signature;
+                    break;
+                case 3:
+                    ias_cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = ias_cert;
+                    break;
+                default:
+                    printf("No file indicator is set, aborted...\n");
+                    free(reply_msg);
+                    return 0;
+            }
+            current_mode = 2;
+        } else {
+            if(remaining_file_size > SIZEOFPACKAGE_HIGH){
+                // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
+                temp_buf = tcp_server.receive_exact(SIZEOFPACKAGE_HIGH);
+                memcpy(current_writing_location, temp_buf, SIZEOFPACKAGE_HIGH);
+                current_writing_location += SIZEOFPACKAGE_HIGH;
+                remaining_file_size -= SIZEOFPACKAGE_HIGH;
+            } else {
+                // printf("!!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
+                temp_buf = tcp_server.receive_exact(remaining_file_size);
+                memcpy(current_writing_location, temp_buf, remaining_file_size);
+                remaining_file_size = 0;
+                current_mode = 0;
+                ++num_of_files_received;
+                // printf("num_of_files_received: %d\n", num_of_files_received);
+            }
+        }
+        memset(reply_msg, 0, size_of_reply);
+        memcpy(reply_msg, "ready", 5);
+        tcp_server.send_to_last_connected_client(reply_msg, size_of_reply);
 	}
     free(reply_msg);
 	return 0;
@@ -993,9 +899,9 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
 
 	// Send size of buffer
 	// printf("Sending buffer size: %d\n", buffer_lenth);
-	tcp_server_for_viewer.send_viewer_data(&buffer_lenth, sizeof(long));
+	tcp_server_for_viewer.send_to_last_connected_client(&buffer_lenth, sizeof(long));
     // printf("Going to wait for receive...\n");
-	string rec = tcp_server_for_viewer.receive_exact(REPLYMSGSIZE);
+	string rec = tcp_server_for_viewer.receive_name();
     // printf("Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
@@ -1011,16 +917,16 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
 	while(1)
 	{
         if(remaining_size_of_buffer > SIZEOFPACKAGE){
-		    tcp_server_for_viewer.send_viewer_data(temp_buffer, SIZEOFPACKAGE);
+		    tcp_server_for_viewer.send_to_last_connected_client(temp_buffer, SIZEOFPACKAGE);
             remaining_size_of_buffer -= SIZEOFPACKAGE;
             temp_buffer += SIZEOFPACKAGE;
         } else {
-		    tcp_server_for_viewer.send_viewer_data(temp_buffer, remaining_size_of_buffer);
+		    tcp_server_for_viewer.send_to_last_connected_client(temp_buffer, remaining_size_of_buffer);
             remaining_size_of_buffer = 0;
             is_finished = 1;
         }
         printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
-		string rec = tcp_server_for_viewer.receive_exact(REPLYMSGSIZE);
+		string rec = tcp_server_for_viewer.receive_name();
         // printf("(inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
@@ -1029,8 +935,6 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
         if(is_finished){
             break;
         }
-		// sleep(1);
-        usleep(500);
 	}
 
     return 0;
@@ -1078,17 +982,14 @@ int main(int argc, char *argv[], char **env)
     // Receive ias cert
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(incoming_port,opts) == 0) {
-        if( pthread_create(&msg, NULL, received_cert, (void *)0) == 0)
-        {
-            printf("Waiting for incoming connection for ias certificate...\n");
-            while(1) {
-                tcp_server.accepted();
-                cerr << "Accepted" << endl;
-                pthread_join(msg, NULL);
-                printf("ias cert received successfully...\n");
-                break;
-            }
+        tcp_server.accepted();
+        cerr << "Accepted" << endl;
+        if(pthread_create(&msg, NULL, received, (void *)0) != 0){
+            printf("pthread for receiving created failed...quiting...\n");
+            return 1;
         }
+        pthread_join(msg, NULL);
+        printf("ias cert received successfully...\n");
     }
     else
         cerr << "Errore apertura socket" << endl;
@@ -1274,16 +1175,19 @@ int main(int argc, char *argv[], char **env)
 
     printf("Encoding completed...goingt to try sending frames\n");
 
+    // declaring argument of time() 
+    time_t my_time = time(NULL); 
+  
+    // ctime() used to give the present time 
+    printf("Encoding completed at: %s", ctime(&my_time)); 
+
     if( tcp_server_for_viewer.setup(port_for_viewer,opts) == 0) {
         printf("Ready for viewer to connect...\n");
-        tcp_server_for_viewer.accepted_for_viewer();
+        tcp_server_for_viewer.accepted();
         cerr << "Accepted viewer" << endl;
     }
     else
         cerr << "Errore apertura socket" << endl;
-    
-    // string msg_from_viewer = tcp_server_for_viewer.receive_exact();
-    // if(msg_from_viewer)
 
     // Init msg_buf
     msg_buf = (char*) malloc(size_of_msg_buf);
@@ -1292,8 +1196,8 @@ int main(int argc, char *argv[], char **env)
     // Send ias cert
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
-    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
-    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_name();;
     if(msg_reply_from_viewer != "ready"){
         printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
         return 1;
@@ -1319,8 +1223,8 @@ int main(int argc, char *argv[], char **env)
 
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "vid", 3);
-    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
-    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_name();
     if(msg_reply_from_viewer != "ready"){
         printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
         return 1;
@@ -1349,8 +1253,8 @@ int main(int argc, char *argv[], char **env)
 
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "sig", 3);
-    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
-    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_name();
     if(msg_reply_from_viewer != "ready"){
         printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
         return 1;
@@ -1376,8 +1280,8 @@ int main(int argc, char *argv[], char **env)
 
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "meta", 4);
-    tcp_server_for_viewer.send_viewer_data(msg_buf, size_of_msg_buf);
-    msg_reply_from_viewer = tcp_server_for_viewer.receive_exact(100);
+    tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_name();
     if(msg_reply_from_viewer != "ready"){
         printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
         return 1;

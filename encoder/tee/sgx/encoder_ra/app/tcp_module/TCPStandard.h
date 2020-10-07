@@ -14,7 +14,7 @@
 #include <arpa/inet.h>
 
 // Common define
-# define MAXPACKETSIZE 100960
+# define MAXPACKETSIZE 500960
 # define SIZEOFPACKAGEFORNAME 100	// This is for target packet size of receiving frame name
 # define SIZEOFPACKAGEFORSIZE 8	// This is for target packet size of receiving frame size
 # define SIZEOFPACKAGE 40000	// This is for target packet size of receiving frame
@@ -25,6 +25,6 @@
 
 // Client specific define
 # define SIZEOFPACKAGE_LOW 10000	// This is for target packet size of sending frame in low network quality
-# define SIZEOFPACKAGE_HIGH 100000	// This is for target packet size of receiving frame
+# define SIZEOFPACKAGE_HIGH 500000	// This is for target packet size of receiving frame
 
 #endif

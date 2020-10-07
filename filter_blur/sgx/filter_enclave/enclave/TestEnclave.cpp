@@ -325,6 +325,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	memcpy(buf, img_pixels, size_of_img_pixels);
 	memcpy(buf + size_of_img_pixels, md_json, size_of_md_json);
 	// printf("Going to call verify signature with size_of_img_pixels: %d, size_of_md_json: %d, size_of_img_sig: %d\n", size_of_img_pixels, size_of_md_json, size_of_img_sig);
+	// printf("Here is the md_json(%d): [%s]\n", size_of_md_json, md_json);
 	// print_public_key(ias_pubkey);
 	ret = verify_hash(buf, size_of_img_pixels + size_of_md_json, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);
 	free(buf);

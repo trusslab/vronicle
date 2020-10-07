@@ -4,6 +4,7 @@
 char TCPServer::msg[MAXPACKETSIZE];
 
 int TCPServer::num_client;
+int TCPServer::last_client_num;
 int TCPServer::last_closed;
 bool TCPServer::isonline;
 vector<descript_socket*> TCPServer::Message;
@@ -131,6 +132,54 @@ void* TCPServer::Task(void *arg)
 	return 0;
 }
 
+char* TCPServer::receive_exact(int size)
+{
+	char* buffer = (char*) malloc(size);
+	memset(&buffer[0], 0, sizeof(buffer));
+
+  	string reply;
+	if( recv(newsockfd[last_client_num]->socket , buffer , size, MSG_WAITALL) < 0)
+  	{
+	    	cout << "receive failed!" << endl;
+		return nullptr;
+  	}
+
+  	return buffer;
+}
+
+string TCPServer::receive_name()
+{
+  	char buffer[SIZEOFPACKAGEFORNAME + 1];
+	memset(&buffer[0], 0, sizeof(buffer));
+
+  	string reply;
+	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
+  	{
+	    	cout << "receive failed!" << endl;
+		return nullptr;
+  	}
+	buffer[SIZEOFPACKAGEFORNAME]='\0';
+  	reply = buffer;
+  	return reply;
+}
+
+long TCPServer::receive_size_of_data()
+{
+  	char buffer[8];
+	memset(&buffer[0], 0, sizeof(buffer));
+	long size_of_data = 0;
+
+	if( recv(newsockfd[last_client_num]->socket , buffer , 8, MSG_WAITALL) < 0)
+  	{
+	    	cout << "receive failed!" << endl;
+		return -1;
+  	}
+	
+	memcpy(&size_of_data, buffer, 8);
+
+  	return size_of_data;
+}
+
 int TCPServer::setup(int port, vector<int> opts)
 {
 	int opt = 1;
@@ -170,12 +219,12 @@ void TCPServer::accepted()
 	descript_socket *so = new descript_socket;
 	so->socket          = accept(sockfd,(struct sockaddr*)&clientAddress,&sosize);
 	so->id              = num_client;
+	last_client_num = num_client;
 	so->ip              = inet_ntoa(clientAddress.sin_addr);
 	newsockfd.push_back( so );
 	cerr << "accept client[ id:" << newsockfd[num_client]->id << 
 	                      " ip:" << newsockfd[num_client]->ip << 
 		              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
-	pthread_create(&serverThread[num_client], NULL, &Task, (void *)newsockfd[num_client]);
 	isonline=true;
 	num_client++;
 }
@@ -194,6 +243,11 @@ void TCPServer::Send(string msg, int id)
 void TCPServer::Send(char* msg, int msg_len, int id)
 {
 	send(newsockfd[id]->socket,msg,msg_len,0);
+}
+
+void TCPServer::send_to_last_connected_client(void* data, int data_size)
+{
+	send(newsockfd[last_client_num]->socket,data,data_size,0);
 }
 
 int TCPServer::get_last_closed_sockets()

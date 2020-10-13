@@ -99,7 +99,12 @@ int main(int argc, char *argv[], char **env)
 
     // Prepare tcp client
     printf("Setting up tcp client...\n");
-    tcp_client.setup(argv[1], atoi(argv[2]));
+    bool connection_result = tcp_client.setup(argv[1], atoi(argv[2]));
+
+    if(!connection_result){
+        printf("Connection cannot be established...\n");
+        return 1;
+    }
 
     // Start receiving
     while(num_of_times_received != TARGET_NUM_FILES_RECEIVED){

@@ -68,7 +68,9 @@ bool TCPClient::Send(void* data, size_t len)
 {
 	if(sock != -1) 
 	{
-		if( send(sock , data , len , 0) < 0)
+		int n = send(sock , data , len , 0);
+		printf("Sent data(%d): [%s] with result: %d\n", len, (char*)data, n);
+		if(n < 0)
 		{
 			cout << "Send failed with data size: " << len << endl;
 			return false;
@@ -116,9 +118,11 @@ string TCPClient::receive_name()
 	memset(&buffer[0], 0, sizeof(buffer));
 
   	string reply;
-	if( recv(sock , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
+	int n = recv(sock , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL);
+	printf("receive_name(%d): %s\n", n, buffer);
+	if(n < 0)
   	{
-	    	cout << "receive failed!" << endl;
+	    cout << "receive failed!" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';

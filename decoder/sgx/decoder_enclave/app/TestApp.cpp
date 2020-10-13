@@ -132,6 +132,10 @@ int image_width = 0;		/* Number of columns in image */
 
 char* hash_of_file;  /* temp test */
 
+// For evaluation
+ofstream eval_file;
+ofstream alt_eval_file;
+
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
     {
@@ -725,11 +729,6 @@ void send_message(char* message, int msg_size){
 }
 
 void do_decoding(
-    int socket_fd,
-	struct sockaddr *saddr_p,
-	socklen_t saddrlen,
-	unsigned char recv_buf[],
-	uint32_t recv_time[],
     int argc,
     char** argv)
 {
@@ -739,6 +738,8 @@ void do_decoding(
 
     printf("input_vendor_pub_path: %s, incoming port: %s, outgoing address: %s, outgoing port: %s\n", argv[1], argv[2], argv[3], argv[4]);
 
+    auto start = high_resolution_clock::now();
+
     // Read camera vendor public key
     long vendor_pub_len = 0;
     char* vendor_pub = read_file_as_str(input_vendor_pub_path, &vendor_pub_len);
@@ -747,9 +748,15 @@ void do_decoding(
         return;
     }
 
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    alt_eval_file << duration.count() << ", ";
+
     // Register signal handlers
     std::signal(SIGINT, close_app);
 	std::signal(SIGPIPE, sigpipe_handler);
+
+    start = high_resolution_clock::now();
 
     // Start TCPServer for receving incoming data
     pthread_t msg;
@@ -773,6 +780,12 @@ void do_decoding(
 	}
 	else
 		cerr << "Errore apertura socket" << endl;
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    alt_eval_file << duration.count() << ", ";
+
+    start = high_resolution_clock::now();
 
     // Parse metadata
     printf("md_json(%ld): %s\n", md_json_len, md_json);
@@ -818,6 +831,12 @@ void do_decoding(
         return;
     }
 
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    alt_eval_file << duration.count() << ", ";
+
+    start = high_resolution_clock::now();
+
     int ret = 0;
     sgx_status_t status = t_sgxver_decode_content(global_eid, &ret,
                                                   contentBuffer, contentSize, 
@@ -827,6 +846,12 @@ void do_decoding(
                                                   vid_sig, vid_sig_length,
                                                   frame_width, frame_height, num_of_frames, 
                                                   output_rgb_buffer, output_sig_buffer, output_md_buffer);
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    alt_eval_file << duration.count() << ", ";
+
+    auto start_s = high_resolution_clock::now();
 
     if (ret) {
         printf("Failed to decode video\n");
@@ -852,8 +877,13 @@ void do_decoding(
         send_message(msg_buf, size_of_msg_buf);
         send_buffer(der_cert, size_of_cert);
 
+        end = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(end - start_s);
+        alt_eval_file << duration.count() << ", ";
+
         // Start sending frames 
         for(int i = 0; i < *num_of_frames; ++i){
+
             string frame_num = to_string(i);
 
             printf("Sending frame: %d\n", i);
@@ -865,12 +895,20 @@ void do_decoding(
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "frame", 5);
             // printf("Going to send frame %d's name...\n", i);
+
+            start = high_resolution_clock::now();
+
             send_message(msg_buf, size_of_msg_buf);
             // printf("Very first set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[0], temp_output_rgb_buffer[1], temp_output_rgb_buffer[2]);
             // int last_pixel_position = 1280 * 720 * 3 - 3;
             // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
             // printf("Going to send frame %d's info...\n", i);
             send_buffer(b64_frame, b64_frame_size);
+
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            eval_file << duration.count() << ", ";
+
             free(b64_frame);
             temp_output_rgb_buffer += frame_size;
 
@@ -882,24 +920,40 @@ void do_decoding(
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "sig", 3);
             // printf("Going to send frame %d's sig's name...\n", i);
+
+            start = high_resolution_clock::now();
+
             send_message(msg_buf, size_of_msg_buf);
             // printf("signature(%d) going to be sent is: [%s]\n", b64_sig_size, b64_sig);
             // printf("Going to send frame %d's sig's info...\n", i);
             send_buffer(b64_sig, b64_sig_size);
+
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            eval_file << duration.count() << ", ";
+
             free(b64_sig);
 
             // Send metadata
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "meta", 4);
             // printf("Going to send frame %d's md's name...\n", i);
-            send_message(msg_buf, size_of_msg_buf);
             int md_size_for_sending = md_size + 1;
             char* md_for_print = (char*) malloc(md_size_for_sending);
             memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
             md_for_print[md_size_for_sending - 1] = '\0';
             // printf("metadata(%d) going to be sent is: [%s]\n", md_size_for_sending, md_for_print);
             // printf("Going to send frame %d's md's info...\n", i);
+
+            start = high_resolution_clock::now();
+
+            send_message(msg_buf, size_of_msg_buf);
             send_buffer(md_for_print, md_size_for_sending);
+
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            eval_file << duration.count() << "\n";
+
             // send_buffer(temp_output_md_buffer, md_size);
             free(md_for_print);
             temp_output_md_buffer += md_size;
@@ -912,6 +966,10 @@ void do_decoding(
         free(msg_buf);
 
     }
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start_s);
+    alt_eval_file << duration.count();
 
     // Free everything
     printf("Going to call free at the end of decoder...\n");
@@ -963,12 +1021,11 @@ void request_process_loop(int fd, int argc, char** argv)
 
     // gettime64(recv_time);
 
-    auto start = high_resolution_clock::now();
-    do_decoding(fd, &src_addr , src_addrlen, buf, recv_time, argc, argv);
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
+    // auto start = high_resolution_clock::now();
+    // auto stop = high_resolution_clock::now();
+    // auto duration = duration_cast<microseconds>(stop - start);
     // cout << "decoding with parameters: " << (char*)buf << " takes time: " << duration.count() << endl; 
-    cout << "decoding takes time: " << duration.count() << endl; 
+    // cout << "decoding takes time: " << duration.count() << endl; 
 }
 
 void sgx_server(int argc, char** argv)
@@ -1049,27 +1106,51 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
+    // Open file to store evaluation results
+    mkdir("../../../evaluation/eval_result", 0777);
+    eval_file.open("../../../evaluation/eval_result/eval_decoder.csv");
+    if (!eval_file.is_open()) {
+        printf("Could not open eval file.\n");
+        return 1;
+    }
+
+    alt_eval_file.open("../../../evaluation/eval_result/eval_decoder_one_time.csv");
+    if (!alt_eval_file.is_open()) {
+        printf("Could not open alt_eval_file file.\n");
+        return 1;
+    }
+
+    // For time of initializing sgx enclave and doing RA
+    auto start = high_resolution_clock::now();
+
 	/* initialize and start the enclave in here */
 	start_enclave(argc, argv);
 
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    alt_eval_file << duration.count() << ", "; 
+
     size_of_cert = 4 * 4096;
     der_cert = (unsigned char *)malloc(size_of_cert);
-    auto start = high_resolution_clock::now();
+
+    start = high_resolution_clock::now();
+
     t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Conducting RA took time: " << duration.count() << endl; 
-    // char* cert_file_name = "../video_data/decoder_cert.der";
-    // FILE* cert_file = fopen(cert_file_name, "wb");
-    // fwrite(der_cert, size_of_cert, 1, cert_file);
-    // fclose(cert_file);
+    
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    alt_eval_file << duration.count() << ", "; 
 
 	/* create the server waiting for the verification request from the client */
 	int s;
 	signal(SIGCHLD,wait_wrapper);
-	sgx_server(argc, argv);
+    do_decoding(argc, argv);
 
     t_free(global_eid);
+
+     // Close eval file
+    eval_file.close();
+    alt_eval_file.close();
 
 	/* after verification we destroy the enclave */
     sgx_destroy_enclave(global_eid);

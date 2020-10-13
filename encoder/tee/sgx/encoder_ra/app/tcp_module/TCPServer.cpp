@@ -1,14 +1,14 @@
 #include "TCPServer.h" 
 # define MAXTIMESTRYTORECEIVE 5
 
-char TCPServer::msg[MAXPACKETSIZE];
+// char TCPServer::msg[MAXPACKETSIZE];
 
-int TCPServer::num_client;
-int TCPServer::last_client_num;
-int TCPServer::last_closed;
-bool TCPServer::isonline;
-vector<descript_socket*> TCPServer::Message;
-vector<descript_socket*> TCPServer::newsockfd;
+// int TCPServer::num_client;
+// int TCPServer::last_client_num;
+// int TCPServer::last_closed;
+// bool TCPServer::isonline;
+// vector<descript_socket*> TCPServer::Message;
+// vector<descript_socket*> TCPServer::newsockfd;
 std::mutex TCPServer::mt;
 
 void sigpipe_handler(int signum){
@@ -36,6 +36,8 @@ string TCPServer::receive_name()
 {
   	char buffer[SIZEOFPACKAGEFORNAME + 1];
 	memset(&buffer[0], 0, sizeof(buffer));
+
+	// printf("Trying to receive from last_client_num: %d\n", last_client_num);
 
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)

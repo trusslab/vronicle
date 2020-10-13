@@ -113,8 +113,11 @@ using namespace std;
 #include <chrono> 
 using namespace std::chrono;
 
-ofstream eval_file;
 int is_previous_ias_verified = 0;
+
+// For evaluation
+ofstream eval_file;
+ofstream alt_eval_file;
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -945,17 +948,8 @@ int verification_reply(
     char* output_md_path     = argv[5];
 
     int path_len = 200;
-
-    // // Read metadata
-    // long md_json_len = 0;
-    // char input_md_path[path_len];
-    // snprintf(input_md_path, path_len, "%s%s.json", raw_md_path, (char*)recv_buf);
-    // printf("Going to read meatadata: %s\n", input_md_path);
-    // char* md_json = read_file_as_str(input_md_path, &md_json_len);
-    // if (!md_json) {
-    //     printf("Failed to read metadata\n");
-    //     return 1;
-    // }
+    
+    auto start = high_resolution_clock::now();
 
     // Parse metadata
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
@@ -972,16 +966,11 @@ int verification_reply(
 
     // Parse Signature
     printf("raw_signature(%d) going to be used is: [%s]\n", raw_signature_length, raw_signature);
-    auto start = high_resolution_clock::now();
     size_t vid_sig_length = 0;
     unsigned char* vid_sig = decode_signature(raw_signature, raw_signature_length, &vid_sig_length);
-    auto end = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
 
     // Parse Raw Image
     // printf("Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size * sizeof(char), raw_frame_buf_len);
-    start = high_resolution_clock::now();
     pixel* image_pixels = (pixel*)malloc(frame_size * sizeof(char));
     if (!image_pixels) {
         printf("No memory left(image_pixels)\n");
@@ -995,12 +984,8 @@ int verification_reply(
     // printf("Very first set of image pixel: %d, %d, %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
     // int last_pixel_position = md->height * md->width - 1;
     // printf("Very last set of image pixel: %d, %d, %d\n", image_pixels[last_pixel_position].r, image_pixels[last_pixel_position].g, image_pixels[last_pixel_position].b);
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
 
     // Prepare processed Image
-    start = high_resolution_clock::now();
     pixel* processed_pixels;
     processed_pixels = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
     if (!processed_pixels) {
@@ -1014,9 +999,6 @@ int verification_reply(
         printf("No memory left\n");
         return 1;
     }
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
 
     // Prepare buffer for metadata output
     size_t out_md_json_len = md_json_len + 48;
@@ -1026,6 +1008,10 @@ int verification_reply(
         printf("No memory left(out_md_json)\n");
         return 1;
     }
+
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
 
     // Going to get into enclave
     start = high_resolution_clock::now();
@@ -1042,6 +1028,7 @@ int verification_reply(
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
+
     if (status != SGX_SUCCESS) {
         printf("Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
@@ -1084,11 +1071,19 @@ int verification_reply(
     // End of send processed filter singature
 
     // Send metadata
+
+    start = high_resolution_clock::now();
+
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "meta", 4);
     // printf("Sending metadata(%d): [%s]\n", out_md_json_len, out_md_json);
     send_message(msg_buf, size_of_msg_buf);
     send_buffer(out_md_json, out_md_json_len);
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    eval_file << duration.count() << ", "; 
+
     // End of send metadata
 
     // Free Everything (for video_provenance project)
@@ -1124,7 +1119,7 @@ int verification_reply(
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", ";
+    eval_file << duration.count() << endl;
 
 	return 0;
 }
@@ -1144,12 +1139,16 @@ void request_process_loop(int fd, char** argv)
 	std::signal(SIGPIPE, sigpipe_handler);
 
     // First we receive IAS certificate and verify it
+    
+    auto start = high_resolution_clock::now();
+
     pthread_t msg;
     // Receive ias cert
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
         tcp_server.accepted();
         cerr << "Accepted" << endl;
+        start = high_resolution_clock::now();
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
             printf("pthread for receiving created failed...quiting...\n");
             return;
@@ -1160,9 +1159,19 @@ void request_process_loop(int fd, char** argv)
     else
         cerr << "Errore apertura socket" << endl;
 
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
+    start = high_resolution_clock::now();
+
     // Verify certificate in enclave
     int ret;
     sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
 
     if (status_of_verification != SGX_SUCCESS) {
         cout << "Failed to read IAS certificate file" << endl;
@@ -1171,8 +1180,11 @@ void request_process_loop(int fd, char** argv)
     }
     free(ias_cert);
 
+
     printf("ias certificate verified successfully, going to start receving and processing frames...\n");
 	// tcp_server.closed();
+    
+    start = high_resolution_clock::now();
 
     // Prepare buf for sending message
     msg_buf = (char*) malloc(size_of_msg_buf);
@@ -1187,11 +1199,18 @@ void request_process_loop(int fd, char** argv)
     memcpy(msg_buf, "cert", 4);
     send_message(msg_buf, size_of_msg_buf);
     send_buffer(der_cert, size_of_cert);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
     free(der_cert);
 
     // if( tcp_server.setup(atoi(argv[1]),opts) != 0){
     //     printf("Second time of setting up tcp server failed...\n");
     // }
+    
+    start = high_resolution_clock::now();
 
     while(1) {
         // Receive frame info
@@ -1209,7 +1228,6 @@ void request_process_loop(int fd, char** argv)
             break;
         }
         // printf("Going to process frame %d\n", num_of_times_received);
-        auto start = high_resolution_clock::now();
         // Note that all info about processed frame is sent in verification_reply
         // printf("Going to process and send frame: %d\n", num_of_times_received - 1);
         int process_status = verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
@@ -1217,12 +1235,13 @@ void request_process_loop(int fd, char** argv)
             printf("frame process error...exiting...\n");
             break;
         }
-        auto stop = high_resolution_clock::now();
-        auto duration = duration_cast<microseconds>(stop - start);
-        eval_file << duration.count() << endl; 
         // md_json = NULL;
         // printf("frame %d processed successfully\n", num_of_times_received);
     }
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count();
     
     free(msg_buf);
 }
@@ -1306,9 +1325,16 @@ int main(int argc, char *argv[], char **env)
     }
 
     // Open file to store evaluation results
-    eval_file.open("../video_data/eval_filter.csv");
+    mkdir("../../../evaluation/eval_result", 0777);
+    eval_file.open("../../../evaluation/eval_result/eval_filter_blur.csv");
     if (!eval_file.is_open()) {
         printf("Could not open eval file.\n");
+        return 1;
+    }
+
+    alt_eval_file.open("../../../evaluation/eval_result/eval_filter_blur_one_time.csv");
+    if (!alt_eval_file.is_open()) {
+        printf("Could not open alt_eval_file file.\n");
         return 1;
     }
     
@@ -1317,15 +1343,17 @@ int main(int argc, char *argv[], char **env)
 	start_enclave(argc, argv);
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
+    alt_eval_file << duration.count() << ", "; 
 
     size_of_cert = 4 * 4096;
     der_cert = (unsigned char *)malloc(size_of_cert);
+
     start = high_resolution_clock::now();
+
     t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", ";
+    alt_eval_file << duration.count() << ", ";
 
 	/* create the server waiting for the verification request from the client */
 	int s;
@@ -1336,6 +1364,7 @@ int main(int argc, char *argv[], char **env)
 
     // Close eval file
     eval_file.close();
+    alt_eval_file.close();
 
 	/* after verification we destroy the enclave */
     sgx_destroy_enclave(global_eid);

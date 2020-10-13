@@ -152,6 +152,10 @@ char* raw_signature = NULL;
 long raw_frame_buf_len = 0;
 char* raw_frame_buf = NULL;
 
+// For evaluation
+ofstream eval_file;
+ofstream alt_eval_file;
+
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
     {
@@ -925,12 +929,12 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
             remaining_size_of_buffer = 0;
             is_finished = 1;
         }
-        printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
+        // printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
 		string rec = tcp_server_for_viewer.receive_name();
         // printf("(inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
-			cout << "send_buffer received: " << rec << endl;
+			// cout << "send_buffer received: " << rec << endl;
 		}
         if(is_finished){
             break;
@@ -961,21 +965,47 @@ int main(int argc, char *argv[], char **env)
     }
     printf("Incoming port: %d; Port for viewer %d\n", incoming_port, port_for_viewer);
 
+    // Open file to store evaluation results
+    mkdir("../../../../evaluation/eval_result", 0777);
+    eval_file.open("../../../../evaluation/eval_result/eval_encoder_blur.csv");
+    if (!eval_file.is_open()) {
+        printf("Could not open eval file.\n");
+        return 1;
+    }
+
+    alt_eval_file.open("../../../../evaluation/eval_result/eval_encoder_one_time.csv");
+    if (!alt_eval_file.is_open()) {
+        printf("Could not open alt_eval_file file.\n");
+        return 1;
+    }
+
 	// Initialize and start the enclave
+
+    auto start = high_resolution_clock::now();
+
 	start_enclave();
+
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", "; 
 
     // Create enclave cert
     size_t size_of_cert = 4 * 4096;
     unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
-    auto start = high_resolution_clock::now();
+
+    start = high_resolution_clock::now();
+
     status = t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     if (status != SGX_SUCCESS) {
         printf("Creating SGX certificate failed\n");
         return 1;
     }
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Conducting RA took time: " << duration.count() << endl;
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
+    start = high_resolution_clock::now();
 
     // Receive and verify IAS certificate
     pthread_t msg;
@@ -993,9 +1023,20 @@ int main(int argc, char *argv[], char **env)
     }
     else
         cerr << "Errore apertura socket" << endl;
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
+    start = high_resolution_clock::now();
+
     // Verify certificate in enclave
     int ret;
     sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
 
     if (status_of_verification != SGX_SUCCESS) {
         cout << "Failed to read IAS certificate file" << endl;
@@ -1010,6 +1051,8 @@ int main(int argc, char *argv[], char **env)
     int max_frames = 999; // Assume there are at most 999 frames
     int max_frame_digits = num_digits(max_frames);
 
+    start = high_resolution_clock::now();
+
     // Receive the very first frame for setting up Encoder
     if( pthread_create(&msg, NULL, received, (void *)0) == 0)
     {
@@ -1021,6 +1064,12 @@ int main(int argc, char *argv[], char **env)
     } else {
         printf("pthread created failed...\n");
     }
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+    
+    start = high_resolution_clock::now();
 
     // Initialize variables in host
     // Parse metadata
@@ -1084,8 +1133,14 @@ int main(int argc, char *argv[], char **env)
     // free(frame_sig);
     // free(md_json);
     free(md);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
     
-    printf("Going to receive and encode frame 0\n");
+    printf("Going to encode frame 0\n");
+    
+    start = high_resolution_clock::now();
 
     // Instead, we encode the very first frame now
     status = t_encode_frame(global_eid, &res, 
@@ -1099,6 +1154,10 @@ int main(int argc, char *argv[], char **env)
         delete frame;
         return 1;
     }
+    
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
 
     // Now clean metadata raw data as we directly use it for encoding
     free(md_json);
@@ -1115,6 +1174,8 @@ int main(int argc, char *argv[], char **env)
     {
         printf("Going to receive and encode frame %d\n", i);
 
+        start = high_resolution_clock::now();
+
         // Receive frame
         if( pthread_create(&msg, NULL, received, (void *)0) == 0)
         {
@@ -1126,6 +1187,12 @@ int main(int argc, char *argv[], char **env)
         } else {
             printf("pthread created failed...\n");
         }
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        eval_file << duration.count() << ", ";
+        
+        start = high_resolution_clock::now();
 
         // Parse frame
         memset(frame, 0, frame_size);
@@ -1145,6 +1212,12 @@ int main(int argc, char *argv[], char **env)
         raw_signature = NULL;
         raw_signature_length = 0;
 
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        eval_file << duration.count() << ", ";
+        
+        start = high_resolution_clock::now();
+
         // Encode frame in enclave
         status = t_encode_frame(global_eid, &res, 
                                 frame_sig, frame_sig_len,
@@ -1158,6 +1231,10 @@ int main(int argc, char *argv[], char **env)
             delete frame;
             return 1;
         }
+        
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        eval_file << duration.count() << endl;
 
         // Clean up
         free(frame_sig);
@@ -1179,7 +1256,7 @@ int main(int argc, char *argv[], char **env)
     time_t my_time = time(NULL); 
   
     // ctime() used to give the present time 
-    printf("Encoding completed at: %s", ctime(&my_time)); 
+    printf("Encoding completed at: %s", ctime(&my_time));
 
     if( tcp_server_for_viewer.setup(port_for_viewer,opts) == 0) {
         printf("Ready for viewer to connect...\n");
@@ -1190,14 +1267,19 @@ int main(int argc, char *argv[], char **env)
         cerr << "Errore apertura socket" << endl;
 
     // Init msg_buf
-    msg_buf = (char*) malloc(size_of_msg_buf);
     string msg_reply_from_viewer;
+    msg_buf = (char*) malloc(size_of_msg_buf);
+    
+    start = high_resolution_clock::now();
 
     // Send ias cert
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
+    printf("Going to send msg_buf(%d): [%s]\n", size_of_msg_buf, msg_buf);
     tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
-    msg_reply_from_viewer = tcp_server_for_viewer.receive_name();;
+    printf("Send completed...\n");
+    msg_reply_from_viewer = tcp_server_for_viewer.receive_name();
+    printf("Received reply: [%s]\n", msg_reply_from_viewer.c_str());
     if(msg_reply_from_viewer != "ready"){
         printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
         return 1;
@@ -1205,7 +1287,13 @@ int main(int argc, char *argv[], char **env)
 
     send_buffer_to_viewer(der_cert, size_of_cert);
 
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
     free(der_cert);
+    
+    start = high_resolution_clock::now();
 
     // Send encoded video
     size_t total_coded_data_size = 0;
@@ -1232,7 +1320,13 @@ int main(int argc, char *argv[], char **env)
 
     send_buffer_to_viewer(total_coded_data, total_coded_data_size);
 
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
     delete total_coded_data;
+
+    start = high_resolution_clock::now();
 
     // Send signature
     size_t sig_size = 0;
@@ -1262,8 +1356,14 @@ int main(int argc, char *argv[], char **env)
 
     send_buffer_to_viewer(b64_sig, b64_sig_size);
 
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
     delete sig;
     free(b64_sig);
+    
+    start = high_resolution_clock::now();
 
     // Send metadata
     size_t out_md_json_len = 409;
@@ -1289,6 +1389,12 @@ int main(int argc, char *argv[], char **env)
 
     send_buffer_to_viewer(out_md_json, out_md_json_len);
 
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << endl;
+
+    printf("All files sent successfully...going to quit...\n");
+
     free(out_md_json);
 
     if (cl->psnr)
@@ -1308,6 +1414,10 @@ int main(int argc, char *argv[], char **env)
         printf("t_get_sig failed\n");
         return 1;
     }
+
+    // Close eval file
+    eval_file.close();
+    alt_eval_file.close();
 
 	/* after verification we destroy the enclave */
     sgx_destroy_enclave(global_eid);

@@ -49,14 +49,14 @@ class TCPServer
 	struct sockaddr_in clientAddress;
 	pthread_t serverThread[ MAX_CLIENT ];
 
-	static vector<descript_socket*> newsockfd;
-	static char msg[ MAXPACKETSIZE ];
-	static vector<descript_socket*> Message;//[CODA_MSG];
+	vector<descript_socket*> newsockfd;
+	char msg[ MAXPACKETSIZE ];
+	vector<descript_socket*> Message;//[CODA_MSG];
 
-	static bool isonline;
-	static int last_closed;
-	static int last_client_num;
-	static int num_client;
+	bool isonline;
+	int last_closed;
+	int last_client_num;
+	int num_client;
 	static std::mutex mt;
 };
 

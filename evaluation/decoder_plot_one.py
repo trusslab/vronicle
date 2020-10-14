@@ -10,7 +10,7 @@ try:
 except FileExistsError:
     pass
 fig_name = folder + '/decoder_one.png'
-x_ticks = ['Enclave Init', 'RA', 'Read Vendor Key', 'Receive Files', 'Prepare Data', 'Decode Video', 'Send IAS Cert', '(Prepare & Send)*']
+x_ticks = ['Enclave Init', 'RA', 'Read Vendor Key', 'Receive Cert', 'Receive Vid', 'Receive Meta', 'Receive Sig', 'Prepare Data', 'Decode Video', 'Send IAS Cert', '(Prepare & Send)*']
 bps = []
 fig = plt.figure(figsize=(16, 9))
 

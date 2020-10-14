@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 import csv
 import os, sys
 
+eval_names = ['filter_blur', 'filter_brightness', 'filter_denoise_easy', 'filter_gray', 'filter_sharpen', 'filter_white_balance']
+
 folder = 'figures'
 try:
     os.mkdir( folder, 0o755 )
 except FileExistsError:
     pass
 fig_name = folder + '/filter_blur_one.png'
-x_ticks = ['Enclave Init', 'RA', 'Receive IAS', 'Verify IAS', 'Send IAS', '(Receive & Process & Send)*']
+x_ticks = ['Enclave Init', 'RA', 'Receive IAS Cert', 'Verify IAS Cert', 'Send IAS Cert', '(Receive & Process & Send)*']
 bps = []
 fig = plt.figure(figsize=(16, 9))
 

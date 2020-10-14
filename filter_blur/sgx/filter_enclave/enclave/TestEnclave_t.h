@@ -18,8 +18,8 @@
 extern "C" {
 #endif
 
-void t_sgxssl_call_apis(void* evp_pkey_v);
-void t_sgxver_call_apis(void* image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void* hash_of_original_image, int size_of_hooi, void* signature, size_t size_of_actual_signature, void* original_vendor_pub_str, long int original_vendor_pub_str_len, void* original_cert_str, long int original_cert_str_len, void* processed_pixels, void* runtime_result, int size_of_runtime_result, void* char_array_for_processed_img_sign, int size_of_cafpis, void* hash_of_processed_image, int size_of_hopi, void* processed_img_signautre, size_t size_of_pis, void* size_of_actual_processed_img_signature, size_t sizeof_soapis);
+int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels, void* md_json, size_t size_of_md_json, void* img_sig, size_t size_of_img_sig, void* out_pixels, void* out_md_json, size_t size_of_out_md_json, void* out_img_sig, size_t size_of_out_img_sig);
+int t_verify_cert(void* ias_cert, size_t size_of_ias_cert);
 void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of_cert, size_t asoc);
 void t_free(void);
 void dummy(void);

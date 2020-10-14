@@ -1,35 +1,26 @@
 #include "TestEnclave_u.h"
 #include <errno.h>
 
-typedef struct ms_t_sgxssl_call_apis_t {
-	void* ms_evp_pkey_v;
-} ms_t_sgxssl_call_apis_t;
-
 typedef struct ms_t_sgxver_call_apis_t {
-	void* ms_image_pixels;
-	size_t ms_size_of_image_pixels;
-	int ms_image_width;
-	int ms_image_height;
-	void* ms_hash_of_original_image;
-	int ms_size_of_hooi;
-	void* ms_signature;
-	size_t ms_size_of_actual_signature;
-	void* ms_original_vendor_pub_str;
-	long int ms_original_vendor_pub_str_len;
-	void* ms_original_cert_str;
-	long int ms_original_cert_str_len;
-	void* ms_processed_pixels;
-	void* ms_runtime_result;
-	int ms_size_of_runtime_result;
-	void* ms_char_array_for_processed_img_sign;
-	int ms_size_of_cafpis;
-	void* ms_hash_of_processed_image;
-	int ms_size_of_hopi;
-	void* ms_processed_img_signautre;
-	size_t ms_size_of_pis;
-	void* ms_size_of_actual_processed_img_signature;
-	size_t ms_sizeof_soapis;
+	int ms_retval;
+	void* ms_img_pixels;
+	size_t ms_size_of_img_pixels;
+	void* ms_md_json;
+	size_t ms_size_of_md_json;
+	void* ms_img_sig;
+	size_t ms_size_of_img_sig;
+	void* ms_out_pixels;
+	void* ms_out_md_json;
+	size_t ms_size_of_out_md_json;
+	void* ms_out_img_sig;
+	size_t ms_size_of_out_img_sig;
 } ms_t_sgxver_call_apis_t;
+
+typedef struct ms_t_verify_cert_t {
+	int ms_retval;
+	void* ms_ias_cert;
+	size_t ms_size_of_ias_cert;
+} ms_t_verify_cert_t;
 
 typedef struct ms_t_create_key_and_x509_t {
 	void* ms_cert;
@@ -187,43 +178,34 @@ static const struct {
 		(void*)TestEnclave_ocall_remote_attestation,
 	}
 };
-sgx_status_t t_sgxssl_call_apis(sgx_enclave_id_t eid, void* evp_pkey_v)
-{
-	sgx_status_t status;
-	ms_t_sgxssl_call_apis_t ms;
-	ms.ms_evp_pkey_v = evp_pkey_v;
-	status = sgx_ecall(eid, 0, &ocall_table_TestEnclave, &ms);
-	return status;
-}
-
-sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, void* image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void* hash_of_original_image, int size_of_hooi, void* signature, size_t size_of_actual_signature, void* original_vendor_pub_str, long int original_vendor_pub_str_len, void* original_cert_str, long int original_cert_str_len, void* processed_pixels, void* runtime_result, int size_of_runtime_result, void* char_array_for_processed_img_sign, int size_of_cafpis, void* hash_of_processed_image, int size_of_hopi, void* processed_img_signautre, size_t size_of_pis, void* size_of_actual_processed_img_signature, size_t sizeof_soapis)
+sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, int* retval, void* img_pixels, size_t size_of_img_pixels, void* md_json, size_t size_of_md_json, void* img_sig, size_t size_of_img_sig, void* out_pixels, void* out_md_json, size_t size_of_out_md_json, void* out_img_sig, size_t size_of_out_img_sig)
 {
 	sgx_status_t status;
 	ms_t_sgxver_call_apis_t ms;
-	ms.ms_image_pixels = image_pixels;
-	ms.ms_size_of_image_pixels = size_of_image_pixels;
-	ms.ms_image_width = image_width;
-	ms.ms_image_height = image_height;
-	ms.ms_hash_of_original_image = hash_of_original_image;
-	ms.ms_size_of_hooi = size_of_hooi;
-	ms.ms_signature = signature;
-	ms.ms_size_of_actual_signature = size_of_actual_signature;
-	ms.ms_original_vendor_pub_str = original_vendor_pub_str;
-	ms.ms_original_vendor_pub_str_len = original_vendor_pub_str_len;
-	ms.ms_original_cert_str = original_cert_str;
-	ms.ms_original_cert_str_len = original_cert_str_len;
-	ms.ms_processed_pixels = processed_pixels;
-	ms.ms_runtime_result = runtime_result;
-	ms.ms_size_of_runtime_result = size_of_runtime_result;
-	ms.ms_char_array_for_processed_img_sign = char_array_for_processed_img_sign;
-	ms.ms_size_of_cafpis = size_of_cafpis;
-	ms.ms_hash_of_processed_image = hash_of_processed_image;
-	ms.ms_size_of_hopi = size_of_hopi;
-	ms.ms_processed_img_signautre = processed_img_signautre;
-	ms.ms_size_of_pis = size_of_pis;
-	ms.ms_size_of_actual_processed_img_signature = size_of_actual_processed_img_signature;
-	ms.ms_sizeof_soapis = sizeof_soapis;
+	ms.ms_img_pixels = img_pixels;
+	ms.ms_size_of_img_pixels = size_of_img_pixels;
+	ms.ms_md_json = md_json;
+	ms.ms_size_of_md_json = size_of_md_json;
+	ms.ms_img_sig = img_sig;
+	ms.ms_size_of_img_sig = size_of_img_sig;
+	ms.ms_out_pixels = out_pixels;
+	ms.ms_out_md_json = out_md_json;
+	ms.ms_size_of_out_md_json = size_of_out_md_json;
+	ms.ms_out_img_sig = out_img_sig;
+	ms.ms_size_of_out_img_sig = size_of_out_img_sig;
+	status = sgx_ecall(eid, 0, &ocall_table_TestEnclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t t_verify_cert(sgx_enclave_id_t eid, int* retval, void* ias_cert, size_t size_of_ias_cert)
+{
+	sgx_status_t status;
+	ms_t_verify_cert_t ms;
+	ms.ms_ias_cert = ias_cert;
+	ms.ms_size_of_ias_cert = size_of_ias_cert;
 	status = sgx_ecall(eid, 1, &ocall_table_TestEnclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }
 

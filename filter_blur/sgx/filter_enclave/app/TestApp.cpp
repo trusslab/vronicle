@@ -965,7 +965,7 @@ int verification_reply(
     int frame_size = md->width * md->height * 3 * sizeof(unsigned char);
 
     // Parse Signature
-    printf("raw_signature(%d) going to be used is: [%s]\n", raw_signature_length, raw_signature);
+    // printf("raw_signature(%d) going to be used is: [%s]\n", raw_signature_length, raw_signature);
     size_t vid_sig_length = 0;
     unsigned char* vid_sig = decode_signature(raw_signature, raw_signature_length, &vid_sig_length);
 
@@ -1141,6 +1141,9 @@ void request_process_loop(int fd, char** argv)
     // First we receive IAS certificate and verify it
     
     auto start = high_resolution_clock::now();
+    
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
 
     pthread_t msg;
     // Receive ias cert
@@ -1148,20 +1151,23 @@ void request_process_loop(int fd, char** argv)
     if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
         tcp_server.accepted();
         cerr << "Accepted" << endl;
+
         start = high_resolution_clock::now();
+
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
             printf("pthread for receiving created failed...quiting...\n");
             return;
         }
         pthread_join(msg, NULL);
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        alt_eval_file << duration.count() << ", ";
+
         printf("ias cert received successfully...\n");
     }
     else
         cerr << "Errore apertura socket" << endl;
-
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    alt_eval_file << duration.count() << ", ";
 
     start = high_resolution_clock::now();
 

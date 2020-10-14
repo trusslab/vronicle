@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import csv
 import os, sys
 
+eval_names = ['filter_blur', 'filter_brightness', 'filter_denoise_easy', 'filter_gray', 'filter_sharpen', 'filter_white_balance']
+
 folder = 'figures'
 try:
     os.mkdir( folder, 0o755 )

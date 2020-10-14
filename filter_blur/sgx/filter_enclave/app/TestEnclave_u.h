@@ -5,7 +5,7 @@
 #include <wchar.h>
 #include <stddef.h>
 #include <string.h>
-#include "sgx_edger8r.h" /* for sgx_status_t etc. */
+#include "sgx_edger8r.h" /* for sgx_satus_t etc. */
 
 #include "ra.h"
 #include "ra-attester.h"
@@ -60,8 +60,8 @@ void SGX_UBRIDGE(SGX_NOCONVENTION, ocall_sgx_init_quote, (sgx_target_info_t* tar
 void SGX_UBRIDGE(SGX_NOCONVENTION, ocall_remote_attestation, (sgx_report_t* report, const struct ra_tls_options* opts, attestation_verification_report_t* attn_report));
 #endif
 
-sgx_status_t t_sgxssl_call_apis(sgx_enclave_id_t eid, void* evp_pkey_v);
-sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, void* image_pixels, size_t size_of_image_pixels, int image_width, int image_height, void* hash_of_original_image, int size_of_hooi, void* signature, size_t size_of_actual_signature, void* original_vendor_pub_str, long int original_vendor_pub_str_len, void* original_cert_str, long int original_cert_str_len, void* processed_pixels, void* runtime_result, int size_of_runtime_result, void* char_array_for_processed_img_sign, int size_of_cafpis, void* hash_of_processed_image, int size_of_hopi, void* processed_img_signautre, size_t size_of_pis, void* size_of_actual_processed_img_signature, size_t sizeof_soapis);
+sgx_status_t t_sgxver_call_apis(sgx_enclave_id_t eid, int* retval, void* img_pixels, size_t size_of_img_pixels, void* md_json, size_t size_of_md_json, void* img_sig, size_t size_of_img_sig, void* out_pixels, void* out_md_json, size_t size_of_out_md_json, void* out_img_sig, size_t size_of_out_img_sig);
+sgx_status_t t_verify_cert(sgx_enclave_id_t eid, int* retval, void* ias_cert, size_t size_of_ias_cert);
 sgx_status_t t_create_key_and_x509(sgx_enclave_id_t eid, void* cert, size_t size_of_cert, void* actual_size_of_cert, size_t asoc);
 sgx_status_t t_free(sgx_enclave_id_t eid);
 sgx_status_t dummy(sgx_enclave_id_t eid);

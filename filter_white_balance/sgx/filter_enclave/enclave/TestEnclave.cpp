@@ -307,7 +307,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 					   void* out_img_sig, size_t size_of_out_img_sig)
 {
 	int ret = 1;
-	char* filter_name = "blur";
+	char* filter_name = "white_balance";
 	if (!img_pixels) {
 		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
 		return ret;

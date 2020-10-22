@@ -145,12 +145,23 @@ char* msg_buf;
 // For incoming data
 long size_of_ias_cert = 0;
 char *ias_cert = NULL;
+long md_json_len_i = 0;
+char* md_json_i = NULL;
+long raw_signature_length_i = 0;
+char* raw_signature_i = NULL;
+long raw_frame_buf_len_i = 0;
+char* raw_frame_buf_i = NULL;
+
+// For incoming data being processed (Cache of incoming data)
 long md_json_len = 0;
 char* md_json = NULL;
 long raw_signature_length = 0;
 char* raw_signature = NULL;
 long raw_frame_buf_len = 0;
 char* raw_frame_buf = NULL;
+
+// For Outgoing Data
+size_t potential_out_md_json_len = -1;
 
 // For evaluation
 ofstream eval_file;
@@ -823,13 +834,13 @@ void * received(void * m)
             // printf("Got new file_name: %s\n", file_name.c_str());
             if(file_name == "frame"){
                 current_file_indicator = 0;
-                current_writing_size = &raw_frame_buf_len;
+                current_writing_size = &raw_frame_buf_len_i;
             } else if (file_name == "meta"){
                 current_file_indicator = 1;
-                current_writing_size = &md_json_len;
+                current_writing_size = &md_json_len_i;
             } else if (file_name == "sig"){
                 current_file_indicator = 2;
-                current_writing_size = &raw_signature_length;
+                current_writing_size = &raw_signature_length_i;
             } else if (file_name == "cert"){
                 current_file_indicator = 3;
                 current_writing_size = &size_of_ias_cert;
@@ -852,16 +863,16 @@ void * received(void * m)
             // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
             switch(current_file_indicator){
                 case 0:
-                    raw_frame_buf = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = raw_frame_buf;
+                    raw_frame_buf_i = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = raw_frame_buf_i;
                     break;
                 case 1:
-                    md_json = (char*) malloc(*current_writing_size * sizeof(char));
-                    current_writing_location = md_json;
+                    md_json_i = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = md_json_i;
                     break;
                 case 2:
-                    raw_signature = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = raw_signature;
+                    raw_signature_i = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = raw_signature_i;
                     break;
                 case 3:
                     ias_cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
@@ -944,6 +955,23 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
     return 0;
 }
 
+void cache_incoming_frame_info(){
+    md_json_len = md_json_len_i;
+    md_json = (char*) malloc(md_json_len * sizeof(char));
+    memcpy(md_json, md_json_i, md_json_len);
+    free(md_json_i);
+
+    raw_signature_length = raw_signature_length_i;
+    raw_signature = (char*) malloc((raw_signature_length + 1) * sizeof(char));
+    memcpy(raw_signature, raw_signature_i, raw_signature_length + 1);
+    free(raw_signature_i);
+
+    raw_frame_buf_len = raw_frame_buf_len_i;
+    raw_frame_buf = (char*) malloc((raw_frame_buf_len + 1) * sizeof(char));
+    memcpy(raw_frame_buf, raw_frame_buf_i, raw_frame_buf_len);
+    free(raw_frame_buf_i);
+}
+
 /* Application entry */
 int main(int argc, char *argv[], char **env)
 {
@@ -967,7 +995,7 @@ int main(int argc, char *argv[], char **env)
 
     // Open file to store evaluation results
     mkdir("../../../../evaluation/eval_result", 0777);
-    eval_file.open("../../../../evaluation/eval_result/eval_encoder_blur.csv");
+    eval_file.open("../../../../evaluation/eval_result/eval_encoder.csv");
     if (!eval_file.is_open()) {
         printf("Could not open eval file.\n");
         return 1;
@@ -1005,8 +1033,6 @@ int main(int argc, char *argv[], char **env)
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
 
-    start = high_resolution_clock::now();
-
     // Receive and verify IAS certificate
     pthread_t msg;
     // Receive ias cert
@@ -1014,6 +1040,7 @@ int main(int argc, char *argv[], char **env)
     if( tcp_server.setup(incoming_port,opts) == 0) {
         tcp_server.accepted();
         cerr << "Accepted" << endl;
+        start = high_resolution_clock::now();
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
             printf("pthread for receiving created failed...quiting...\n");
             return 1;
@@ -1065,6 +1092,13 @@ int main(int argc, char *argv[], char **env)
         printf("pthread created failed...\n");
     }
 
+    // Cache the very first frame
+    start = high_resolution_clock::now();
+
+    // printf("Going to cache incoming frame info...\n");
+    cache_incoming_frame_info();
+    // printf("Incoming frame info cached...\n");
+
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
@@ -1072,6 +1106,7 @@ int main(int argc, char *argv[], char **env)
     start = high_resolution_clock::now();
 
     // Initialize variables in host
+    // printf("Before parsing metadata, we have it(%d): [%s]\n", md_json_len, md_json);
     // Parse metadata
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
@@ -1095,24 +1130,35 @@ int main(int argc, char *argv[], char **env)
         frame_size = g_w * g_h * 3/2;
     }
     int total_frames = md->total_frames;
+    potential_out_md_json_len = md_json_len + 48 - 17;  // - 17 because of loss of frame_id; TO-DO: make this flexible (Get size dynamically)
+
+    // Continue receiving next frame
+    if(total_frames > 1 && pthread_create(&msg, NULL, received, (void *)0) != 0)
+    {
+        printf("pthread created failed for continuing receiving next frame after first frame...\n");
+        return 1;
+    }
 
     // Parse frame
-    uint8_t* frame = new uint8_t [frame_size];
-    memset(frame, 0, frame_size);
-    memcpy(frame, raw_frame_buf, raw_frame_buf_len);
+    // uint8_t* frame = new uint8_t [frame_size];
+    // memset(frame, 0, frame_size);
+    // memcpy(frame, raw_frame_buf, raw_frame_buf_len);
+    uint8_t* frame = (uint8_t*)raw_frame_buf;
 
     // Free frame raw
-    free(raw_frame_buf);
+    // free(raw_frame_buf);
     raw_frame_buf = NULL;
     raw_frame_buf_len = 0;
 
     // Parse signature
     unsigned char* frame_sig = NULL;
-    size_t frame_sig_len = 0;
-    frame_sig = decode_signature(raw_signature, raw_signature_length, &frame_sig_len);
+    // size_t frame_sig_len = 0;
+    // frame_sig = decode_signature(raw_signature, raw_signature_length, &frame_sig_len);
+    size_t frame_sig_len = raw_signature_length;
+    frame_sig = (unsigned char*)raw_signature;
 
     // Free signature raw
-    free(raw_signature);
+    // free(raw_signature);
     raw_signature = NULL;
     raw_signature_length = 0;
 
@@ -1176,39 +1222,51 @@ int main(int argc, char *argv[], char **env)
 
         start = high_resolution_clock::now();
 
-        // Receive frame
-        if( pthread_create(&msg, NULL, received, (void *)0) == 0)
-        {
-            // tcp_server.accepted();
-            // cerr << "Accepted" << endl;
-            ++num_of_times_received;
-            // printf("num_of_times_received: %d\n", num_of_times_received);
-            pthread_join(msg, NULL);
-        } else {
-            printf("pthread created failed...\n");
-        }
+        // Make sure we already successfully receive the frame
+        ++num_of_times_received;
+        // printf("num_of_times_received: %d\n", num_of_times_received);
+        pthread_join(msg, NULL);
 
         stop = high_resolution_clock::now();
         duration = duration_cast<microseconds>(stop - start);
         eval_file << duration.count() << ", ";
+
+        start = high_resolution_clock::now();
+        
+        // Cache this frame
+        cache_incoming_frame_info();
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        eval_file << duration.count() << ", ";
+
+        // Continue receiving next frame
+        if(i + 1 < total_frames && pthread_create(&msg, NULL, received, (void *)0) != 0)
+        {
+            printf("pthread created failed for receiving next frame...\n");
+            return 1;
+        }
         
         start = high_resolution_clock::now();
 
         // Parse frame
-        memset(frame, 0, frame_size);
-        memcpy(frame, raw_frame_buf, raw_frame_buf_len);
+        // memset(frame, 0, frame_size);
+        // memcpy(frame, raw_frame_buf, raw_frame_buf_len);
+        frame = (uint8_t*)raw_frame_buf;
 
         // Free frame raw
-        free(raw_frame_buf);
+        // free(raw_frame_buf);
         raw_frame_buf = NULL;
         raw_frame_buf_len = 0;
 
         // Parse signature
-        frame_sig_len = 0;
-        frame_sig = decode_signature(raw_signature, raw_signature_length, &frame_sig_len);
+        // frame_sig_len = 0;
+        // frame_sig = decode_signature(raw_signature, raw_signature_length, &frame_sig_len);
+        frame_sig_len = raw_signature_length;
+        frame_sig = (unsigned char*)raw_signature;
 
         // Free signature raw
-        free(raw_signature);
+        // free(raw_signature);
         raw_signature = NULL;
         raw_signature_length = 0;
 
@@ -1275,11 +1333,11 @@ int main(int argc, char *argv[], char **env)
     // Send ias cert
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
-    printf("Going to send msg_buf(%d): [%s]\n", size_of_msg_buf, msg_buf);
+    // printf("Going to send msg_buf(%d): [%s]\n", size_of_msg_buf, msg_buf);
     tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
     printf("Send completed...\n");
     msg_reply_from_viewer = tcp_server_for_viewer.receive_name();
-    printf("Received reply: [%s]\n", msg_reply_from_viewer.c_str());
+    // printf("Received reply: [%s]\n", msg_reply_from_viewer.c_str());
     if(msg_reply_from_viewer != "ready"){
         printf("No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
         return 1;
@@ -1366,9 +1424,8 @@ int main(int argc, char *argv[], char **env)
     start = high_resolution_clock::now();
 
     // Send metadata
-    size_t out_md_json_len = 409;
-    char* out_md_json = (char*)malloc(out_md_json_len);
-    status = t_get_metadata(global_eid, out_md_json, out_md_json_len);
+    char* out_md_json = (char*)malloc(potential_out_md_json_len);
+    status = t_get_metadata(global_eid, out_md_json, potential_out_md_json_len);
     if (status != SGX_SUCCESS) {
         printf("t_get_metadata failed\n");
         return 1;
@@ -1387,7 +1444,8 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
-    send_buffer_to_viewer(out_md_json, out_md_json_len);
+    // printf("Going to send metadata(%d): [%s]\n", potential_out_md_json_len, out_md_json);
+    send_buffer_to_viewer(out_md_json, potential_out_md_json_len);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);

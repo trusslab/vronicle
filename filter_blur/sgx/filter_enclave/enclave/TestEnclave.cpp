@@ -365,6 +365,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	unsigned char* data_buf = (unsigned char*)malloc(processed_pixels_size + strlen(output_json));
 	memset(data_buf, 0, processed_pixels_size + strlen(output_json));
 	memcpy(data_buf, processed_pixels, processed_pixels_size);
+	// printf("Going to sign output_buffer with metadata(%d): [%s]\n", strlen(output_json), output_json);
 	memcpy(data_buf + processed_pixels_size, output_json, strlen(output_json));
 
 	// Generate signature

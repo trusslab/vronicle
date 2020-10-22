@@ -10,11 +10,11 @@ try:
 except FileExistsError:
     pass
 fig_name = folder + '/encoder_multi.png'
-x_ticks = ['Receive Data', 'Prepare Data', 'Encode Frame']
+x_ticks = ['Waiting Data*', 'Cache Data', 'Prepare Data', 'Encode Frame']
 bps = []
 fig = plt.figure(figsize=(16, 9))
 
-data_file = 'eval_result/eval_encoder_blur.csv'
+data_file = 'eval_result/eval_encoder.csv'
 data = []
 with open(data_file) as f:
     predata = csv.reader(f)

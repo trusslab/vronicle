@@ -756,20 +756,26 @@ void do_decoding(
     std::signal(SIGINT, close_app);
 	std::signal(SIGPIPE, sigpipe_handler);
 
-    start = high_resolution_clock::now();
-
     // Start TCPServer for receving incoming data
     pthread_t msg;
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(atoi(argv[2]),opts) == 0) {
         while(1) {
             tcp_server.accepted();
+            
+            start = high_resolution_clock::now();
+
             cerr << "Accepted" << endl;
             if(pthread_create(&msg, NULL, received, (void *)0) != 0){
                 printf("pthread for receiving created failed...quiting...\n");
                 return;
             }
             pthread_join(msg, NULL);
+            
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            alt_eval_file << duration.count() << ", ";
+
             ++num_of_times_received;
             printf("num_of_times_received: %d\n", num_of_times_received);
             if(num_of_times_received == TARGET_NUM_TIMES_RECEIVED){
@@ -781,14 +787,10 @@ void do_decoding(
 	else
 		cerr << "Errore apertura socket" << endl;
 
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    alt_eval_file << duration.count() << ", ";
-
     start = high_resolution_clock::now();
 
     // Parse metadata
-    printf("md_json(%ld): %s\n", md_json_len, md_json);
+    // printf("md_json(%ld): %s\n", md_json_len, md_json);
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     metadata* md = json_2_metadata(md_json, md_json_len);
@@ -857,7 +859,7 @@ void do_decoding(
         printf("Failed to decode video\n");
     }
     else {
-        printf("After enclave, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+        printf("After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
             *frame_width, *frame_height, *num_of_frames);
 
         u8* temp_output_rgb_buffer = output_rgb_buffer;
@@ -889,9 +891,9 @@ void do_decoding(
             printf("Sending frame: %d\n", i);
             
             // Send frame
-            char* b64_frame = NULL;
-            size_t b64_frame_size = 0;
-            Base64Encode(temp_output_rgb_buffer, frame_size, &b64_frame, &b64_frame_size);
+            // char* b64_frame = NULL;
+            // size_t b64_frame_size = 0;
+            // Base64Encode(temp_output_rgb_buffer, frame_size, &b64_frame, &b64_frame_size);
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "frame", 5);
             // printf("Going to send frame %d's name...\n", i);
@@ -903,20 +905,19 @@ void do_decoding(
             // int last_pixel_position = 1280 * 720 * 3 - 3;
             // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
             // printf("Going to send frame %d's info...\n", i);
-            send_buffer(b64_frame, b64_frame_size);
+            send_buffer(temp_output_rgb_buffer, frame_size);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << ", ";
 
-            free(b64_frame);
+            // free(b64_frame);
             temp_output_rgb_buffer += frame_size;
 
             // Send signature
-            char* b64_sig = NULL;
-            size_t b64_sig_size = 0;
-            Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
-            temp_output_sig_buffer += sig_size;
+            // char* b64_sig = NULL;
+            // size_t b64_sig_size = 0;
+            // Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "sig", 3);
             // printf("Going to send frame %d's sig's name...\n", i);
@@ -926,36 +927,36 @@ void do_decoding(
             send_message(msg_buf, size_of_msg_buf);
             // printf("signature(%d) going to be sent is: [%s]\n", b64_sig_size, b64_sig);
             // printf("Going to send frame %d's sig's info...\n", i);
-            send_buffer(b64_sig, b64_sig_size);
+            send_buffer(temp_output_sig_buffer, sig_size);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << ", ";
-
-            free(b64_sig);
+            
+            //free(b64_sig);
+            temp_output_sig_buffer += sig_size;
 
             // Send metadata
             memset(msg_buf, 0, size_of_msg_buf);
             memcpy(msg_buf, "meta", 4);
             // printf("Going to send frame %d's md's name...\n", i);
-            int md_size_for_sending = md_size + 1;
-            char* md_for_print = (char*) malloc(md_size_for_sending);
-            memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
-            md_for_print[md_size_for_sending - 1] = '\0';
+            // int md_size_for_sending = md_size + 1;
+            // char* md_for_print = (char*) malloc(md_size_for_sending);
+            // memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
+            // md_for_print[md_size_for_sending - 1] = '\0';
             // printf("metadata(%d) going to be sent is: [%s]\n", md_size_for_sending, md_for_print);
             // printf("Going to send frame %d's md's info...\n", i);
 
             start = high_resolution_clock::now();
 
             send_message(msg_buf, size_of_msg_buf);
-            send_buffer(md_for_print, md_size_for_sending);
+            send_buffer(temp_output_md_buffer, md_size);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << "\n";
 
-            // send_buffer(temp_output_md_buffer, md_size);
-            free(md_for_print);
+            //free(md_for_print);
             temp_output_md_buffer += md_size;
         }
 

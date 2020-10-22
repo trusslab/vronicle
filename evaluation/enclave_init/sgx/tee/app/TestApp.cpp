@@ -314,36 +314,63 @@ int start_enclave(int argc, char *argv[])
 int main(int argc, char *argv[], char **env)
 {
     // Create video_data directory if does not exist
-    mkdir("../video_data", 0777);
+    mkdir("../../../eval_result", 0777);
 
     // Open file to store evaluation results
-    eval_file.open("../video_data/eval_init.csv");
+
+    // eval_file.open("../../../eval_result/enclave_init_one_heap.csv", std::ofstream::out | std::ofstream::app);
+    // if (!eval_file.is_open()) {
+    //     printf("Could not open eval file.\n");
+    //     return 1;
+    // }
+
+    eval_file.open("../../../eval_result/enclave_init_one_stack.csv", std::ofstream::out | std::ofstream::app);
     if (!eval_file.is_open()) {
         printf("Could not open eval file.\n");
         return 1;
     }
+
+    // Value kept for TestEnclave.config.xml
+    // 0x40000      0.256MB (Default Size of Stack)
+    // 0x1000000    16MB
+    // 0x1F40000    32MB
+    // 0x3E80000    64MB
+    // 0x61A8000    100MB
+    // 0x7D00000    128MB
+    // 0xFA00000    256MB
+
+    int max_turn_of_init = 100; 
     
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < max_turn_of_init; i++) {
         /* initialize and start the enclave in here */
         auto start = high_resolution_clock::now();
         start_enclave(argc, argv);
         auto end = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(end - start);
-        eval_file << duration.count() << ", "; 
+        
+        if(i < max_turn_of_init - 1){
+            eval_file << duration.count() << ", ";
+        } else {
+            eval_file << duration.count();
+        }
 
-        size_t size_of_cert = 4 * 4096;
-        unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
-        start = high_resolution_clock::now();
-        t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
-        end = high_resolution_clock::now();
-        duration = duration_cast<microseconds>(end - start);
-        eval_file << duration.count() << "\n"; 
+        // size_t size_of_cert = 4 * 4096;
+        // unsigned char *der_cert = (unsigned char *)malloc(size_of_cert);
+        // start = high_resolution_clock::now();
+        // t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
+        // end = high_resolution_clock::now();
+        // duration = duration_cast<microseconds>(end - start);
+        // eval_file << duration.count() << "\n"; 
 
         t_free(global_eid);
 
         /* after verification we destroy the enclave */
         sgx_destroy_enclave(global_eid);
     }
+
+    eval_file << "\n";
+
+    printf("Task completed...\n");
 
     // Close eval file
     eval_file.close();

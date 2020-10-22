@@ -87,16 +87,27 @@
 // For TCP module
 TCPServer tcp_server;
 TCPClient tcp_client;
+int is_connected_to_next_module = 0;
 pthread_t msg1[MAX_CLIENT];
 int num_message = 0;
 int time_send   = 1;
 int num_of_times_received = 0;
 int size_of_msg_buf = 100;
 char* msg_buf;
+pthread_t sender_msg;
 
 // For incoming data
 long size_of_ias_cert = 0;
 char *ias_cert = NULL;
+long md_json_len_i = 0;
+char* md_json_i = NULL;
+long raw_signature_length_i = 0;
+char* raw_signature_i = NULL;
+long raw_frame_buf_len_i = 0;
+char* raw_frame_buf_i = NULL;
+int is_finished_receiving = 0;
+
+// For incoming data when being processed (Cache for incoming data)
 long md_json_len = 0;
 char* md_json = NULL;
 long raw_signature_length = 0;
@@ -107,6 +118,22 @@ char* raw_frame_buf = NULL;
 // For outgoing data
 unsigned char *der_cert;
 size_t size_of_cert;
+
+// For processing data
+int frame_size_p;
+pixel* processed_pixels_p;
+size_t size_of_processed_img_signature_p;
+unsigned char* processed_img_signature_p;
+size_t out_md_json_len_p;
+char* out_md_json_p;
+
+// Cache for sending processed data
+int frame_size;
+pixel* processed_pixels;
+size_t size_of_processed_img_signature;
+unsigned char* processed_img_signature;
+size_t out_md_json_len;
+char* out_md_json;
 
 using namespace std;
 
@@ -252,26 +279,6 @@ void print_error_message(sgx_status_t ret)
         printf("Error: Unexpected error occurred [0x%x].\n", ret);
 }
 
-int read_raw_file_b(const char* file_name, int frame_size, pixel** image_pixels){
-    // Return 0 on success, return 1 on failure
-    // cout << "Going to read raw file: " << file_name << endl;
-
-    FILE* input_raw_file = fopen(file_name, "rb");
-    if(input_raw_file == NULL){
-        return 1;
-    }
-    fseek(input_raw_file, 0, SEEK_SET);
-
-    *image_pixels = (pixel*)malloc(frame_size);
-    memset(*image_pixels, 0, frame_size);
-
-    if(!fread(*image_pixels, frame_size, 1, input_raw_file)){
-        return 1;
-    }
-
-    return 0;
-}
-
 /* Initialize the enclave:
  *   Step 1: retrive the launch token saved by last transaction
  *   Step 2: call sgx_create_enclave to initialize an enclave instance
@@ -279,6 +286,7 @@ int read_raw_file_b(const char* file_name, int frame_size, pixel** image_pixels)
  */
 int initialize_enclave(void)
 {
+
     char token_path[MAX_PATH] = {'\0'};
     sgx_launch_token_t token = {0};
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
@@ -400,52 +408,6 @@ void log_ntp_event(char *msg)
 	puts(msg);
 }
 
-int save_processed_frame_b(pixel* processed_pixels, int frame_size, char* path_to_save){
-    // Return 0 on success; otherwise, return 1
-    // First create the folder if not created
-
-    // To-Do: delete the following two lines after making path_to_save flexible
-    char* dirname = "../../../video_data/processed_raw";
-    mkdir(dirname, 0777);
-    
-    // Save data
-    printf("Going to save %s...\n", path_to_save);
-    FILE* output_file = fopen(path_to_save, "wb");
-    if(output_file == NULL){
-        printf("path_to_save: %s failed to save...\n", path_to_save);
-        return 1;
-    }
-    
-    fwrite(processed_pixels, frame_size, 1, output_file);
-
-    fclose(output_file);
-
-    return 0;
-}
-
-int save_char_array_to_file(char* str_to_save, char* frame_id){
-    // Return 0 on success; otherwise, return 1
-    char* dirname = "../video_data/processed_raw_str_enclave";
-    mkdir(dirname, 0777);
-
-    char processed_raw_file_name[50];
-    snprintf(processed_raw_file_name, 50, "../video_data/processed_raw_str_enclave/processed_raw_%s", frame_id);
-
-    FILE* output_file = fopen(processed_raw_file_name, "w+");
-    if(output_file == NULL){
-        return 1;
-    }
-
-    int results = fputs(str_to_save, output_file);
-    if (results == EOF) {
-        return 1;
-    }
-
-    fclose(output_file);
-
-    return 0;
-}
-
 size_t calcDecodeLength(const char* b64input) {
   size_t len = strlen(b64input), padding = 0;
   // printf("The len in calc is: %d\n", (int)len);
@@ -500,37 +462,6 @@ void Base64Encode( const unsigned char* buffer,
     *base64Text=(*bufferPtr).data;
 }
 
-unsigned char* read_signature(const char* sign_file_name, size_t* signatureLength){
-    // Return signature on success, otherwise, return NULL
-    // Need to free the return after finishing using
-    FILE* signature_file = fopen(sign_file_name, "r");
-    if(signature_file == NULL){
-        return NULL;
-    }
-
-    fseek(signature_file, 0, SEEK_END);
-    long length = ftell(signature_file);
-    // printf("read_signature: length of file from ftell is: %d\n", length);
-    fseek(signature_file, 0, SEEK_SET);
-
-    char* base64signature = (char*)malloc(length + 1);
-
-    int success_read_count = fread(base64signature, 1, length, signature_file);
-    base64signature[success_read_count] = '\0';
-    // printf("success_read_count is %d\n", success_read_count);
-
-    fclose(signature_file);
-
-    // printf("base64signautre: {%s}\n", base64signature);
-    
-    unsigned char* signature;
-    Base64Decode(base64signature, &signature, signatureLength);
-
-    free(base64signature);
-
-    return signature;
-}
-
 unsigned char* decode_signature(char* encoded_sig, long encoded_sig_len, size_t* signatureLength){
     // Return signature on success, otherwise, return NULL
     // Need to free the return after finishing using
@@ -565,32 +496,6 @@ int unsigned_chars_to_hash(unsigned char* data, int size_of_data, char* hash_out
     SHA256_Final(hash, &sha256);
 
     sha256_hash_string(hash, hash_out);
-    return 0;
-}
-
-int read_file_as_hash(char* file_path, char* hash_out){
-    // Return 0 on success, otherwise, return 1
-    FILE *file = fopen(file_path, "rb");
-    if(file == NULL){
-        return 1;
-    }
-
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    const int bufSize = 32768;
-    unsigned char* buffer = (unsigned char*)malloc(bufSize);
-    int bytesRead = 0;
-    if(!buffer) return ENOMEM;
-    while((bytesRead = fread(buffer, 1, bufSize, file)))
-    {
-        SHA256_Update(&sha256, buffer, bytesRead);
-    }
-    SHA256_Final(hash, &sha256);
-
-    sha256_hash_string(hash, hash_out);
-    fclose(file);
-    free(buffer);
     return 0;
 }
 
@@ -632,50 +537,6 @@ void print_private_key(EVP_PKEY* evp_pkey){
 	free(buf);
 }
 
-int verify_hash(char* hash_of_file, unsigned char* signature, size_t size_of_siganture, EVP_PKEY* public_key){
-	// Return true on success; otherwise, return false
-	EVP_MD_CTX *mdctx;
-	const EVP_MD *md;
-	unsigned char md_value[EVP_MAX_MD_SIZE];
-	unsigned int md_len, i;
-	int ret;
-
-	OpenSSL_add_all_digests();
-
-    md = EVP_get_digestbyname("SHA256");
-
-	if (md == NULL) {
-         printf("Unknown message digest %s\n", "SHA256");
-         exit(1);
-    }
-
-	mdctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(mdctx, md, NULL);
-
-	ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
-	if(ret != 1){
-		printf("EVP_VerifyInit_ex error. \n");
-        exit(1);
-	}
-
-    printf("hash_of_file to be verified: %s\n", hash_of_file);
-
-	ret = EVP_VerifyUpdate(mdctx, (void*)hash_of_file, 65);
-	if(ret != 1){
-		printf("EVP_VerifyUpdate error. \n");
-        exit(1);
-	}
-
-	ret = EVP_VerifyFinal(mdctx, signature, size_of_siganture, public_key);
-	printf("EVP_VerifyFinal result: %d\n", ret);
-
-	// Below part is for freeing data
-	// For freeing evp_md_ctx
-	EVP_MD_CTX_free(mdctx);
-
-    return ret;
-}
-
 unsigned char* public_key_to_str(EVP_PKEY* evp_pkey, int* len_of_publickey){
 	// public key - string
     // Remember to deallocate the return after using
@@ -697,31 +558,6 @@ void print_unsigned_chars(unsigned char* chars_to_print, int len){
 	printf("\"}\n");
 }
 
-char* read_file_as_str(const char* file_name, long* str_len){
-    // Return str_to_return on success, otherwise, return NULL
-    // Need to free the return after finishing using
-    FILE* file = fopen(file_name, "r");
-    if(file == NULL){
-        return NULL;
-    }
-
-    fseek(file, 0, SEEK_END);
-    *str_len = ftell(file) + 1;
-    fseek(file, 0, SEEK_SET);
-
-    char* str_to_return = (char*)malloc(*str_len);
-
-    fread(str_to_return, 1, *str_len - 1, file);
-
-    // printf("When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
-
-    str_to_return[*str_len - 1] = '\0';
-
-    fclose(file);
-
-    return str_to_return;
-}
-
 int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_out){
     // Return 0 on success, otherwise, return 1
 
@@ -735,38 +571,6 @@ int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_o
     return 0;
 }
 
-int save_signature(unsigned char* signature, int len_of_sign, char* frame_id){
-    // Return 0 on success, otherwise, return 1
-
-    char* base64_signature;
-
-    // printf("The base64_signature before assigning signauture is (length: %d): %s\n", strlen(base64_signature), base64_signature);
-    int len_of_base64encoded_str;
-    Base64Encode(signature, len_of_sign, &base64_signature, (size_t*)&len_of_base64encoded_str);
-    // base64_signature = base64_encode(signature, (size_t)len_of_sign, (size_t*)&len_of_base64encoded_str);
-
-    // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", strlen(base64_signature), len_of_sign, base64_signature);
-    // printf("The base64_signature after assigning signauture of length %d is (length: %d): %s\n", len_of_base64encoded_str, len_of_sign, base64_signature);
-
-    char* dirname = "../../../video_data/processed_raw_sign";
-    mkdir(dirname, 0777);
-
-    char processed_raw_sign_file_name[200];
-    snprintf(processed_raw_sign_file_name, 200, "../../../video_data/processed_raw_sign/processed_raw_sign_%s", frame_id);
-
-    ofstream signature_file;
-    signature_file.open(processed_raw_sign_file_name);
-    if (!signature_file.is_open()){
-        return 1;
-    }
-    signature_file.write(base64_signature, len_of_base64encoded_str);
-    signature_file.close();
-
-    free(base64_signature);
-
-    return 0;
-}
-
 void close_app(int signum) {
 	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
@@ -777,6 +581,8 @@ void close_app(int signum) {
 void * received(void * m)
 {
     // pthread_detach(pthread_self());
+    
+    // auto start = high_resolution_clock::now();
 
 	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
     int current_file_indicator = -1;   // 0 means frame; 1 means metadata; 2 means signature; 3 menas cert
@@ -801,24 +607,25 @@ void * received(void * m)
             // printf("Got new file_name: %s\n", file_name.c_str());
             if(file_name == "frame"){
                 current_file_indicator = 0;
-                current_writing_size = &raw_frame_buf_len;
+                current_writing_size = &raw_frame_buf_len_i;
             } else if (file_name == "meta"){
                 current_file_indicator = 1;
-                current_writing_size = &md_json_len;
+                current_writing_size = &md_json_len_i;
             } else if (file_name == "sig"){
                 current_file_indicator = 2;
-                current_writing_size = &raw_signature_length;
+                current_writing_size = &raw_signature_length_i;
             } else if (file_name == "cert"){
                 current_file_indicator = 3;
                 current_writing_size = &size_of_ias_cert;
                 // Let's cheat the logic as we only need to receive cert once
                 num_of_files_received = TARGET_NUM_FILES_RECEIVED - 1;
             } else if (file_name == "no_more_frame"){
-                printf("no_more_frame received...finished processing...\n");
+                // printf("no_more_frame received...finished processing...\n");
                 free(reply_msg);
+                is_finished_receiving = 1;
                 return 0;
             } else {
-                printf("The file_name is not valid: %s\n", file_name);
+                // printf("The file_name is not valid: %s\n", file_name);
                 free(reply_msg);
                 return 0;
             }
@@ -830,16 +637,16 @@ void * received(void * m)
             // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
             switch(current_file_indicator){
                 case 0:
-                    raw_frame_buf = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = raw_frame_buf;
+                    raw_frame_buf_i = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = raw_frame_buf_i;
                     break;
                 case 1:
-                    md_json = (char*) malloc(*current_writing_size * sizeof(char));
-                    current_writing_location = md_json;
+                    md_json_i = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = md_json_i;
                     break;
                 case 2:
-                    raw_signature = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = raw_signature;
+                    raw_signature_i = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = raw_signature_i;
                     break;
                 case 3:
                     ias_cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
@@ -873,6 +680,7 @@ void * received(void * m)
         tcp_server.send_to_last_connected_client(reply_msg, size_of_reply);
 	}
     free(reply_msg);
+
 	return 0;
 }
 
@@ -931,8 +739,47 @@ void send_message(char* message, int msg_size){
 	}
 }
 
+void* send_frame_info_to_next_enclave(void* m){
+    // Send processed frame
+
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "frame", 5);
+    send_message(msg_buf, size_of_msg_buf);
+    send_buffer(processed_pixels, frame_size);
+
+    // End of send processed frame
+
+    // Send processed filter singature
+
+    // char* b64_sig = NULL;
+    // size_t b64_sig_size = 0;
+    // Base64Encode(processed_img_signature, size_of_processed_img_signature, &b64_sig, &b64_sig_size);
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "sig", 3);
+    send_message(msg_buf, size_of_msg_buf);
+    // printf("signature going to be sent is: [%s]\n", b64_sig);
+    send_buffer(processed_img_signature, size_of_processed_img_signature);
+    // free(b64_sig);
+
+    // End of send processed filter singature
+
+    // Send metadata
+
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "meta", 4);
+    // printf("Sending metadata(%d): [%s]\n", out_md_json_len, out_md_json);
+    send_message(msg_buf, size_of_msg_buf);
+    send_buffer(out_md_json, out_md_json_len);
+
+    // End of send metadata
+
+    // Free Everything
+    free(processed_pixels);
+    free(processed_img_signature);
+    free(out_md_json);
+}
+
 int verification_reply(
-	int socket_fd,
 	struct sockaddr *saddr_p,
 	socklen_t saddrlen,
 	unsigned char recv_buf[],
@@ -962,50 +809,51 @@ int verification_reply(
     }
 
     // Set up some basic parameters
-    int frame_size = md->width * md->height * 3 * sizeof(unsigned char);
+    frame_size_p = md->width * md->height * 3 * sizeof(unsigned char);
 
     // Parse Signature
     // printf("raw_signature(%d) going to be used is: [%s]\n", raw_signature_length, raw_signature);
-    size_t vid_sig_length = 0;
-    unsigned char* vid_sig = decode_signature(raw_signature, raw_signature_length, &vid_sig_length);
+    // size_t vid_sig_length = 0;
+    // unsigned char* vid_sig = decode_signature(raw_signature, raw_signature_length, &vid_sig_length);
+    size_t vid_sig_length = (size_t)raw_signature_length;
+    unsigned char* vid_sig = (unsigned char*)raw_signature;
 
     // Parse Raw Image
-    // printf("Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size * sizeof(char), raw_frame_buf_len);
-    pixel* image_pixels = (pixel*)malloc(frame_size * sizeof(char));
+    // printf("Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size_p * sizeof(char), raw_frame_buf_len);
+    pixel* image_pixels = (pixel*)malloc(frame_size_p * sizeof(char));
     if (!image_pixels) {
         printf("No memory left(image_pixels)\n");
         return 1;
     }
 
-    size_t vid_frame_length = 0;
-    unsigned char* vid_frame = decode_signature(raw_frame_buf, raw_frame_buf_len, &vid_frame_length);
+    // size_t vid_frame_length = 0;
+    // unsigned char* vid_frame = decode_signature(raw_frame_buf, raw_frame_buf_len, &vid_frame_length);
 
-    memcpy(image_pixels, vid_frame, vid_frame_length);
+    memcpy(image_pixels, raw_frame_buf, raw_frame_buf_len);
     // printf("Very first set of image pixel: %d, %d, %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
     // int last_pixel_position = md->height * md->width - 1;
     // printf("Very last set of image pixel: %d, %d, %d\n", image_pixels[last_pixel_position].r, image_pixels[last_pixel_position].g, image_pixels[last_pixel_position].b);
 
     // Prepare processed Image
-    pixel* processed_pixels;
-    processed_pixels = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
-    if (!processed_pixels) {
-        printf("No memory left(processed_pixels)\n");
+    processed_pixels_p = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
+    if (!processed_pixels_p) {
+        printf("No memory left(processed_pixels_p)\n");
         return 1;
     }
     // Prepare for signature output and its hash
-    size_t size_of_processed_img_signature = 384;
-    unsigned char* processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
-    if (!processed_img_signature) {
+    size_of_processed_img_signature_p = 384;
+    processed_img_signature_p = (unsigned char*)malloc(size_of_processed_img_signature_p);
+    if (!processed_img_signature_p) {
         printf("No memory left\n");
         return 1;
     }
 
     // Prepare buffer for metadata output
-    size_t out_md_json_len = md_json_len + 48;
-    char* out_md_json = (char*)malloc(out_md_json_len + 1);
-    memset(out_md_json, 0, out_md_json_len + 1);
-    if (!out_md_json) {
-        printf("No memory left(out_md_json)\n");
+    out_md_json_len_p = md_json_len + 48;
+    out_md_json_p = (char*)malloc(out_md_json_len_p);
+    memset(out_md_json_p, 0, out_md_json_len_p);
+    if (!out_md_json_p) {
+        printf("No memory left(out_md_json_p)\n");
         return 1;
     }
 
@@ -1021,9 +869,9 @@ int verification_reply(
         image_pixels, sizeof(pixel) * md->width * md->height,
         md_json, md_json_len, 
         vid_sig, vid_sig_length, 
-        processed_pixels,
-        out_md_json, out_md_json_len, 
-        processed_img_signature, size_of_processed_img_signature);
+        processed_pixels_p,
+        out_md_json_p, out_md_json_len_p, 
+        processed_img_signature_p, size_of_processed_img_signature_p);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
@@ -1039,52 +887,42 @@ int verification_reply(
         return 1;
     }
 
-    // Send processed frame
+    
     start = high_resolution_clock::now();
 
-    memset(msg_buf, 0, size_of_msg_buf);
-    memcpy(msg_buf, "frame", 5);
-    send_message(msg_buf, size_of_msg_buf);
-    send_buffer(processed_pixels, frame_size);
+    // Make sure the previous sending is completed
+    if(num_of_times_received > 1){
+        pthread_join(sender_msg, NULL);
+    }
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
-    // End of send processed frame
-
-    // Send processed filter singature
+    
     start = high_resolution_clock::now();
 
-    char* b64_sig = NULL;
-    size_t b64_sig_size = 0;
-    Base64Encode(processed_img_signature, size_of_processed_img_signature, &b64_sig, &b64_sig_size);
-    memset(msg_buf, 0, size_of_msg_buf);
-    memcpy(msg_buf, "sig", 3);
-    send_message(msg_buf, size_of_msg_buf);
-    // printf("signature going to be sent is: [%s]\n", b64_sig);
-    send_buffer(b64_sig, b64_sig_size);
-    free(b64_sig);
+    // Copy processed data to cache for sending
+    frame_size = frame_size_p;
+    processed_pixels = (pixel*)malloc(frame_size);
+    memcpy(processed_pixels, processed_pixels_p, frame_size);
 
-    end = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(end - start);
-    eval_file << duration.count() << ", "; 
-    // End of send processed filter singature
+    size_of_processed_img_signature = size_of_processed_img_signature_p;
+    processed_img_signature = (unsigned char*)malloc(size_of_processed_img_signature);
+    memcpy(processed_img_signature, processed_img_signature_p, size_of_processed_img_signature);
 
-    // Send metadata
-
-    start = high_resolution_clock::now();
-
-    memset(msg_buf, 0, size_of_msg_buf);
-    memcpy(msg_buf, "meta", 4);
-    // printf("Sending metadata(%d): [%s]\n", out_md_json_len, out_md_json);
-    send_message(msg_buf, size_of_msg_buf);
-    send_buffer(out_md_json, out_md_json_len);
+    out_md_json_len = out_md_json_len_p;
+    out_md_json = (char*)malloc(out_md_json_len);
+    memcpy(out_md_json, out_md_json_p, out_md_json_len);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
 
-    // End of send metadata
+    // Placeholder for sending frame info
+    if(pthread_create(&sender_msg, NULL, send_frame_info_to_next_enclave, (void *)0) != 0){
+        printf("pthread for sending created failed...quiting...\n");
+        return 1;
+    }
 
     // Free Everything (for video_provenance project)
     // printf("Going to free everything in verification_reply...\n");
@@ -1096,26 +934,26 @@ int verification_reply(
     }
     if(image_pixels)
         free(image_pixels);
-    if(processed_pixels)
-        free(processed_pixels);
+    if(processed_pixels_p)
+        free(processed_pixels_p);
     if(raw_signature){
         free(raw_signature);
         raw_signature = NULL;
     }
-    if(processed_img_signature)
-        free(processed_img_signature);
+    if(processed_img_signature_p)
+        free(processed_img_signature_p);
     if(md)
         free(md);
     if(md_json){
         free(md_json);
         md_json = NULL;
     }
-    if(out_md_json)
-        free(out_md_json);
-    if(vid_sig)
-        free(vid_sig);
-    if(vid_frame)
-        free(vid_frame);
+    if(out_md_json_p)
+        free(out_md_json_p);
+    // if(vid_sig)
+    //     free(vid_sig);
+    // if(vid_frame)
+    //     free(vid_frame);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
@@ -1125,7 +963,7 @@ int verification_reply(
 }
 
 
-void request_process_loop(int fd, char** argv)
+void request_process_loop(char** argv)
 {
 	struct sockaddr src_addr;
 	socklen_t src_addrlen = sizeof(src_addr);
@@ -1216,27 +1054,74 @@ void request_process_loop(int fd, char** argv)
     //     printf("Second time of setting up tcp server failed...\n");
     // }
     
-    start = high_resolution_clock::now();
+    auto start_of_processing = high_resolution_clock::now();
+
+    if(pthread_create(&msg, NULL, received, (void *)0) != 0){
+        printf("pthread for receiving created failed...quiting...\n");
+        return;
+    }
 
     while(1) {
         // Receive frame info
         // tcp_server.accepted();
         // cerr << "Accepted" << endl;
+        
+        start = high_resolution_clock::now();
+        
+        pthread_join(msg, NULL);
+        // printf("Now on frame: %d, with is_finished_receiving: %d\n", num_of_times_received, is_finished_receiving);
+        if(is_finished_receiving || raw_frame_buf_i == NULL || md_json_i == NULL || raw_signature_i == NULL){
+            // printf("No more frame to be processed...\n");
+            // If we have already processed some frames, we need to join the sender thread to make sure the last frame info is sent correctly
+            if(num_of_times_received > 0){
+                pthread_join(sender_msg, NULL);
+            }
+            break;
+        }
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        eval_file << duration.count() << ", ";
+        
+        ++num_of_times_received;
+        printf("Now on frame: %d\n", num_of_times_received);
+        
+        start = high_resolution_clock::now();
+
+        // Transfer incoming_data to incoming_data_when_being_processed
+        raw_frame_buf_len = raw_frame_buf_len_i;
+        raw_frame_buf = (char*) malloc((raw_frame_buf_len + 1) * sizeof(char));
+        memcpy(raw_frame_buf, raw_frame_buf_i, raw_frame_buf_len + 1);
+        free(raw_frame_buf_i);
+        raw_frame_buf_len_i = 0;
+        raw_frame_buf_i = NULL;
+
+        md_json_len = md_json_len_i;
+        md_json = (char*) malloc((md_json_len) * sizeof(char));
+        memcpy(md_json, md_json_i, md_json_len);
+        free(md_json_i);
+        md_json_len_i = 0;
+        md_json_i = NULL;
+
+        raw_signature_length = raw_signature_length_i;
+        raw_signature = (char*) malloc((raw_signature_length + 1) * sizeof(char));
+        memcpy(raw_signature, raw_signature_i, raw_signature_length + 1);
+        free(raw_signature_i);
+        raw_signature_length_i = 0;
+        raw_signature_i = NULL;
+
+        stop = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(stop - start);
+        eval_file << duration.count() << ", ";
+
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
             printf("pthread for receiving created failed...quiting...\n");
             return;
         }
-        ++num_of_times_received;
-        printf("Now on frame: %d\n", num_of_times_received - 1);
-        pthread_join(msg, NULL);
-        if(md_json == NULL){
-            printf("No more frame to be processed...\n");
-            break;
-        }
         // printf("Going to process frame %d\n", num_of_times_received);
         // Note that all info about processed frame is sent in verification_reply
         // printf("Going to process and send frame: %d\n", num_of_times_received - 1);
-        int process_status = verification_reply(fd, &src_addr , src_addrlen, buf, recv_time, argv);
+        int process_status = verification_reply(&src_addr , src_addrlen, buf, recv_time, argv);
         if(process_status != 0){
             printf("frame process error...exiting...\n");
             break;
@@ -1246,68 +1131,15 @@ void request_process_loop(int fd, char** argv)
     }
 
     stop = high_resolution_clock::now();
-    duration = duration_cast<microseconds>(stop - start);
+    duration = duration_cast<microseconds>(stop - start_of_processing);
     alt_eval_file << duration.count();
     
     free(msg_buf);
 }
 
-
-void sgx_server(char** argv)
-{
-	int s;
-	struct sockaddr_in sinaddr;
-
-	s = socket(AF_INET, SOCK_DGRAM, 0);
-	if (s == -1) {
-		perror("Can not create socket.");
-		die(NULL);
-	}
-
-	memset(&sinaddr, 0, sizeof(sinaddr));
-	sinaddr.sin_family = AF_INET;
-	sinaddr.sin_port = htons(123);
-	sinaddr.sin_addr.s_addr = INADDR_ANY;
-
-	if (0 != bind(s, (struct sockaddr *)&sinaddr, sizeof(sinaddr))) {
-		perror("Bind error");
-		die(NULL);
-	}
-
-	log_ntp_event(	"\n========================================\n"
-			"= Server started, waiting for requests =\n"
-			"========================================\n");
-
-	request_process_loop(s, argv);
-	close(s);
-}
-
 int start_enclave(int argc, char *argv[])
 {
-	printf("enclave initialization started\n");
-    
-        /* Changing dir to where the executable is.*/
-    /*
-        char absolutePath[MAX_PATH];
-        char *ptr = NULL;
-    
-        ptr = realpath(dirname(argv[0]), absolutePath);
-    
-        if (ptr == NULL || chdir(absolutePath) != 0)
-        	return 1;
-    
-        evp_pkey = EVP_PKEY_new();
-        FILE *f = fopen(argv[1], "rb");
-        if(f == NULL){
-            cout << "File is not read successfully..." << endl;
-            return -1;
-        }
-        evp_pkey = PEM_read_PUBKEY(f, NULL, NULL, NULL);
-        if(evp_pkey == NULL){
-            cout << "Key is not read successfully..." << endl;
-            return -2;
-        }
-    */
+	// printf("enclave initialization started\n");
 
     /* Initialize the enclave */
     if (initialize_enclave() < 0)
@@ -1364,7 +1196,7 @@ int main(int argc, char *argv[], char **env)
 	/* create the server waiting for the verification request from the client */
 	int s;
 	signal(SIGCHLD,wait_wrapper);
-	sgx_server(argv);
+	request_process_loop(argv);
 
     t_free(global_eid);
 

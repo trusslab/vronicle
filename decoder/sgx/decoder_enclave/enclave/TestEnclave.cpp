@@ -330,7 +330,7 @@ int t_sgxver_decode_content(
 	memset(buf, 0, size_of_input_content_buffer + md_json_len);
 	memcpy(buf, input_content_buffer, size_of_input_content_buffer);
 	memcpy(buf + size_of_input_content_buffer, md_json, md_json_len);
-	printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
+	// printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
 	res = verify_hash(buf, size_of_input_content_buffer + md_json_len, (unsigned char*)vid_sig, vid_sig_len, pukey);
 	free(buf);
 	if(res != 1){
@@ -415,7 +415,7 @@ int t_sgxver_decode_content(
 
 			// Generate signature
 			res = sign(enc_priv_key, data_buf, frame_size_in_rgb + strlen(output_json), pic_sig, &pic_sig_len);
-			printf("orig size: %li, sig size: %li, json: %s\n", frame_size_in_rgb + strlen(output_json), pic_sig_len, output_json);
+			// printf("orig size: %li, sig size: %li, json: %s\n", frame_size_in_rgb + strlen(output_json), pic_sig_len, output_json);
 			if(res != 0){
 				printf("Signing frame failed\n");
 				break;

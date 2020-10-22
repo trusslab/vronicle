@@ -374,7 +374,7 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
     memset(buf, 0, frame_size + md_json_size);
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
-    // printf("md_json(%d): %s\n", md_json_size, md_json);
+    printf("md_json(%d): [%s]\n", md_json_size, md_json);
     res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
     if (res != 1) {
         printf("Signature cannot be verified\n");
@@ -702,6 +702,7 @@ void t_get_sig_size (size_t* sig_size)
 	memcpy(buf + total_coded_data_size, output_json, strlen(output_json));
 
     // Sign
+    // printf("Going to sign with output_json(%d): [%s]\n", strlen(output_json), output_json);
     sign(enc_priv_key, buf, total_coded_data_size + strlen(output_json), NULL, sig_size);
 
     free(buf);
@@ -728,6 +729,8 @@ void t_get_sig (unsigned char* sig, size_t sig_size)
 void t_get_metadata (char* metadata, size_t metadata_size)
 {
 	char* output_json = metadata_2_json(out_md);
+
+    // printf("In t_get_metadata, we get metadata(%d): [%s]\n", strlen(output_json), output_json);
 
     metadata_size = strlen(output_json);
     memcpy(metadata, output_json, metadata_size);

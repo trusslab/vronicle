@@ -10,7 +10,7 @@ try:
 except FileExistsError:
     pass
 fig_name = folder + '/encoder_one.png'
-x_ticks = ['Enclave Init', 'RA', 'Receive IAS', 'Verify IAS', 'Receive First \nFrame', 'Prepare & Init \nEncoder', 'Encode \nFirst Frame', 'Send IAS', 'Prepare & Send \nVid', 'Prepare & \nSend Sig', 'Prepare & \nSend Meta']
+x_ticks = ['Enclave Init', 'RA', 'Receive IAS', 'Verify IAS', 'Receive First \nFrame', 'Cache First \nFrame', 'Prepare & Init \nEncoder', 'Encode \nFirst Frame', 'Send IAS', 'Prepare & Send \nVid', 'Prepare & \nSend Sig', 'Prepare & \nSend Meta']
 bps = []
 fig = plt.figure(figsize=(16, 9))
 

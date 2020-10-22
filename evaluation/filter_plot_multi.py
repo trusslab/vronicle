@@ -5,6 +5,7 @@ import csv
 import os, sys
 
 eval_names = ['filter_blur', 'filter_brightness', 'filter_denoise_easy', 'filter_gray', 'filter_sharpen', 'filter_white_balance']
+# eval_names = ['filter_blur']
 legend_names = ['Blur', 'Brightness', 'Denoise', 'Gray Scale', 'Sharpening', 'White Balance']
 
 folder = 'figures'
@@ -13,7 +14,7 @@ try:
 except FileExistsError:
     pass
 fig_name = folder + '/filter_multi.png'
-x_ticks = ['Prepare Data', 'Verify & Process', 'Send P_Frame*', 'Send P_Sig', 'Send P_Meta', 'Free Everything']
+x_ticks = ['Waiting Time For Receiver*', 'Cache Income Data', 'Prepare Data', 'Verify & Process', 'Waiting Time For Sender*', 'Cache Outgoing Data', 'Free Everything']
 bps = []
 fig = plt.figure(figsize=(16, 9))
 

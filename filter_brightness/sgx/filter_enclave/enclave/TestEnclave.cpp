@@ -308,7 +308,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 					   void* out_img_sig, size_t size_of_out_img_sig)
 {
 	int ret = 1;
-	char* filter_name = "blur";
+	char* filter_name = "brightness";
 	if (!img_pixels) {
 		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
 		return ret;
@@ -351,6 +351,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	int tmp_total_digests = tmp->total_digests;
 	tmp->total_digests = tmp_total_digests + 1;
 	int filter_idx = get_filter_idx(tmp, filter_name);
+	// printf("For [%s], we get filter_idx: [%d]; btw, we have mrenclave(%d): [%s]\n", filter_name, filter_idx, mrenclave_len, mrenclave);
 	tmp->digests = (char**)realloc(tmp->digests, sizeof(char*) * (/*decoder*/1 + /*filter*/filter_idx + 1));
 	tmp->digests[filter_idx + 1] = (char*)malloc(mrenclave_len);
 	memset(tmp->digests[filter_idx + 1], 0, mrenclave_len);
@@ -362,6 +363,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	unsigned char* data_buf = (unsigned char*)malloc(processed_pixels_size + strlen(output_json));
 	memset(data_buf, 0, processed_pixels_size + strlen(output_json));
 	memcpy(data_buf, processed_pixels, processed_pixels_size);
+	// printf("Going to sign output_buffer with metadata(%d): [%s]\n", strlen(output_json), output_json);
 	memcpy(data_buf + processed_pixels_size, output_json, strlen(output_json));
 
 	// Generate signature

@@ -140,6 +140,7 @@ void Verifier::verify() {
 				std::cout << "EVP_VerifyUpdate error: " << ERR_error_string(ERR_get_error(), NULL) << std::endl;
 				break;
 			}
+			// printf("Going to update VerifySig with md_json(%d): [%s]\n", md_json_size, md_json);
 			if(1 != EVP_VerifyUpdate(mdctx, md_json, md_json_size)){
 				std::cout << "EVP_VerifyUpdate error: " << ERR_error_string(ERR_get_error(), NULL) << std::endl;
 				break;

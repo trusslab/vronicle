@@ -39,7 +39,9 @@ chmod -x,+r $VIDEO_FILE_NAME
 
 # Upload everything to the server
 
-./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $CERT_FILE_NAME cert
-./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $ENC_VIDEO_FILE_NAME vid
-./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $MD_FILE_NAME meta
-./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $SIG_FILE_NAME sig
+./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $MD_FILE_NAME meta $CERT_FILE_NAME cert $ENC_VIDEO_FILE_NAME vid $SIG_FILE_NAME sig
+
+# ./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $CERT_FILE_NAME cert
+# ./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $ENC_VIDEO_FILE_NAME vid
+# ./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $MD_FILE_NAME meta
+# ./tcp_client/client $SERVER_IP_ADDR $SERVER_PORT $SIG_FILE_NAME sig

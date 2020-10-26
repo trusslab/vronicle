@@ -89,8 +89,8 @@ void send_message(char* message, int msg_size){
 
 int main(int argc, char *argv[])
 {
-	if(argc != 5) {
-		cerr << "Usage: ./client ip port file_name target_file_name" << endl;
+	if(argc != 11) {
+		cerr << "Usage: ./client ip port file_name_1 target_file_name_1 file_name_2 target_file_name_2 file_name_3 target_file_name_3 file_name_4 target_file_name_4" << endl;
 		return 0;
 	}
 	signal(SIGINT, sig_exit);
@@ -98,17 +98,28 @@ int main(int argc, char *argv[])
 	tcp.setup(argv[1],atoi(argv[2]));
 
 	char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
+
+	char** current_file_name = &argv[3];
+	char** current_target_file_name = &argv[4];
+
+	for(int i = 0; i < 4; ++i){
+
+		memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+		memcpy(msg_to_send, *current_target_file_name, strlen(*current_target_file_name));
+		send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
+		send_file(*current_file_name);
+
+		current_file_name += 2;
+		current_target_file_name += 2;
+
+	}
 	
-	memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-	memcpy(msg_to_send, argv[4], strlen(argv[4]));
-	send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-	send_file(argv[3]);
 
 	// declaring argument of time() 
     time_t my_time = time(NULL); 
   
     // ctime() used to give the present time 
-    printf("File uploading completed at: %s", ctime(&my_time)); 
+    printf("Files uploading completed at: %s", ctime(&my_time)); 
 
 	// while(1)
 	// {

@@ -760,9 +760,8 @@ void do_decoding(
     pthread_t msg;
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(atoi(argv[2]),opts) == 0) {
+        tcp_server.accepted();
         while(1) {
-            tcp_server.accepted();
-            
             start = high_resolution_clock::now();
 
             cerr << "Accepted" << endl;

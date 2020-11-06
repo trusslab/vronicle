@@ -80,6 +80,7 @@ using namespace std;
 using namespace std::chrono;
 
 ofstream eval_file;
+ofstream eval_file_alt;
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -221,6 +222,9 @@ void print_error_message(sgx_status_t ret)
  */
 int initialize_enclave(void)
 {
+
+    auto start = high_resolution_clock::now();
+
     char token_path[MAX_PATH] = {'\0'};
     sgx_launch_token_t token = {0};
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
@@ -254,6 +258,12 @@ int initialize_enclave(void)
             printf("Warning: Invalid launch token read from \"%s\".\n", token_path);
         }
     }
+    
+    auto end = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    cout << "step 1: " << duration.count() << endl;
+
+    start = high_resolution_clock::now();
 
     /* Step 2: call sgx_create_enclave to initialize an enclave instance */
     /* Debug Support: set 2nd parameter to 1 */
@@ -266,6 +276,12 @@ int initialize_enclave(void)
 
         return -1;
     }
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    cout << "step 2: " << duration.count() << endl;
+    
+    start = high_resolution_clock::now();
 
     /* Step 3: save the launch token if it is updated */
 
@@ -282,6 +298,10 @@ int initialize_enclave(void)
     if (write_num != sizeof(sgx_launch_token_t))
         printf("Warning: Failed to save launch token to \"%s\".\n", token_path);
     fclose(fp);
+    
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start);
+    cout << "step 3: " << duration.count() << endl;
 
     return 0;
 }
@@ -330,6 +350,12 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
+    eval_file_alt.open("../../../eval_result/enclave_init_detail_heap.csv", std::ofstream::out | std::ofstream::app);
+    if (!eval_file_alt.is_open()) {
+        printf("Could not open eval_alt file.\n");
+        return 1;
+    }
+
     // Value kept for TestEnclave.config.xml
     // 0x40000      0.256MB (Default Size of Stack)
     // 0x1000000    16MB
@@ -339,7 +365,7 @@ int main(int argc, char *argv[], char **env)
     // 0x7D00000    128MB
     // 0xFA00000    256MB
 
-    int max_turn_of_init = 100; 
+    int max_turn_of_init = 30; 
     
     for (int i = 0; i < max_turn_of_init; i++) {
         /* initialize and start the enclave in here */
@@ -352,6 +378,10 @@ int main(int argc, char *argv[], char **env)
             eval_file << duration.count() << ", ";
         } else {
             eval_file << duration.count();
+        }
+
+        if(i < max_turn_of_init - 1){
+            eval_file_alt << ", ";
         }
 
         // size_t size_of_cert = 4 * 4096;
@@ -369,11 +399,14 @@ int main(int argc, char *argv[], char **env)
     }
 
     eval_file << "\n";
+    eval_file_alt << "\n";
 
     printf("Task completed...\n");
 
     // Close eval file
     eval_file.close();
+    eval_file_alt.close();
+
 	return 0;
 }
 

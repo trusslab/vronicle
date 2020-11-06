@@ -250,14 +250,14 @@ void print_error_message(sgx_status_t ret)
     for (idx = 0; idx < ttl; idx++) {
         if(ret == sgx_errlist[idx].err) {
             if(NULL != sgx_errlist[idx].sug)
-                printf("Info: %s\n", sgx_errlist[idx].sug);
-            printf("Error: %s\n", sgx_errlist[idx].msg);
+                printf("[decoder:TestApp]: Info: %s\n", sgx_errlist[idx].sug);
+            printf("[decoder:TestApp]: Error: %s\n", sgx_errlist[idx].msg);
             break;
         }
     }
     
     if (idx == ttl)
-        printf("Error: Unexpected error occurred [0x%x].\n", ret);
+        printf("[decoder:TestApp]: Error: Unexpected error occurred [0x%x].\n", ret);
 }
 
 int num_digits(int x)  
@@ -303,16 +303,16 @@ int initialize_enclave(void)
 
     FILE *fp = fopen(token_path, "rb");
     if (fp == NULL && (fp = fopen(token_path, "wb")) == NULL) {
-        printf("Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
+        printf("[decoder:TestApp]: Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
     }
-    printf("token_path: %s\n", token_path);
+    // printf("[decoder:TestApp]: token_path: %s\n", token_path);
     if (fp != NULL) {
         /* read the token from saved file */
         size_t read_num = fread(token, 1, sizeof(sgx_launch_token_t), fp);
         if (read_num != 0 && read_num != sizeof(sgx_launch_token_t)) {
             /* if token is invalid, clear the buffer */
             memset(&token, 0x0, sizeof(sgx_launch_token_t));
-            printf("Warning: Invalid launch token read from \"%s\".\n", token_path);
+            printf("[decoder:TestApp]: Warning: Invalid launch token read from \"%s\".\n", token_path);
         }
     }
 
@@ -341,7 +341,7 @@ int initialize_enclave(void)
     if (fp == NULL) return 0;
     size_t write_num = fwrite(token, 1, sizeof(sgx_launch_token_t), fp);
     if (write_num != sizeof(sgx_launch_token_t))
-        printf("Warning: Failed to save launch token to \"%s\".\n", token_path);
+        printf("[decoder:TestApp]: Warning: Failed to save launch token to \"%s\".\n", token_path);
     fclose(fp);
 
     return 0;
@@ -449,7 +449,7 @@ unsigned char* read_signature(const char* sign_file_name, size_t* signatureLengt
     // Need to free the return after finishing using
     FILE* signature_file = fopen(sign_file_name, "r");
     if(signature_file == NULL){
-        printf("Failed to read video signature from file: %s\n", sign_file_name);
+        printf("[decoder:TestApp]: Failed to read video signature from file: %s\n", sign_file_name);
         return NULL;
     }
 
@@ -482,7 +482,7 @@ unsigned char* decode_signature(char* encoded_sig, long encoded_sig_len, size_t*
 void print_public_key(EVP_PKEY* evp_pkey){
 	// public key - string
 	int len = i2d_PublicKey(evp_pkey, NULL);
-	printf("For publickey, the size of buf is: %d\n", len);
+	printf("[decoder:TestApp]: For publickey, the size of buf is: %d\n", len);
 	unsigned char *buf = (unsigned char *) malloc (len + 1);
 	unsigned char *tbuf = buf;
 	i2d_PublicKey(evp_pkey, &tbuf);
@@ -501,7 +501,7 @@ void print_public_key(EVP_PKEY* evp_pkey){
 void print_private_key(EVP_PKEY* evp_pkey){
 	// private key - string
 	int len = i2d_PrivateKey(evp_pkey, NULL);
-	printf("For privatekey, the size of buf is: %d\n", len);
+	printf("[decoder:TestApp]: For privatekey, the size of buf is: %d\n", len);
 	unsigned char *buf = (unsigned char *) malloc (len + 1);
 	unsigned char *tbuf = buf;
 	i2d_PrivateKey(evp_pkey, &tbuf);
@@ -549,7 +549,7 @@ char* read_file_as_str(const char* file_name, long* str_len){
 void createContentBuffer(char* contentPath, u8** pContentBuffer, size_t* pContentSize) {
     struct stat sb;
     if (stat(contentPath, &sb) == -1) {
-      perror("stat failed");
+      perror("[decoder:TestApp]: stat failed");
       exit(1);
     }
 
@@ -560,7 +560,7 @@ void createContentBuffer(char* contentPath, u8** pContentBuffer, size_t* pConten
 void loadContent(char* contentPath, u8* contentBuffer, long contentSize) {
     FILE *input = fopen(contentPath, "r");
     if (input == NULL) {
-      perror("open failed");
+      perror("[decoder:TestApp]: open failed");
       exit(1);
     }
 
@@ -573,7 +573,7 @@ void loadContent(char* contentPath, u8* contentBuffer, long contentSize) {
 }
 
 void close_app(int signum) {
-	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
+	printf("[decoder:TestApp]: There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
 	tcp_client.exit();
 	exit(0);
@@ -600,7 +600,7 @@ void * received(void * m)
 	{
         if(current_mode == 0){
             string file_name = tcp_server.receive_name();
-            printf("Got new file_name: %s\n", file_name.c_str());
+            // printf("[decoder:TestApp]: Got new file_name: %s\n", file_name.c_str());
             if(file_name == "vid"){
                 current_file_indicator = 0;
                 current_writing_size = &contentSize;
@@ -614,7 +614,7 @@ void * received(void * m)
                 current_file_indicator = 3;
                 current_writing_size = &camera_cert_len;
             } else {
-                printf("The file_name is not valid: %s\n", file_name);
+                printf("[decoder:TestApp]: The file_name is not valid: %s\n", file_name);
                 free(reply_msg);
                 return 0;
             }
@@ -643,7 +643,7 @@ void * received(void * m)
                     current_writing_location = camera_cert;
                     break;
                 default:
-                    printf("No file indicator is set, aborted...\n");
+                    printf("[decoder:TestApp]: No file indicator is set, aborted...\n");
                     free(reply_msg);
                     return 0;
             }
@@ -736,7 +736,7 @@ void do_decoding(
     // Set up some basic parameters
     char* input_vendor_pub_path = argv[1];
 
-    printf("input_vendor_pub_path: %s, incoming port: %s, outgoing address: %s, outgoing port: %s\n", argv[1], argv[2], argv[3], argv[4]);
+    // printf("[decoder:TestApp]: input_vendor_pub_path: %s, incoming port: %s, outgoing address: %s, outgoing port: %s\n", argv[1], argv[2], argv[3], argv[4]);
 
     auto start = high_resolution_clock::now();
 
@@ -744,7 +744,7 @@ void do_decoding(
     long vendor_pub_len = 0;
     char* vendor_pub = read_file_as_str(input_vendor_pub_path, &vendor_pub_len);
     if (!vendor_pub) {
-        printf("Failed to read camera vendor public key\n");
+        printf("[decoder:TestApp]: Failed to read camera vendor public key\n");
         return;
     }
 
@@ -760,14 +760,21 @@ void do_decoding(
     pthread_t msg;
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(atoi(argv[2]),opts) == 0) {
+        
         tcp_server.accepted();
+
+        // declaring argument of time() 
+        time_t my_time = time(NULL); 
+
+        // ctime() used to give the present time 
+        printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
+
         while(1) {
             
             start = high_resolution_clock::now();
 
-            cerr << "Accepted" << endl;
             if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-                printf("pthread for receiving created failed...quiting...\n");
+                printf("[decoder:TestApp]: pthread for receiving created failed...quiting...\n");
                 return;
             }
             pthread_join(msg, NULL);
@@ -777,9 +784,9 @@ void do_decoding(
             alt_eval_file << duration.count() << ", ";
 
             ++num_of_times_received;
-            printf("num_of_times_received: %d\n", num_of_times_received);
+            // printf("[decoder:TestApp]: num_of_times_received: %d\n", num_of_times_received);
             if(num_of_times_received == TARGET_NUM_TIMES_RECEIVED){
-                printf("All files received successfully...\n");
+                // printf("[decoder:TestApp]: All files received successfully...\n");
                 break;
             }
         }
@@ -795,7 +802,7 @@ void do_decoding(
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
-        printf("Failed to parse metadata\n");
+        printf("[decoder:TestApp]: Failed to parse metadata\n");
         return;
     }
 
@@ -817,19 +824,19 @@ void do_decoding(
     size_t total_size_of_raw_rgb_buffer = frame_size * md->total_frames;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
     if (!output_rgb_buffer) {
-        printf("No memory left (RGB)\n");
+        printf("[decoder:TestApp]: No memory left (RGB)\n");
         return;
     }
     size_t total_size_of_sig_buffer = sig_size * md->total_frames;
     u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
     if (!output_sig_buffer) {
-        printf("No memory left (SIG)\n");
+        printf("[decoder:TestApp]: No memory left (SIG)\n");
         return;
     }
     size_t total_size_of_md_buffer = md_size * md->total_frames;
     u8* output_md_buffer = (u8*)malloc(total_size_of_md_buffer + 1);
     if (!output_md_buffer) {
-        printf("No memory left (MD)\n");
+        printf("[decoder:TestApp]: No memory left (MD)\n");
         return;
     }
 
@@ -856,10 +863,10 @@ void do_decoding(
     auto start_s = high_resolution_clock::now();
 
     if (ret) {
-        printf("Failed to decode video\n");
+        printf("[decoder:TestApp]: Failed to decode video\n");
     }
     else {
-        printf("After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+        printf("[decoder:TestApp]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
             *frame_width, *frame_height, *num_of_frames);
 
         u8* temp_output_rgb_buffer = output_rgb_buffer;
@@ -888,7 +895,7 @@ void do_decoding(
 
             string frame_num = to_string(i);
 
-            printf("Sending frame: %d\n", i);
+            // printf("[decoder:TestApp]: Sending frame: %d\n", i);
             
             // Send frame
             // char* b64_frame = NULL;
@@ -973,7 +980,7 @@ void do_decoding(
     alt_eval_file << duration.count();
 
     // Free everything
-    printf("Going to call free at the end of decoder...\n");
+    // printf("[decoder:TestApp]: Going to call free at the end of decoder...\n");
     if(frame_width)
         free(frame_width);
     if(frame_height)
@@ -998,6 +1005,8 @@ void do_decoding(
         free(vid_sig);
     if(md_json)
         free(md_json);
+    if(md)
+        free_metadata(md);
 
     // if(!ret){
     //     system("cd ../../../filter_blur/sgx/filter_enclave/run_enclave/; ./client 127.0.0.1 60");
@@ -1036,7 +1045,7 @@ void sgx_server(int argc, char** argv)
 
 	s = socket(AF_INET, SOCK_DGRAM, 0);
 	if (s == -1) {
-		perror("Can not create socket.");
+		perror("[decoder:TestApp]: Can not create socket.");
 		die(NULL);
 	}
 
@@ -1050,9 +1059,9 @@ void sgx_server(int argc, char** argv)
 		die(NULL);
 	}
 
-	log_ntp_event(	"\n========================================\n"
-			"= Server started, waiting for requests =\n"
-			"========================================\n");
+	// log_ntp_event(	"[decoder:TestApp]: \n========================================\n"
+	// 		"= Server started, waiting for requests =\n"
+	// 		"========================================\n");
 
 	request_process_loop(s, argc, argv);
 	close(s);
@@ -1060,7 +1069,7 @@ void sgx_server(int argc, char** argv)
 
 int start_enclave(int argc, char *argv[])
 {
-	printf("enclave initialization started\n");
+	// printf("[decoder:TestApp]: enclave initialization started\n");
     
         /* Changing dir to where the executable is.*/
     /*
@@ -1101,9 +1110,9 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 5){
-        printf("argc: %d\n", argc);
+        printf("[decoder:TestApp]: argc: %d\n", argc);
         // printf("%s, %s, %s, %s...\n", argv[0], argv[1], argv[2], argv[3]);
-        printf("Usage: ./TestApp [path_to_camera_vendor_pubkey] [incoming_port] [outgoing_ip_address] [outgoing_port]\n");
+        printf("[decoder:TestApp]: Usage: ./TestApp [path_to_camera_vendor_pubkey] [incoming_port] [outgoing_ip_address] [outgoing_port]\n");
         return 1;
     }
 
@@ -1111,13 +1120,13 @@ int main(int argc, char *argv[], char **env)
     mkdir("../../../evaluation/eval_result", 0777);
     eval_file.open("../../../evaluation/eval_result/eval_decoder.csv");
     if (!eval_file.is_open()) {
-        printf("Could not open eval file.\n");
+        printf("[decoder:TestApp]: Could not open eval file.\n");
         return 1;
     }
 
     alt_eval_file.open("../../../evaluation/eval_result/eval_decoder_one_time.csv");
     if (!alt_eval_file.is_open()) {
-        printf("Could not open alt_eval_file file.\n");
+        printf("[decoder:TestApp]: Could not open alt_eval_file file.\n");
         return 1;
     }
 

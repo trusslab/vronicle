@@ -1084,7 +1084,7 @@ void request_process_loop(char** argv)
         eval_file << duration.count() << ", ";
         
         ++num_of_times_received;
-        printf("Now on frame: %d\n", num_of_times_received);
+        // printf("Now on frame: %d\n", num_of_times_received);
         
         start = high_resolution_clock::now();
 

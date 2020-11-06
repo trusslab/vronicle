@@ -82,7 +82,7 @@ void exit(int status)
  */
 void printf(const char *fmt, ...)
 {
-    char buf[BUFSIZ] = {'\0'};
+    char buf[BUFSIZ] = {"[decoder:TestEnclave]: \0"};
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(buf, BUFSIZ, fmt, ap);
@@ -439,7 +439,7 @@ int t_sgxver_decode_content(
 			output_md_buffer_temp += strlen(output_json);
 
 			// Clean up
-			free(tmp);
+			free_metadata(tmp);
 			free(output_json);
 			free(data_buf);
 

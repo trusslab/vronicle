@@ -347,7 +347,8 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
     pixel* processed_pixels;
 	size_t processed_pixels_size = sizeof(pixel) * tmp->height * tmp->width;
     processed_pixels = (pixel*)malloc(processed_pixels_size);
-	blur_5((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 1.0 / 25.0);
+	// blur_5((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 1.0 / 25.0);
+	blur((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 7);
 
 	// Generate metadata
 	int tmp_total_digests = tmp->total_digests;

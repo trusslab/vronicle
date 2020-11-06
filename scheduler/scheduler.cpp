@@ -509,7 +509,7 @@ int main(int argc, char *argv[], char **env)
         start = high_resolution_clock::now();
 
         // Free Everything
-        free(md);
+        free_metadata(md);
         free(msg_to_send);
         free(contentBuffer);
         contentBuffer = NULL;

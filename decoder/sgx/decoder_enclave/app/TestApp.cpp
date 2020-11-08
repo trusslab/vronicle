@@ -89,12 +89,16 @@
 #include "tcp_module/TCPClient.h"
 
 // For TCP module
-TCPServer tcp_server;
+int method_of_being_connected = 1;   // 0 means start server for incoming; 1 means start client for incoming
+TCPServer tcp_server;   // For direct use
+TCPClient tcp_client_rec;    // For scheduler use
 TCPClient tcp_client;
 pthread_t msg1[MAX_CLIENT];
 int num_message = 0;
 int time_send   = 1;
 int num_of_times_received = 0;
+int size_of_msg_buf_for_rec = 100;
+char* msg_buf_for_rec;
 
 // For data
 long contentSize = 0;
@@ -575,6 +579,7 @@ void loadContent(char* contentPath, u8* contentBuffer, long contentSize) {
 void close_app(int signum) {
 	printf("[decoder:TestApp]: There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
+    tcp_client_rec.exit();
 	tcp_client.exit();
 	exit(0);
 }
@@ -673,6 +678,31 @@ void * received(void * m)
 	return 0;
 }
 
+void try_receive_something(void* data_for_storage, long data_size){
+    long remaining_data_size = data_size;
+    char* temp_data_for_storage = (char*)data_for_storage;
+    char* data_received;
+    while(remaining_data_size > 0){
+        // printf("Receiving data with remaining_data_size: %ld\n", remaining_data_size);
+        if(remaining_data_size > SIZEOFPACKAGE){
+            data_received = tcp_client_rec.receive_exact(SIZEOFPACKAGE);
+            memcpy(temp_data_for_storage, data_received, SIZEOFPACKAGE);
+            temp_data_for_storage += SIZEOFPACKAGE;
+            remaining_data_size -= SIZEOFPACKAGE;
+        } else {
+            data_received = tcp_client_rec.receive_exact(remaining_data_size);
+            memcpy(temp_data_for_storage, data_received, remaining_data_size);
+            remaining_data_size = 0;
+        }
+        free(data_received);
+        // printf("Received with data and going to receive again after replying...\n");
+        memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
+        memcpy(msg_buf_for_rec, "ready", 5);
+        tcp_client_rec.Send(msg_buf_for_rec, size_of_msg_buf_for_rec);
+    }
+    return;
+}
+
 int send_buffer(void* buffer, long buffer_lenth){
     // Return 0 on success, return 1 on failure
 
@@ -756,43 +786,124 @@ void do_decoding(
     std::signal(SIGINT, close_app);
 	std::signal(SIGPIPE, sigpipe_handler);
 
-    // Start TCPServer for receving incoming data
-    pthread_t msg;
-    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
-    if( tcp_server.setup(atoi(argv[2]),opts) == 0) {
-        
-        tcp_server.accepted();
+    // declaring argument of time() 
+    time_t my_time = time(NULL); 
 
-        // declaring argument of time() 
-        time_t my_time = time(NULL); 
+    // ctime() used to give the present time 
+    printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
 
-        // ctime() used to give the present time 
-        printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
-
-        while(1) {
+    if(method_of_being_connected == 0){
+        // Start TCPServer for receving incoming data
+        pthread_t msg;
+        vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
+        if( tcp_server.setup(atoi(argv[2]),opts) == 0) {
             
-            start = high_resolution_clock::now();
+            tcp_server.accepted();
 
-            if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-                printf("[decoder:TestApp]: pthread for receiving created failed...quiting...\n");
-                return;
-            }
-            pthread_join(msg, NULL);
-            
-            end = high_resolution_clock::now();
-            duration = duration_cast<microseconds>(end - start);
-            alt_eval_file << duration.count() << ", ";
+            while(1) {
+                
+                start = high_resolution_clock::now();
 
-            ++num_of_times_received;
-            // printf("[decoder:TestApp]: num_of_times_received: %d\n", num_of_times_received);
-            if(num_of_times_received == TARGET_NUM_TIMES_RECEIVED){
-                // printf("[decoder:TestApp]: All files received successfully...\n");
-                break;
+                if(pthread_create(&msg, NULL, received, (void *)0) != 0){
+                    printf("[decoder:TestApp]: pthread for receiving created failed...quiting...\n");
+                    return;
+                }
+                pthread_join(msg, NULL);
+                
+                end = high_resolution_clock::now();
+                duration = duration_cast<microseconds>(end - start);
+                alt_eval_file << duration.count() << ", ";
+
+                ++num_of_times_received;
+                // printf("[decoder:TestApp]: num_of_times_received: %d\n", num_of_times_received);
+                if(num_of_times_received == TARGET_NUM_TIMES_RECEIVED){
+                    // printf("[decoder:TestApp]: All files received successfully...\n");
+                    break;
+                }
             }
         }
-	}
-	else
-		cerr << "Errore apertura socket" << endl;
+        else
+            cerr << "Errore apertura socket" << endl;
+    } else if (method_of_being_connected == 1) {
+        // Prepare buf for sending message
+        msg_buf_for_rec = (char*) malloc(size_of_msg_buf_for_rec);
+
+        // Prepare tcp client
+        // printf("[decoder:TestApp]: Setting up tcp client...\n");
+        bool connection_result = tcp_client_rec.setup("127.0.0.1", atoi(argv[2]));
+
+        if(!connection_result){
+            printf("[decoder:TestApp]: Connection cannot be established...\n");
+            return;
+        }
+
+        // Start receiving
+        while(num_of_times_received != TARGET_NUM_TIMES_RECEIVED){
+            string name_of_current_file = tcp_client_rec.receive_name();
+            void* current_writting_location;
+            long current_writting_location_size;
+            // printf("[decoder:TestApp]: Got new file name: %s\n", name_of_current_file.c_str());
+            memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
+            memcpy(msg_buf_for_rec, "ready", 5);
+            // printf("[decoder:TestApp]: Going to send reply message...\n");
+            tcp_client_rec.Send(msg_buf_for_rec, size_of_msg_buf_for_rec);
+            // printf("[decoder:TestApp]: Reply to scheduler is sent...\n");
+            if(name_of_current_file == "cert"){
+
+                camera_cert_len = tcp_client_rec.receive_size_of_data();
+
+                camera_cert = (char*) malloc(camera_cert_len);
+                current_writting_location_size = camera_cert_len;
+                current_writting_location = camera_cert;
+
+            } else if (name_of_current_file == "vid"){
+
+                contentSize = tcp_client_rec.receive_size_of_data();
+                
+                contentBuffer = (unsigned char*) malloc(contentSize);
+                current_writting_location_size = contentSize;
+                current_writting_location = contentBuffer;
+
+            } else if (name_of_current_file == "meta"){
+                // printf("[decoder:TestApp]: Going to receive size of data...\n");
+                md_json_len = tcp_client_rec.receive_size_of_data();
+                
+                // printf("[decoder:TestApp]: size of data received(%ld)...\n", md_json_len);
+                
+                md_json = (char*) malloc(md_json_len);
+                current_writting_location_size = md_json_len;
+                current_writting_location = md_json;
+
+            } else if (name_of_current_file == "sig"){
+                
+                vid_sig_buf_length = tcp_client_rec.receive_size_of_data();
+                
+                vid_sig_buf = (char*) malloc(vid_sig_buf_length);
+                current_writting_location_size = vid_sig_buf_length;
+                current_writting_location = vid_sig_buf;
+
+            } else {
+                printf("[decoder:TestApp]: Received invalid file name: [%s]\n", name_of_current_file);
+                return;
+            }
+
+            memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
+            memcpy(msg_buf_for_rec, "ready", 5);
+            tcp_client_rec.Send(msg_buf_for_rec, size_of_msg_buf_for_rec);
+
+            // printf("[decoder:TestApp]: Going to try receive data for size: %ld\n", current_writting_location_size);
+            try_receive_something(current_writting_location, current_writting_location_size);
+            ++num_of_times_received;
+        }
+
+        // Free
+        free(msg_buf_for_rec);
+    } else {
+        printf("[decoder:TestApp]: Unknown method of being connected...exiting\n");
+        return;
+    }
+
+    
 
     start = high_resolution_clock::now();
 

@@ -95,9 +95,9 @@ string TCPClient::receive(int size)
   	return reply;
 }
 
-string TCPClient::receive_exact(int size)
+char* TCPClient::receive_exact(int size)
 {
-  	char buffer[size];
+	char* buffer = (char*) malloc(size);
 	memset(&buffer[0], 0, sizeof(buffer));
 
   	string reply;
@@ -106,9 +106,43 @@ string TCPClient::receive_exact(int size)
 	    	cout << "receive failed!" << endl;
 		return nullptr;
   	}
-	buffer[size-1]='\0';
+
+  	return buffer;
+}
+
+string TCPClient::receive_name()
+{
+  	char buffer[SIZEOFPACKAGEFORNAME + 1];
+	memset(&buffer[0], 0, sizeof(buffer));
+
+  	string reply;
+	int n = recv(sock , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL);
+	// printf("receive_name(%d): %s\n", n, buffer);
+	if(n < 0)
+  	{
+	    cout << "receive failed!" << endl;
+		return nullptr;
+  	}
+	buffer[SIZEOFPACKAGEFORNAME]='\0';
   	reply = buffer;
   	return reply;
+}
+
+long TCPClient::receive_size_of_data()
+{
+  	char buffer[8];
+	memset(&buffer[0], 0, sizeof(buffer));
+	long size_of_data = 0;
+
+	if( recv(sock , buffer , 8, MSG_WAITALL) < 0)
+  	{
+	    	cout << "receive failed!" << endl;
+		return -1;
+  	}
+	
+	memcpy(&size_of_data, buffer, 8);
+
+  	return size_of_data;
 }
 
 string TCPClient::read()

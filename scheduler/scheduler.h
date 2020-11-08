@@ -67,6 +67,7 @@ typedef struct encoder_args {
 
 // For TCP module
 TCPServer tcp_server;
+TCPServer tcp_server_for_decoder;
 TCPClient tcp_client;
 pthread_t msg1[MAX_CLIENT];
 int num_message = 0;

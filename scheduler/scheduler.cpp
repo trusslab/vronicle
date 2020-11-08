@@ -1,9 +1,16 @@
 #include "scheduler.h"
 
+int method_of_connecting_decoder = 1;   // 0 means connect to decoder by client; 1 means connect to decoder passively by server
+string msg_reply_from_decoder;   // For method_of_connecting_decoder = 1;
+
 void close_app(int signum) {
 	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
-	tcp_client.exit();
+	if(method_of_connecting_decoder == 0){
+	    tcp_client.exit();
+    } else if (method_of_connecting_decoder == 1){
+        tcp_server_for_decoder.closed();
+    }
     send_cancel_request_to_all_workflows();
     free_all_workflows();
 	exit(0);
@@ -12,7 +19,11 @@ void close_app(int signum) {
 void sigpipe_handler_scheduler(int signum){
 	printf("There is a SIGPIPE error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
-	tcp_client.exit();
+	if(method_of_connecting_decoder == 0){
+	    tcp_client.exit();
+    } else if (method_of_connecting_decoder == 1){
+        tcp_server_for_decoder.closed();
+    }
     send_cancel_request_to_all_workflows();
     free_all_workflows();
 	exit(0);
@@ -221,10 +232,10 @@ void* start_decoder_server(void* args){
     cmd_for_starting_decoder += " ";
     cmd_for_starting_decoder += std::to_string(d_args->outgoing_port);
 
-    free(args);
-
     printf("Cmd for starting decoder: %s\n", cmd_for_starting_decoder.c_str());
     system(cmd_for_starting_decoder.c_str());
+
+    free(args);
 
     return 0;
 }
@@ -244,10 +255,10 @@ void* start_filter_server(void* args){
     cmd_for_starting_filter += " ";
     cmd_for_starting_filter += std::to_string(f_args->outgoing_port);
 
-    free(args);
-
     printf("Cmd for starting filter: %s\n", cmd_for_starting_filter.c_str());
     system(cmd_for_starting_filter.c_str());
+
+    free(args);
 
     return 0;
 }
@@ -263,10 +274,10 @@ void* start_encoder_server(void* args){
     cmd_for_starting_encoder += " ";
     cmd_for_starting_encoder += std::to_string(e_args->outgoing_port);
 
-    free(args);
-
     printf("Cmd for starting encoder: %s\n", cmd_for_starting_encoder.c_str());
     system(cmd_for_starting_encoder.c_str());
+
+    free(args);
 
     return 0;
 }
@@ -316,6 +327,51 @@ void free_all_workflows(){
     free(workflows);
 }
 
+int send_buffer_to_decoder(void* buffer, long buffer_lenth){
+    // Return 0 on success, return 1 on failure
+
+	// Send size of buffer
+	// printf("Sending buffer size: %d\n", buffer_lenth);
+	tcp_server_for_decoder.send_to_last_connected_client(&buffer_lenth, sizeof(long));
+    // printf("Going to wait for receive...\n");
+	string rec = tcp_server_for_decoder.receive_name();
+    // printf("Going to wait for receive(finished)...\n");
+	if( rec != "" )
+	{
+		// cout << rec << endl;
+	}
+
+    long remaining_size_of_buffer = buffer_lenth;
+    void* temp_buffer = buffer;
+    int is_finished = 0;
+
+    // printf("Going to start sending buffer...\n");
+
+	while(1)
+	{
+        if(remaining_size_of_buffer > SIZEOFPACKAGE){
+		    tcp_server_for_decoder.send_to_last_connected_client(temp_buffer, SIZEOFPACKAGE);
+            remaining_size_of_buffer -= SIZEOFPACKAGE;
+            temp_buffer += SIZEOFPACKAGE;
+        } else {
+		    tcp_server_for_decoder.send_to_last_connected_client(temp_buffer, remaining_size_of_buffer);
+            remaining_size_of_buffer = 0;
+            is_finished = 1;
+        }
+        // printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
+		string rec = tcp_server_for_decoder.receive_name();
+        // printf("(inside)Going to wait for receive(finished)...\n");
+		if( rec != "" )
+		{
+			// cout << "send_buffer received: " << rec << endl;
+		}
+        if(is_finished){
+            break;
+        }
+	}
+
+    return 0;
+}
 
 int main(int argc, char *argv[], char **env)
 {
@@ -465,42 +521,108 @@ int main(int argc, char *argv[], char **env)
         workflows[current_num_of_workflows - 1]->filters = pt_filters;
         workflows[current_num_of_workflows - 1]->num_of_filters = md->total_filters;
         pthread_mutex_unlock(&lock_4_workflows);
-
-        sleep(3);
         
+        char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
+
         start = high_resolution_clock::now();
 
-        // Send Data to Decoder
-	    bool result_of_client_connection = tcp_client.setup("127.0.0.1", decoder_port);
-        if(!result_of_client_connection){
-            printf("Connection to decoder failed...\n");
-            return 1;
+        if(method_of_connecting_decoder == 0){
+
+            // Hopefully sleep of 3 seconds will be enough for decoder to respond
+            sleep(3);
+
+            // Reset counter for evaluation
+            start = high_resolution_clock::now();
+
+            // Send Data to Decoder
+            bool result_of_client_connection = tcp_client.setup("127.0.0.1", decoder_port);
+            if(!result_of_client_connection){
+                printf("Connection to decoder failed...\n");
+                return 1;
+            }
+
+            // Send MetaData
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "meta", 4);
+            send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
+            send_buffer(md_json, md_json_len);
+            
+            // Send Video
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "vid", 3);
+            send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
+            send_buffer(contentBuffer, contentSize);
+
+            // Send Signature
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "sig", 3);
+            send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
+            send_buffer(vid_sig_buf, vid_sig_buf_length);
+
+            // Send Certificate
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "cert", 4);
+            send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
+            send_buffer(camera_cert, camera_cert_len);
+
+            tcp_client.exit();
+        } else if (method_of_connecting_decoder == 1){
+            // Create server and wait for decoder to connect
+            if( tcp_server_for_decoder.setup(decoder_port, opts) != 0) {
+                cerr << "Errore apertura socket" << endl;
+            }
+            tcp_server_for_decoder.accepted();
+
+            // printf("Sending metadata...\n");
+            // Send MetaData
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "meta", 4);
+            // printf("Going to send metadata name...\n");
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            // printf("Going to receive metadata name reply...\n");
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            // printf("Going to send metadata data...\n");
+            send_buffer_to_decoder(md_json, md_json_len);
+            // printf("Metadata is sent...\n");
+            
+            // Send Video
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "vid", 3);
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            send_buffer_to_decoder(contentBuffer, contentSize);
+            
+            // Send Signature
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "sig", 3);
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            send_buffer_to_decoder(vid_sig_buf, vid_sig_buf_length);
+            
+            // Send Certificate
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "cert", 4);
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            send_buffer_to_decoder(camera_cert, camera_cert_len);
+            tcp_server_for_decoder.closed();
         }
-	    char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
-
-        // Send MetaData
-        memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-		memcpy(msg_to_send, "meta", 4);
-		send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-		send_buffer(md_json, md_json_len);
-        
-        // Send Video
-        memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-		memcpy(msg_to_send, "vid", 3);
-		send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-		send_buffer(contentBuffer, contentSize);
-
-        // Send Signature
-        memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-		memcpy(msg_to_send, "sig", 3);
-		send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-		send_buffer(vid_sig_buf, vid_sig_buf_length);
-
-        // Send Certificate
-        memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-		memcpy(msg_to_send, "cert", 4);
-		send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-		send_buffer(camera_cert, camera_cert_len);
         
         end = high_resolution_clock::now();
         duration = duration_cast<microseconds>(end - start);
@@ -508,7 +630,8 @@ int main(int argc, char *argv[], char **env)
         
         start = high_resolution_clock::now();
 
-        // Free Everything
+        // Free Everything Else
+        free(d_args);
         free_metadata(md);
         free(msg_to_send);
         free(contentBuffer);
@@ -531,7 +654,9 @@ int main(int argc, char *argv[], char **env)
 
     // Close Server & Client
 	tcp_server.closed();
-	tcp_client.exit();
+    if(method_of_connecting_decoder == 0){
+	    tcp_client.exit();
+    }
 
     // Try join all workflows and free them
     try_join_all_workflows();

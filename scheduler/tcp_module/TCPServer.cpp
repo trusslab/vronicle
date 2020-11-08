@@ -1,15 +1,15 @@
 #include "TCPServer.h" 
 # define MAXTIMESTRYTORECEIVE 5
 
-char TCPServer::msg[MAXPACKETSIZE];
+// char TCPServer::msg[MAXPACKETSIZE];
 
-int TCPServer::num_client;
-int TCPServer::last_client_num;
-int TCPServer::last_closed;
-bool TCPServer::isonline;
-vector<descript_socket*> TCPServer::Message;
-vector<descript_socket*> TCPServer::newsockfd;
-std::mutex TCPServer::mt;
+// int TCPServer::num_client;
+// int TCPServer::last_client_num;
+// int TCPServer::last_closed;
+// bool TCPServer::isonline;
+// vector<descript_socket*> TCPServer::Message;
+// vector<descript_socket*> TCPServer::newsockfd;
+// std::mutex TCPServer::mt;
 
 void sigpipe_handler(int signum){
 	printf("There is a SIGPIPE error happened...exiting......(%d)\n", signum);
@@ -289,7 +289,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	printf("TCPServer is going to be closed...\n");
+	// printf("TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

@@ -222,9 +222,9 @@ void TCPServer::accepted()
 	last_client_num = num_client;
 	so->ip              = inet_ntoa(clientAddress.sin_addr);
 	newsockfd.push_back( so );
-	cerr << "accept client[ id:" << newsockfd[num_client]->id << 
-	                      " ip:" << newsockfd[num_client]->ip << 
-		              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
+	// cerr << "accept client[ id:" << newsockfd[num_client]->id << 
+	//                       " ip:" << newsockfd[num_client]->ip << 
+	// 	              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
 	isonline=true;
 	num_client++;
 }

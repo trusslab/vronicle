@@ -12,7 +12,7 @@ vector<descript_socket*> TCPServer::newsockfd;
 std::mutex TCPServer::mt;
 
 void sigpipe_handler(int signum){
-	printf("There is a SIGPIPE error happened...exiting......(%d)\n", signum);
+	printf("[filter_test_bundle_sharpen_and_blur:TCPServer]: There is a SIGPIPE error happened...exiting......(%d)\n", signum);
 	// tcp.closed();
 	exit(0);
 }
@@ -140,7 +140,7 @@ char* TCPServer::receive_exact(int size)
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "receive failed!" << endl;
+	    	cout << "[filter_test_bundle_sharpen_and_blur:TCPServer]: receive failed!" << endl;
 		return nullptr;
   	}
 
@@ -155,7 +155,7 @@ string TCPServer::receive_name()
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "receive failed!" << endl;
+	    	cout << "[filter_test_bundle_sharpen_and_blur:TCPServer]: receive failed!" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -171,7 +171,7 @@ long TCPServer::receive_size_of_data()
 
 	if( recv(newsockfd[last_client_num]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "receive failed!" << endl;
+	    	cout << "[filter_test_bundle_sharpen_and_blur:TCPServer]: receive failed!" << endl;
 		return -1;
   	}
 	
@@ -190,7 +190,7 @@ int TCPServer::setup(int port, vector<int> opts)
 
 	for(unsigned int i = 0; i < opts.size(); i++) {
 		if( (setsockopt(sockfd, SOL_SOCKET, opts.size(), (char *)&opt, sizeof(opt))) < 0 ) {
-			cerr << "Errore setsockopt" << endl; 
+			cerr << "[filter_test_bundle_sharpen_and_blur:TCPServer]: Errore setsockopt" << endl; 
       			return -1;
 	      	}
 	}
@@ -200,12 +200,12 @@ int TCPServer::setup(int port, vector<int> opts)
 	serverAddress.sin_port        = htons(port);
 
 	if((::bind(sockfd,(struct sockaddr *)&serverAddress, sizeof(serverAddress))) < 0){
-		cerr << "Errore bind" << endl;
+		cerr << "[filter_test_bundle_sharpen_and_blur:TCPServer]: Errore bind" << endl;
 		return -1;
 	}
 	
  	if(listen(sockfd,5) < 0){
-		cerr << "Errore listen" << endl;
+		cerr << "[filter_test_bundle_sharpen_and_blur:TCPServer]: Errore listen" << endl;
 		return -1;
 	}
 	num_client = 0;
@@ -222,9 +222,9 @@ void TCPServer::accepted()
 	last_client_num = num_client;
 	so->ip              = inet_ntoa(clientAddress.sin_addr);
 	newsockfd.push_back( so );
-	cerr << "accept client[ id:" << newsockfd[num_client]->id << 
-	                      " ip:" << newsockfd[num_client]->ip << 
-		              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
+	// cerr << "[filter_test_bundle_sharpen_and_blur:TCPServer]: accept client[ id:" << newsockfd[num_client]->id << 
+	//                       " ip:" << newsockfd[num_client]->ip << 
+	// 	              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
 	isonline=true;
 	num_client++;
 }
@@ -289,7 +289,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	printf("TCPServer is going to be closed...\n");
+	printf("[filter_test_bundle_sharpen_and_blur:TCPServer]: TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

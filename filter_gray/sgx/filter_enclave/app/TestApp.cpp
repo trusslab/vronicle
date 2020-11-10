@@ -310,7 +310,7 @@ int initialize_enclave(void)
     if (fp == NULL && (fp = fopen(token_path, "wb")) == NULL) {
         printf("Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
     }
-    printf("token_path: %s\n", token_path);
+    // printf("token_path: %s\n", token_path);
     if (fp != NULL) {
         /* read the token from saved file */
         size_t read_num = fread(token, 1, sizeof(sgx_launch_token_t), fp);
@@ -988,7 +988,7 @@ void request_process_loop(char** argv)
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
         tcp_server.accepted();
-        cerr << "Accepted" << endl;
+        // cerr << "Accepted" << endl;
 
         start = high_resolution_clock::now();
 

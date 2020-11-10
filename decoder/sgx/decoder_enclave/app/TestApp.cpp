@@ -92,13 +92,17 @@
 int method_of_being_connected = 1;   // 0 means start server for incoming; 1 means start client for incoming
 TCPServer tcp_server;   // For direct use
 TCPClient tcp_client_rec;    // For scheduler use
-TCPClient tcp_client;
+TCPClient **tcp_clients;
 pthread_t msg1[MAX_CLIENT];
 int num_message = 0;
 int time_send   = 1;
 int num_of_times_received = 0;
 int size_of_msg_buf_for_rec = 100;
 char* msg_buf_for_rec;
+
+// For multi bundle-filter enclaves
+int num_of_pair_of_output = 1;
+int current_sending_target_id = 0;
 
 // For data
 long contentSize = 0;
@@ -580,7 +584,9 @@ void close_app(int signum) {
 	printf("[decoder:TestApp]: There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
     tcp_client_rec.exit();
-	tcp_client.exit();
+    for(int i = 0; i < num_of_pair_of_output; ++i){
+	    tcp_clients[i]->exit();
+    }
 	exit(0);
 }
 
@@ -703,12 +709,12 @@ void try_receive_something(void* data_for_storage, long data_size){
     return;
 }
 
-int send_buffer(void* buffer, long buffer_lenth){
+int send_buffer(void* buffer, long buffer_lenth, int sending_target_id){
     // Return 0 on success, return 1 on failure
 
 	// Send size of buffer
-	tcp_client.Send(&buffer_lenth, sizeof(long));
-	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
+	tcp_clients[sending_target_id]->Send(&buffer_lenth, sizeof(long));
+	string rec = tcp_clients[sending_target_id]->receive_exact(REPLYMSGSIZE);
 	if( rec != "" )
 	{
 		// cout << rec << endl;
@@ -721,15 +727,15 @@ int send_buffer(void* buffer, long buffer_lenth){
 	while(1)
 	{
         if(remaining_size_of_buffer > SIZEOFPACKAGE_HIGH){
-		    tcp_client.Send(temp_buffer, SIZEOFPACKAGE_HIGH);
+		    tcp_clients[sending_target_id]->Send(temp_buffer, SIZEOFPACKAGE_HIGH);
             remaining_size_of_buffer -= SIZEOFPACKAGE_HIGH;
             temp_buffer += SIZEOFPACKAGE_HIGH;
         } else {
-		    tcp_client.Send(temp_buffer, remaining_size_of_buffer);
+		    tcp_clients[sending_target_id]->Send(temp_buffer, remaining_size_of_buffer);
             is_finished = 1;
         }
         // printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
-		string rec = tcp_client.receive_exact(REPLYMSGSIZE);
+		string rec = tcp_clients[sending_target_id]->receive_exact(REPLYMSGSIZE);
         // printf("(inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
@@ -747,10 +753,10 @@ int send_buffer(void* buffer, long buffer_lenth){
     return 0;
 }
 
-void send_message(char* message, int msg_size){
-	tcp_client.Send(message, msg_size);
+void send_message(char* message, int msg_size, int sending_target_id){
+	tcp_clients[sending_target_id]->Send(message, msg_size);
     // printf("(send_message)Going to wait for receive...\n");
-	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
+	string rec = tcp_clients[sending_target_id]->receive_exact(REPLYMSGSIZE);
     // printf("(send_message)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
@@ -903,8 +909,6 @@ void do_decoding(
         return;
     }
 
-    
-
     start = high_resolution_clock::now();
 
     // Parse metadata
@@ -988,14 +992,32 @@ void do_decoding(
         int size_of_msg_buf = 100;
         char* msg_buf = (char*) malloc(size_of_msg_buf);
 
-        // Prepare tcp client
-        tcp_client.setup(argv[3], atoi(argv[4]));
-
-        // Send certificate
+        // Prepare sending cert to all bundle-filter enclaves
         memset(msg_buf, 0, size_of_msg_buf);
         memcpy(msg_buf, "cert", 4);
-        send_message(msg_buf, size_of_msg_buf);
-        send_buffer(der_cert, size_of_cert);
+
+        // Prepare all tcp clients
+        tcp_clients = (TCPClient**) malloc(sizeof(TCPClient*) * num_of_pair_of_output);
+        for(int i = 0; i < num_of_pair_of_output; ++i){
+            tcp_clients[i] = new TCPClient();
+            // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[3 + i * 2], argv[4 + i * 2]);
+            bool result_of_connection_setup = false;
+            while(!result_of_connection_setup){
+                result_of_connection_setup = tcp_clients[i]->setup(argv[3 + i * 2], atoi(argv[4 + i * 2]));
+                sleep(1);
+            }
+            // if(!result_of_connection_setup){
+            //     printf("[decoder:TestApp]: TCPClient connection set-up failed with args: %s, %s...\n", argv[3 + i * 2], argv[4 + i * 2]);
+            //     return;
+            // }
+            
+            // printf("[decoder:TestApp]: Going to send_message for cert to ip: (%s), port: (%s)...\n", argv[3 + i * 2], argv[4 + i * 2]);
+            // Send certificate
+            send_message(msg_buf, size_of_msg_buf, i);
+            // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
+            send_buffer(der_cert, size_of_cert, i);
+            // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
+        }
 
         end = high_resolution_clock::now();
         duration = duration_cast<microseconds>(end - start_s);
@@ -1018,12 +1040,12 @@ void do_decoding(
 
             start = high_resolution_clock::now();
 
-            send_message(msg_buf, size_of_msg_buf);
+            send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
             // printf("Very first set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[0], temp_output_rgb_buffer[1], temp_output_rgb_buffer[2]);
             // int last_pixel_position = 1280 * 720 * 3 - 3;
             // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
             // printf("Going to send frame %d's info...\n", i);
-            send_buffer(temp_output_rgb_buffer, frame_size);
+            send_buffer(temp_output_rgb_buffer, frame_size, current_sending_target_id);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
@@ -1042,10 +1064,10 @@ void do_decoding(
 
             start = high_resolution_clock::now();
 
-            send_message(msg_buf, size_of_msg_buf);
+            send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
             // printf("signature(%d) going to be sent is: [%s]\n", b64_sig_size, b64_sig);
             // printf("Going to send frame %d's sig's info...\n", i);
-            send_buffer(temp_output_sig_buffer, sig_size);
+            send_buffer(temp_output_sig_buffer, sig_size, current_sending_target_id);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
@@ -1067,8 +1089,8 @@ void do_decoding(
 
             start = high_resolution_clock::now();
 
-            send_message(msg_buf, size_of_msg_buf);
-            send_buffer(temp_output_md_buffer, md_size);
+            send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
+            send_buffer(temp_output_md_buffer, md_size, current_sending_target_id);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
@@ -1076,12 +1098,19 @@ void do_decoding(
 
             //free(md_for_print);
             temp_output_md_buffer += md_size;
+
+            // Switch to next sending target
+            current_sending_target_id = (current_sending_target_id + 1) % num_of_pair_of_output;
         }
 
-        // Send no_more_frame msg
         memset(msg_buf, 0, size_of_msg_buf);
         memcpy(msg_buf, "no_more_frame", 13);
-        send_message(msg_buf, size_of_msg_buf);
+
+        for(int i = 0; i < num_of_pair_of_output; ++i){
+            // Send no_more_frame msg
+            send_message(msg_buf, size_of_msg_buf, i);
+        }
+
         free(msg_buf);
 
     }
@@ -1118,6 +1147,12 @@ void do_decoding(
         free(md_json);
     if(md)
         free_metadata(md);
+    
+    for(int i = 0; i < num_of_pair_of_output; ++i){
+        tcp_clients[i]->exit();
+        delete tcp_clients[i];
+    }
+    free(tcp_clients);
 
     // if(!ret){
     //     system("cd ../../../filter_blur/sgx/filter_enclave/run_enclave/; ./client 127.0.0.1 60");
@@ -1223,9 +1258,11 @@ int main(int argc, char *argv[], char **env)
     if(argc < 5){
         printf("[decoder:TestApp]: argc: %d\n", argc);
         // printf("%s, %s, %s, %s...\n", argv[0], argv[1], argv[2], argv[3]);
-        printf("[decoder:TestApp]: Usage: ./TestApp [path_to_camera_vendor_pubkey] [incoming_port] [outgoing_ip_address] [outgoing_port]\n");
+        printf("[decoder:TestApp]: Usage: ./TestApp [path_to_camera_vendor_pubkey] [incoming_port] ([outgoing_ip_address] [outgoing_port])+\n");
         return 1;
     }
+
+    num_of_pair_of_output += (argc - 5) / 2;
 
     // Open file to store evaluation results
     mkdir("../../../evaluation/eval_result", 0777);

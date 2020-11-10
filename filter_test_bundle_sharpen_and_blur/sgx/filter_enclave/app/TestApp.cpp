@@ -96,6 +96,10 @@ int size_of_msg_buf = 100;
 char* msg_buf;
 pthread_t sender_msg;
 
+// For Multi Filter_Bundle
+int is_multi_bundles_enabled = -1;
+int current_frame_id = -1;
+
 // For incoming data
 long size_of_ias_cert = 0;
 char *ias_cert = NULL;
@@ -310,7 +314,7 @@ int initialize_enclave(void)
     if (fp == NULL && (fp = fopen(token_path, "wb")) == NULL) {
         printf("Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
     }
-    printf("token_path: %s\n", token_path);
+    // printf("token_path: %s\n", token_path);
     if (fp != NULL) {
         /* read the token from saved file */
         size_t read_num = fread(token, 1, sizeof(sgx_launch_token_t), fp);
@@ -729,19 +733,40 @@ int send_buffer(void* buffer, long buffer_lenth){
 }
 
 void send_message(char* message, int msg_size){
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: send_message: message: (%s), msg_size: (%d)\n", message, msg_size);
 	tcp_client.Send(message, msg_size);
-    // printf("(send_message)Going to wait for receive...\n");
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_message)Going to wait for receive...\n");
 	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
-    // printf("(send_message)Going to wait for receive(finished)...\n");
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_message)Got rec: (%s)...\n", rec.c_str());
 	if( rec != "" )
 	{
 		// cout << "send_message received: " << rec << endl;
 	}
 }
 
-void* send_frame_info_to_next_enclave(void* m){
-    // Send processed frame
+void send_frame_id(int frame_id){
+    string frame_id_str = std::to_string(frame_id);
+    string rec = "wrong";
+    while(rec == "wrong"){
+        tcp_client.Send(frame_id_str);
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)Going to wait for receive...\n");
+        rec = tcp_client.receive_exact(REPLYMSGSIZE);
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)received: (%s)...\n", rec.c_str());
+    }
+    // printf("(send_frame_id)Going to wait for receive(finished)...\n");
+	if( rec != "" )
+	{
+		// cout << "send_frame_id received: " << rec << endl;
+	}
+}
 
+void* send_frame_info_to_next_enclave(void* m){
+
+    if(is_multi_bundles_enabled){
+        send_frame_id(current_frame_id);
+    }
+
+    // Send processed frame
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "frame", 5);
     send_message(msg_buf, size_of_msg_buf);
@@ -789,10 +814,6 @@ int verification_reply(
     // Return 0 for finish successfully for a single frame; 1 for failure
 	// fflush(stdout);
     int ret = 1;
-    char* raw_file_sig_path  = argv[2];
-    char* raw_file_path      = argv[3];
-    char* raw_md_path        = argv[4];
-    char* output_md_path     = argv[5];
 
     int path_len = 200;
     
@@ -918,6 +939,8 @@ int verification_reply(
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
 
+    current_frame_id = md->frame_id;
+
     // Placeholder for sending frame info
     if(pthread_create(&sender_msg, NULL, send_frame_info_to_next_enclave, (void *)0) != 0){
         printf("pthread for sending created failed...quiting...\n");
@@ -943,7 +966,7 @@ int verification_reply(
     if(processed_img_signature_p)
         free(processed_img_signature_p);
     if(md)
-        free(md);
+        free_metadata(md);
     if(md_json){
         free(md_json);
         md_json = NULL;
@@ -985,27 +1008,29 @@ void request_process_loop(char** argv)
 
     pthread_t msg;
     // Receive ias cert
-    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
-    if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
-        tcp_server.accepted();
-        cerr << "Accepted" << endl;
+    // if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
+    //     printf("[filter_test_bundle_sharpen_and_blur:TestApp]: tcp_server setup completed...\n");
+    //     tcp_server.accepted();
+    //     cerr << "[filter_test_bundle_sharpen_and_blur:TestApp]: Accepted" << endl;
 
-        start = high_resolution_clock::now();
+        
+    // }
+    // else
+    //     cerr << "Errore apertura socket" << endl;
 
-        if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("pthread for receiving created failed...quiting...\n");
-            return;
-        }
-        pthread_join(msg, NULL);
+    start = high_resolution_clock::now();
 
-        stop = high_resolution_clock::now();
-        duration = duration_cast<microseconds>(stop - start);
-        alt_eval_file << duration.count() << ", ";
-
-        printf("ias cert received successfully...\n");
+    if(pthread_create(&msg, NULL, received, (void *)0) != 0){
+        printf("[filter_test_bundle_sharpen_and_blur:TestApp]: pthread for receiving created failed...quiting...\n");
+        return;
     }
-    else
-        cerr << "Errore apertura socket" << endl;
+    pthread_join(msg, NULL);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: ias cert received successfully...\n");
 
     start = high_resolution_clock::now();
 
@@ -1025,7 +1050,7 @@ void request_process_loop(char** argv)
     free(ias_cert);
 
 
-    printf("ias certificate verified successfully, going to start receving and processing frames...\n");
+    // printf("ias certificate verified successfully, going to start receving and processing frames...\n");
 	// tcp_server.closed();
     
     start = high_resolution_clock::now();
@@ -1034,15 +1059,24 @@ void request_process_loop(char** argv)
     msg_buf = (char*) malloc(size_of_msg_buf);
 
     // Prepare tcp client
-    printf("Setting up tcp client...\n");
+    // printf("Setting up tcp client...\n");
     tcp_client.setup(argv[2], atoi(argv[3]));
 
-    printf("Going to first send der_cert through tcp client...\n");
+    // printf("Going to first send der_cert through tcp client...\n");
+
     // Send certificate
+    if(is_multi_bundles_enabled){
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: multi_bundles_enabled detected, before sending cert, going to first send current_frame_id, which is: (%d)\n", current_frame_id);
+        send_frame_id(current_frame_id);
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Pass frame_id verification for sending cert...\n");
+    }
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert file name...\n");
     send_message(msg_buf, size_of_msg_buf);
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert data...\n");
     send_buffer(der_cert, size_of_cert);
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: cert is sent for filter(%s)...\n", argv[1]);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1157,10 +1191,22 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 4){
-        printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
+    if(argc < 5){
+        printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port] [is_multi_bundles_enabled]\n");
         return 1;
     }
+    
+    is_multi_bundles_enabled = atoi(argv[4]);
+    
+    // First set up incoming server
+    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
+    if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: tcp_server setup completed with port: (%s)...\n", argv[1]);
+        tcp_server.accepted();
+        // cerr << "[filter_test_bundle_sharpen_and_blur:TestApp]: Accepted" << endl;
+    }
+    else
+        cerr << "Errore apertura socket" << endl;
 
     // Open file to store evaluation results
     mkdir("../../../evaluation/eval_result", 0777);

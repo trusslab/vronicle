@@ -232,6 +232,17 @@ void* start_decoder_server(void* args){
     cmd_for_starting_decoder += " ";
     cmd_for_starting_decoder += std::to_string(d_args->outgoing_port);
 
+
+    if(is_filter_bundle_detected){
+        int filter_bundle_port_marker = self_server_port_marker_extra;
+        for(int i = 1; i < num_of_filter_in_bundle; ++i){
+            cmd_for_starting_decoder += " ";
+            cmd_for_starting_decoder += d_args->outgoing_ip_addr;
+            cmd_for_starting_decoder += " ";
+            cmd_for_starting_decoder += std::to_string(filter_bundle_port_marker++);
+        }
+    }
+
     printf("Cmd for starting decoder: %s\n", cmd_for_starting_decoder.c_str());
     system(cmd_for_starting_decoder.c_str());
 
@@ -245,9 +256,10 @@ void* start_filter_server(void* args){
     filter_args* f_args = (filter_args*) args;
 
     // pthread_detach(pthread_self());
+    string filter_name = f_args->filter_name;
 
     string cmd_for_starting_filter = "cd ../filter_";
-    cmd_for_starting_filter += f_args->filter_name;
+    cmd_for_starting_filter += filter_name;
     cmd_for_starting_filter += "/sgx/filter_enclave; ./TestApp ";
     cmd_for_starting_filter += std::to_string(f_args->incoming_port);
     cmd_for_starting_filter += " ";
@@ -255,8 +267,31 @@ void* start_filter_server(void* args){
     cmd_for_starting_filter += " ";
     cmd_for_starting_filter += std::to_string(f_args->outgoing_port);
 
+    if(is_filter_bundle_detected){
+        cmd_for_starting_filter += " 1 &";
+    } else {
+        cmd_for_starting_filter += " 0";
+    }
+
     printf("Cmd for starting filter: %s\n", cmd_for_starting_filter.c_str());
     system(cmd_for_starting_filter.c_str());
+
+    if(is_filter_bundle_detected){
+        int filter_bundle_port_marker = self_server_port_marker_extra;
+        for(int i = 1; i < num_of_filter_in_bundle; ++i){
+            string cmd_for_starting_extra_filter = "cd ../filter_";
+            cmd_for_starting_extra_filter += filter_name;
+            cmd_for_starting_extra_filter += "/sgx/filter_enclave; ./TestApp ";
+            cmd_for_starting_extra_filter += std::to_string(filter_bundle_port_marker++);
+            cmd_for_starting_extra_filter += " ";
+            cmd_for_starting_extra_filter += f_args->outgoing_ip_addr;
+            cmd_for_starting_extra_filter += " ";
+            cmd_for_starting_extra_filter += std::to_string(f_args->outgoing_port);
+            cmd_for_starting_extra_filter += " 1 &";
+            printf("Cmd for starting extra filter: %s\n", cmd_for_starting_extra_filter.c_str());
+            system(cmd_for_starting_extra_filter.c_str());
+        }
+    }
 
     free(args);
 
@@ -269,10 +304,16 @@ void* start_encoder_server(void* args){
 
     // pthread_detach(pthread_self());
 
-    string cmd_for_starting_encoder = "cd ../encoder/tee/sgx/encoder_ra; ./EncoderApp -fps10 -is_rgb ";
+    string cmd_for_starting_encoder = "cd ../encoder/tee/sgx/encoder_ra; ./EncoderApp ";
     cmd_for_starting_encoder += std::to_string(e_args->incoming_port);
     cmd_for_starting_encoder += " ";
     cmd_for_starting_encoder += std::to_string(e_args->outgoing_port);
+    cmd_for_starting_encoder += "  -fps10 -is_rgb";
+
+    if(is_filter_bundle_detected){
+        cmd_for_starting_encoder += " -multi_in";
+        cmd_for_starting_encoder += std::to_string(num_of_filter_in_bundle);
+    }
 
     printf("Cmd for starting encoder: %s\n", cmd_for_starting_encoder.c_str());
     system(cmd_for_starting_encoder.c_str());
@@ -458,6 +499,11 @@ int main(int argc, char *argv[], char **env)
             printf("Failed to parse metadata\n");
             return 1;
         }
+        string first_filter_name = md->filters[0];
+        if(first_filter_name == "test_bundle_sharpen_and_blur"){
+            printf("[scheduler]: test_bundle_sharpen_and_blur detected...\n");
+            is_filter_bundle_detected = 1;
+        }
         
         end = high_resolution_clock::now();
         duration = duration_cast<microseconds>(end - start);
@@ -467,17 +513,15 @@ int main(int argc, char *argv[], char **env)
 
         // Assigning port(s)
         int decoder_port = self_server_port_marker++;
+        int decoder_outgoing_port = self_server_port_marker;
+        int filter_port_with_scheduler;
 
-        // Start Decoder Server
-        decoder_args* d_args = (decoder_args*) malloc(sizeof(decoder_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
-        d_args->path_of_cam_vender_pubkey = "../../../keys/camera_vendor_pub";  // To-Do: Make this flexible to different camera vendor
-        d_args->incoming_port = decoder_port;
-        d_args->outgoing_ip_addr = "127.0.0.1"; // To-Do: Make this flexible to scale up
-        d_args->outgoing_port = self_server_port_marker;
-        pthread_t* pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
-        if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
-            printf("pthread for start_decoder_server created failed...quiting...\n");
-            return 1;
+        // First make sure we have decoder server setup in certain method_of_connecting_decoder
+        if(method_of_connecting_decoder == 1){
+            // Create server and wait for decoder to connect
+            if( tcp_server_for_decoder.setup(decoder_port, opts) != 0) {
+                cerr << "Errore apertura socket" << endl;
+            }
         }
 
         // Start Filter Servers
@@ -505,12 +549,31 @@ int main(int argc, char *argv[], char **env)
             return 1;
         }
 
+        // Reason we put starting decoder server at the end is that: in case of filter-bundle, we need to first start all filter-bundle enclaves...
+        if(is_filter_bundle_detected){
+            printf("[Scheduler]: Trying to join all filter threads...\n");
+            for(int i = 0; i < md->total_filters; ++i){
+                pthread_join(*(pt_filters[i]), NULL);
+            }
+        }
+        // Start Decoder Server
+        decoder_args* d_args = (decoder_args*) malloc(sizeof(decoder_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
+        d_args->path_of_cam_vender_pubkey = "../../../keys/camera_vendor_pub";  // To-Do: Make this flexible to different camera vendor
+        d_args->incoming_port = decoder_port;
+        d_args->outgoing_ip_addr = "127.0.0.1"; // To-Do: Make this flexible to scale up
+        d_args->outgoing_port = decoder_outgoing_port;
+        pthread_t* pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
+        if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
+            printf("pthread for start_decoder_server created failed...quiting...\n");
+            return 1;
+        }
+
         // Join the receiver thread
         pthread_join(msg, NULL);
         
         end = high_resolution_clock::now();
         duration = duration_cast<microseconds>(end - start);
-        eval_file << duration.count() << ", ";
+        eval_file << (duration.count() - 3000) << ", ";
 
         // Manage workflows
         pthread_mutex_lock(&lock_4_workflows);
@@ -530,6 +593,10 @@ int main(int argc, char *argv[], char **env)
 
             // Hopefully sleep of 3 seconds will be enough for decoder to respond
             sleep(3);
+
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            eval_file << duration.count() << ", ";
 
             // Reset counter for evaluation
             start = high_resolution_clock::now();
@@ -567,11 +634,18 @@ int main(int argc, char *argv[], char **env)
 
             tcp_client.exit();
         } else if (method_of_connecting_decoder == 1){
-            // Create server and wait for decoder to connect
-            if( tcp_server_for_decoder.setup(decoder_port, opts) != 0) {
-                cerr << "Errore apertura socket" << endl;
-            }
+
+            // Reset counter for evaluation
+            start = high_resolution_clock::now();
+
             tcp_server_for_decoder.accepted();
+
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            eval_file << duration.count() << ", ";
+
+            // Reset counter for evaluation
+            start = high_resolution_clock::now();
 
             // printf("Sending metadata...\n");
             // Send MetaData

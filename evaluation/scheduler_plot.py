@@ -10,7 +10,7 @@ try:
 except FileExistsError:
     pass
 fig_name = folder + '/scheduler_multi.png'
-x_ticks = ['Receive Metadata', 'Parse Metadata', 'Receiving Data\n& Initialize', 'Send Data', 'Free Everything']
+x_ticks = ['Receive Metadata', 'Parse Metadata', 'Receiving Data\n& Initialize', 'Wait For Decoder Init', 'Connect To Decoder\n& Send Data', 'Free Everything']
 bps = []
 fig = plt.figure(figsize=(16, 9))
 

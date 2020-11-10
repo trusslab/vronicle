@@ -102,6 +102,11 @@ pthread_mutex_t lock_4_workflows;
 int self_server_port_marker = 10112;
 int encoder_outgoing_port_marker = 41234;   // Reason we have this seperately is Azure currently only have 10111(used by scheduler) and 41234 opened...
 
+// For filter-bundle test only
+int is_filter_bundle_detected = 0;
+int self_server_port_marker_extra = 20112;
+int num_of_filter_in_bundle = 3;
+
 // Declare functions as needed
 void free_all_workflows();
 void send_cancel_request_to_all_workflows();

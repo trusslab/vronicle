@@ -53,15 +53,17 @@ from "ra_tls.edl" import *;
             [in, size=cl_size] cmdline* cl_in, size_t cl_size,
             [in, size=frame_sig_size] unsigned char* frame_sig, size_t frame_sig_size,
             [in, size=frame_size] uint8_t* frame, size_t frame_size,
-            [in, size=md_json_size] char* md_json,  size_t md_json_size
+            [in, size=md_json_size] char* md_json,  size_t md_json_size,
+            size_t client_id
         );
         public int t_encode_frame(
             [in, size=frame_sig_size] unsigned char* frame_sig, size_t frame_sig_size,
             [in, size=frame_size] uint8_t* frame, size_t frame_size,
-            [in, size=md_json_size] char* md_json,  size_t md_json_size
+            [in, size=md_json_size] char* md_json,  size_t md_json_size,
+            size_t client_id
         );
         public int t_verify_cert(
-            [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert
+            [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert, size_t client_id
         );
         public void t_get_sig_size(
             [out] size_t* sig_size

@@ -310,7 +310,7 @@ int initialize_enclave(void)
     if (fp == NULL && (fp = fopen(token_path, "wb")) == NULL) {
         printf("Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
     }
-    printf("token_path: %s\n", token_path);
+    // printf("token_path: %s\n", token_path);
     if (fp != NULL) {
         /* read the token from saved file */
         size_t read_num = fread(token, 1, sizeof(sgx_launch_token_t), fp);
@@ -943,7 +943,7 @@ int verification_reply(
     if(processed_img_signature_p)
         free(processed_img_signature_p);
     if(md)
-        free(md);
+        free_metadata(md);
     if(md_json){
         free(md_json);
         md_json = NULL;
@@ -988,7 +988,7 @@ void request_process_loop(char** argv)
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
         tcp_server.accepted();
-        cerr << "Accepted" << endl;
+        // cerr << "Accepted" << endl;
 
         start = high_resolution_clock::now();
 
@@ -1002,7 +1002,7 @@ void request_process_loop(char** argv)
         duration = duration_cast<microseconds>(stop - start);
         alt_eval_file << duration.count() << ", ";
 
-        printf("ias cert received successfully...\n");
+        // printf("ias cert received successfully...\n");
     }
     else
         cerr << "Errore apertura socket" << endl;
@@ -1025,7 +1025,7 @@ void request_process_loop(char** argv)
     free(ias_cert);
 
 
-    printf("ias certificate verified successfully, going to start receving and processing frames...\n");
+    // printf("ias certificate verified successfully, going to start receving and processing frames...\n");
 	// tcp_server.closed();
     
     start = high_resolution_clock::now();
@@ -1034,10 +1034,10 @@ void request_process_loop(char** argv)
     msg_buf = (char*) malloc(size_of_msg_buf);
 
     // Prepare tcp client
-    printf("Setting up tcp client...\n");
+    // printf("Setting up tcp client...\n");
     tcp_client.setup(argv[2], atoi(argv[3]));
 
-    printf("Going to first send der_cert through tcp client...\n");
+    // printf("Going to first send der_cert through tcp client...\n");
     // Send certificate
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);

@@ -139,7 +139,8 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 EVP_PKEY *enc_priv_key;
-EVP_PKEY *ias_pubkey;
+EVP_PKEY **ias_pubkeys;
+int num_of_ias_pubkey_allocated = 0;    // Note that this may not be the true number of ias_pubkeys available
 
 static void psnr_init()
 {
@@ -356,12 +357,13 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 int t_encoder_init (cmdline *cl_in, size_t cl_size, 
                     unsigned char* frame_sig, size_t frame_sig_size,
                     uint8_t* frame, size_t frame_size,
-                    char* md_json,  size_t md_json_size)
+                    char* md_json,  size_t md_json_size, 
+                    size_t client_id)
 {
     int res = -1;
     // Verify first frame and metadata to obtain 
     // frame-related information from metadata
-    if (!ias_pubkey) {
+    if (!ias_pubkeys || !ias_pubkeys[client_id]) {
         printf("Run t_verify_cert first\n");
         return res;
     }
@@ -374,9 +376,9 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
     memset(buf, 0, frame_size + md_json_size);
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
-    // printf("[EncoderEnclave]: frame_size: %d; md_json(%d): [%s]\n", frame_size, md_json_size, md_json);
+    // printf("[EncoderEnclave]: frame_size: %d; md_json(%d): [%s]; client_id: [%d]\n", frame_size, md_json_size, md_json, client_id);
     // printf("[EncoderEnclave]: frame_sig(%d): [%s]\n", frame_sig_size, frame_sig);
-    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkeys[client_id]);
     if (res != 1) {
         printf("[EncoderEnclave]: Signature cannot be verified\n");
         return -1;
@@ -479,14 +481,15 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
 
 int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
                     uint8_t* frame, size_t frame_size,
-                    char* md_json,  size_t md_json_size)
+                    char* md_json,  size_t md_json_size, 
+                    size_t client_id)
 {
     int res = -1;
     // Verify signature of frame
     // The signature should have two information:
     // (1) The frame
     // (2) A metadata of the frame (frame ID, total # of frames, segment ID)
-    if (!ias_pubkey) {
+    if (!ias_pubkeys || !ias_pubkeys[client_id]) {
         printf("Run t_verify_cert first\n");
         return -1;
     }
@@ -498,7 +501,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     memset(buf, 0, frame_size + md_json_size);
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
-    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkeys[client_id]);
     if (res != 1) {
         printf("Signature cannot be verified\n");
         return -1;
@@ -662,7 +665,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     return res;
 }
 
-int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
+int t_verify_cert(void* ias_cert, size_t size_of_ias_cert, size_t client_id)
 {
 	int ret = 1;
 	X509 *crt = NULL;
@@ -674,13 +677,18 @@ int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
 			break;
 		}
 
+        if(client_id + 1 > num_of_ias_pubkey_allocated){
+            num_of_ias_pubkey_allocated = client_id + 1;
+            ias_pubkeys = (EVP_PKEY**)realloc(ias_pubkeys, num_of_ias_pubkey_allocated * sizeof(EVP_PKEY*));
+        }
+
 		// Extract public key from IAS certificate
-		ias_pubkey = EVP_PKEY_new();
+		ias_pubkeys[client_id] = EVP_PKEY_new();
  	    const unsigned char* p = (unsigned char*)ias_cert;
  	    crt = d2i_X509(NULL, &p, size_of_ias_cert);
  	    assert(crt != NULL);
- 	    ias_pubkey = X509_get_pubkey(crt);
-		if(!ias_pubkey){
+ 	    ias_pubkeys[client_id] = X509_get_pubkey(crt);
+		if(!ias_pubkeys[client_id]){
 			ret = 1;
 			printf("Failed to retreive public key\n");
 			break;
@@ -801,8 +809,13 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
 
 void t_free(void)
 {
-    if (ias_pubkey)
-        EVP_PKEY_free(ias_pubkey);
+    if (ias_pubkeys){
+        for(int i = 0; i < num_of_ias_pubkey_allocated; ++i){
+            if(ias_pubkeys[i])
+                EVP_PKEY_free(ias_pubkeys[i]);
+        }
+        free(ias_pubkeys);
+    }
     if (enc_priv_key)
         EVP_PKEY_free(enc_priv_key);
 

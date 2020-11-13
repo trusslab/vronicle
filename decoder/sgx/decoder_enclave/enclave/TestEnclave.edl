@@ -49,7 +49,8 @@ from "ra_tls.edl" import *;
 
 
     trusted {
-        public void t_create_key_and_x509([out, size=size_of_cert] void* cert, size_t size_of_cert,
+        public void t_create_key_and_x509(int epid,
+                                          [out, size=size_of_cert] void* cert, size_t size_of_cert,
                                           [out, size=asoc] void* actual_size_of_cert, size_t asoc);
         public void t_free(void);
         public int  t_sgxver_decode_content([in, size=size_of_input_content_buffer] void* input_content_buffer, long size_of_input_content_buffer,

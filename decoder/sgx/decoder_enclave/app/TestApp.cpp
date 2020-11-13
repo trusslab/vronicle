@@ -53,6 +53,7 @@
 # define TARGET_NUM_TIMES_RECEIVED 4
 # define TARGET_NUM_FILES_RECEIVED 1
 // #define SIZEOFPACKAGE 40000
+#define SGX_AESM_ADDR "SGX_AESM_ADDR"
 
 #include <sgx_urts.h>
 
@@ -80,6 +81,13 @@
 #include "metadata.h"
 
 #include "basetype.h"
+
+#ifdef ENABLE_DCAP
+#include "sgx_dcap_ql_wrapper.h"
+#include "sgx_quote_3.h"
+#include "sgx_report.h"
+#include "sgx_pce.h"
+#endif
 
 // For TCP module
 #include <ctime>
@@ -315,6 +323,51 @@ int initialize_enclave(void)
             printf("Warning: Invalid launch token read from \"%s\".\n", token_path);
         }
     }
+
+#ifdef ENABLE_DCAP
+    /* Step 1.5: set enclave load policy to persistent if in-proc mode */
+    quote3_error_t qe3_ret = SGX_QL_SUCCESS;
+    bool is_out_of_proc = false;
+    char *out_of_proc = getenv(SGX_AESM_ADDR);
+    if(out_of_proc)
+        is_out_of_proc = true;
+    if(!is_out_of_proc)
+    {
+        // Following functions are valid in Linux in-proc mode only.
+        printf("sgx_qe_set_enclave_load_policy is valid in in-proc mode only and it is optional: the default enclave load policy is persistent: \n");
+        printf("set the enclave load policy as persistent:");
+        qe3_ret = sgx_qe_set_enclave_load_policy(SGX_QL_PERSISTENT);
+        if(SGX_QL_SUCCESS != qe3_ret) {
+            printf("Error in set enclave load policy: 0x%04x\n", qe3_ret);
+            if (fp != NULL) fclose(fp);
+            return -1;
+        }
+        printf("succeed!\n");
+
+        // Try to load PCE and QE3 from Ubuntu-like OS system path
+        if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_pce.signed.so") ||
+                SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_qe3.signed.so")) {
+
+            // Try to load PCE and QE3 from RHEL-like OS system path
+            if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib64/libsgx_pce.signed.so") ||
+                SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib64/libsgx_qe3.signed.so")) {
+                printf("Error in set PCE/QE3 directory.\n");
+                if (fp != NULL) fclose(fp);
+                return -1;
+            }
+        }
+
+        qe3_ret = sgx_ql_set_path(SGX_QL_QPL_PATH, "/usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so.1");
+        if (SGX_QL_SUCCESS != qe3_ret) {
+            qe3_ret = sgx_ql_set_path(SGX_QL_QPL_PATH, "/usr/lib64/libdcap_quoteprov.so.1");
+            if(SGX_QL_SUCCESS != qe3_ret) {
+                printf("Error in set QPL directory.\n");
+                if (fp != NULL) fclose(fp);
+                return -1;
+            }
+        }
+    }
+#endif
 
     /* Step 2: call sgx_create_enclave to initialize an enclave instance */
     /* Debug Support: set 2nd parameter to 1 */
@@ -1133,9 +1186,14 @@ int main(int argc, char *argv[], char **env)
     size_of_cert = 4 * 4096;
     der_cert = (unsigned char *)malloc(size_of_cert);
 
+    int epid = 1;
+#ifdef ENABLE_DCAP
+    epid = 0;
+#endif
+
     start = high_resolution_clock::now();
 
-    t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
+    t_create_key_and_x509(global_eid, epid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);

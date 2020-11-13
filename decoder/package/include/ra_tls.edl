@@ -3,6 +3,8 @@ enclave {
     include "ra.h"
     include "ra-attester.h"
     include "sgx_report.h"
+    include "sgx_ql_quote.h"
+    include "sgx_qve_header.h"
 
     trusted {
         public void dummy(void);
@@ -15,5 +17,28 @@ enclave {
                                       [in] const struct ra_tls_options* opts,
                                       [out] attestation_verification_report_t* attn_report
                                       );
+        void ocall_ecdsa_get_qe_target_info(
+            [out] sgx_target_info_t* qe_target_info
+        );
+        void ocall_ecdsa_get_quote_size(
+            [out] uint32_t* quote_size
+        );
+        void ocall_ecdsa_get_quote(
+            [in] const sgx_report_t* report,
+            [out, size=quote_size] uint8_t* quote_buffer,
+            uint32_t quote_size
+        );
+        void ocall_ecdsa_get_supplemental_data_size(
+            [out] uint32_t* supplemental_data_size
+        );
+        void ocall_ecdsa_verify_quote(
+            [in, size=quote_size] const uint8_t* quote_buffer,
+            uint32_t quote_size,
+            [in, out] sgx_ql_qe_report_info_t* qve_report_info,
+            [out] uint32_t* collateral_expiration_status,
+            [out] sgx_ql_qv_result_t* quote_verification_result,
+            [out, size=supplemental_data_size] uint8_t* supplemental_data,
+            uint32_t supplemental_data_size
+        );
     };                            
 };

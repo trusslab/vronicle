@@ -26,11 +26,11 @@ extern const uint8_t ias_root_cert_oid[];
 extern const uint8_t ias_leaf_cert_oid[];
 extern const uint8_t ias_report_signature_oid[];
 
+#include <sgx_quote_3.h>
+#include <sgx_ql_quote.h>
+#include <sgx_utils.h>
+#include <sgx_dcap_tvl.h>
 extern const uint8_t quote_oid[];
-extern const uint8_t pck_crt_oid[];
-extern const uint8_t pck_sign_chain_oid[];
-extern const uint8_t tcb_info_oid[];
-extern const uint8_t tcb_sign_chain_oid[];
 
 extern const size_t ias_oid_len;
 
@@ -154,6 +154,22 @@ void openssl_extract_x509_extensions
            attn_report->ias_sign_cert_len != 0 &&
            attn_report->ias_sign_ca_cert_len != 0 &&
            attn_report->ias_report_len != 0);
+}
+
+static
+void openssl_ecdsa_extract_x509_extensions
+(
+    X509* crt,
+    ecdsa_attestation_evidence_t* evidence
+)
+{
+    bzero(evidence, sizeof(*evidence));
+    get_and_decode_ext(crt, quote_oid + 2, ias_oid_len - 2,
+                       evidence->quote, sizeof(evidence->quote),
+                       &evidence->quote_len);
+
+    // Assert we got all of our extensions.
+    assert(evidence->quote_len != 0);
 }
 
 void get_quote_from_report
@@ -466,6 +482,203 @@ void get_mrenclave
     unsigned char *mr = (unsigned char*)malloc(*mrenclave_len);
     memset((void*)mr, 0, *mrenclave_len);
     ret = EVP_EncodeBlock(mr, (const unsigned char*)quote.report_body.mr_enclave.m, SGX_HASH_SIZE);
+    mr[*mrenclave_len] = '\0';
+    printf("MRENCLAVE: %s\n", (char*)mr);
+    *mrenclave = (char*)mr;
+}
+
+/**
+ * @return 0 if verified successfully, 1 otherwise.
+ */
+int ecdsa_verify_sgx_cert_extensions
+(
+    uint8_t* der_crt,
+    uint32_t der_crt_len
+)
+{
+    // Init variables
+    int ret = 0;
+    time_t current_time = 1605146732; // TODO: Make this a non-hardcoded time.
+    uint32_t supplemental_data_size = 0;
+    sgx_status_t sgx_ret = SGX_SUCCESS;
+    quote3_error_t dcap_ret = SGX_QL_ERROR_UNEXPECTED;
+    sgx_ql_qv_result_t quote_verification_result = SGX_QL_QV_RESULT_UNSPECIFIED;
+    sgx_ql_qe_report_info_t qve_report_info;
+    unsigned char rand_nonce[16] = "59jslk201fgjmm;"; // TODO: Make this a random nonce.
+    uint32_t collateral_expiration_status = 1;
+
+    // Extract DCAP evidence from X509 cert
+    const unsigned char* p = der_crt;
+    X509* crt = d2i_X509(NULL, &p, der_crt_len);
+    assert(crt != NULL);
+    ecdsa_attestation_evidence_t evidence = {0, };
+    openssl_ecdsa_extract_x509_extensions(crt, &evidence);
+
+    // Verify all information is correct
+    /* Set nonce. */
+    memcpy(qve_report_info.nonce.rand, rand_nonce, sizeof(rand_nonce));
+
+    /* Get target info of this enclave. */
+    sgx_ret = sgx_self_target(&qve_report_info.app_enclave_target_info);
+    assert(sgx_ret == SGX_SUCCESS);
+
+    /* Prepare for DCAP quote verification */
+    ocall_ecdsa_get_supplemental_data_size(
+        &supplemental_data_size
+    );
+    uint8_t p_supplemental_data[supplemental_data_size];
+    ocall_ecdsa_verify_quote(
+        evidence.quote, evidence.quote_len,
+        &qve_report_info, &collateral_expiration_status,
+        &quote_verification_result,
+        p_supplemental_data, supplemental_data_size
+    );
+
+    /* Verify QvE quote. */
+    // Threshold of QvE ISV SVN. The ISV SVN of QvE used to verify quote must be greater or equal to this threshold
+    // e.g. You can get latest QvE ISVSVN in QvE Identity JSON file from
+    // https://api.trustedservices.intel.com/sgx/certification/v2/qve/identity
+    // Make sure you are using trusted & latest QvE ISV SVN as threshold
+    //
+    sgx_isv_svn_t qve_isvsvn_threshold = 3; // TODO: Remove hardcoded ISVSVN threshold
+    sgx_ret = sgx_verify_report(&(qve_report_info.qe_report));
+    dcap_ret = sgx_tvl_verify_qve_report_and_identity(
+        evidence.quote, evidence.quote_len,
+        &qve_report_info,
+        current_time,
+        collateral_expiration_status,
+        quote_verification_result,
+        p_supplemental_data,
+        supplemental_data_size,
+        qve_isvsvn_threshold
+    );
+    assert(dcap_ret == SGX_QL_SUCCESS);
+
+    /* Check verification result. */
+    switch (quote_verification_result)
+    {
+    case SGX_QL_QV_RESULT_OK:
+        printf("\tInfo: App: Verification completed successfully.\n");
+        ret = 0;
+        break;
+    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_OUT_OF_DATE:
+    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
+    case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
+        printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", quote_verification_result);
+        ret = 1;
+        break;
+    case SGX_QL_QV_RESULT_INVALID_SIGNATURE:
+    case SGX_QL_QV_RESULT_REVOKED:
+    case SGX_QL_QV_RESULT_UNSPECIFIED:
+    default:
+        printf("\tError: App: Verification completed with Terminal result: %x\n", quote_verification_result);
+        ret = -1;
+        break;
+    }
+    assert(ret > 0);
+
+    return 0;
+}
+
+void ecdsa_get_mrenclave
+(
+    uint8_t* der_crt,
+    uint32_t der_crt_len,
+    char** mrenclave,
+    size_t* mrenclave_len
+)
+{
+    // Init variables
+    int ret = 0;
+    time_t current_time = 1605146732; // TODO: Make this a non-hardcoded time.
+    uint32_t supplemental_data_size = 0;
+    sgx_status_t sgx_ret = SGX_SUCCESS;
+    quote3_error_t dcap_ret = SGX_QL_ERROR_UNEXPECTED;
+    sgx_ql_qv_result_t quote_verification_result = SGX_QL_QV_RESULT_UNSPECIFIED;
+    sgx_ql_qe_report_info_t qve_report_info;
+    unsigned char rand_nonce[16] = "59jslk201fgjmm;"; // TODO: Make this a random nonce.
+    uint32_t collateral_expiration_status = 1;
+
+    // Extract DCAP evidence from X509 cert
+    const unsigned char* p = der_crt;
+    X509* crt = d2i_X509(NULL, &p, der_crt_len);
+    assert(crt != NULL);
+    ecdsa_attestation_evidence_t evidence = {0, };
+    openssl_ecdsa_extract_x509_extensions(crt, &evidence);
+
+    // Verify all information is correct
+    /* Set nonce. */
+    memcpy(qve_report_info.nonce.rand, rand_nonce, sizeof(rand_nonce));
+
+    /* Get target info of this enclave. */
+    sgx_ret = sgx_self_target(&qve_report_info.app_enclave_target_info);
+    assert(sgx_ret == SGX_SUCCESS);
+
+    /* Prepare for DCAP quote verification */
+    ocall_ecdsa_get_supplemental_data_size(
+        &supplemental_data_size
+    );
+    uint8_t p_supplemental_data[supplemental_data_size];
+    ocall_ecdsa_verify_quote(
+        evidence.quote, evidence.quote_len,
+        &qve_report_info, &collateral_expiration_status,
+        &quote_verification_result,
+        p_supplemental_data, supplemental_data_size
+    );
+
+    /* Verify QvE quote. */
+    // Threshold of QvE ISV SVN. The ISV SVN of QvE used to verify quote must be greater or equal to this threshold
+    // e.g. You can get latest QvE ISVSVN in QvE Identity JSON file from
+    // https://api.trustedservices.intel.com/sgx/certification/v2/qve/identity
+    // Make sure you are using trusted & latest QvE ISV SVN as threshold
+    //
+    sgx_isv_svn_t qve_isvsvn_threshold = 3; // TODO: Remove hardcoded ISVSVN threshold
+    sgx_ret = sgx_verify_report(&(qve_report_info.qe_report));
+    dcap_ret = sgx_tvl_verify_qve_report_and_identity(
+        evidence.quote, evidence.quote_len,
+        &qve_report_info,
+        current_time,
+        collateral_expiration_status,
+        quote_verification_result,
+        p_supplemental_data,
+        supplemental_data_size,
+        qve_isvsvn_threshold
+    );
+    assert(dcap_ret == SGX_QL_SUCCESS);
+
+    /* Check verification result. */
+    switch (quote_verification_result)
+    {
+    case SGX_QL_QV_RESULT_OK:
+        printf("\tInfo: App: Verification completed successfully.\n");
+        ret = 0;
+        break;
+    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_OUT_OF_DATE:
+    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
+    case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
+        printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", quote_verification_result);
+        ret = 1;
+        break;
+    case SGX_QL_QV_RESULT_INVALID_SIGNATURE:
+    case SGX_QL_QV_RESULT_REVOKED:
+    case SGX_QL_QV_RESULT_UNSPECIFIED:
+    default:
+        printf("\tError: App: Verification completed with Terminal result: %x\n", quote_verification_result);
+        ret = -1;
+        break;
+    }
+    assert(ret > 0);
+
+    // Then extract the MRENCLAVE value in Base 64 form
+    *mrenclave_len = 45;
+    unsigned char *mr = (unsigned char*)malloc(*mrenclave_len);
+    memset((void*)mr, 0, *mrenclave_len);
+    sgx_quote3_t* quote = (sgx_quote3_t*)evidence.quote;
+    ret = EVP_EncodeBlock(mr, (const unsigned char*)quote->report_body.mr_enclave.m, SGX_HASH_SIZE);
     mr[*mrenclave_len] = '\0';
     printf("MRENCLAVE: %s\n", (char*)mr);
     *mrenclave = (char*)mr;

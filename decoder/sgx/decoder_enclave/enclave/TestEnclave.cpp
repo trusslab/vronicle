@@ -492,17 +492,30 @@ int t_sgxver_decode_content(
 }
 
 extern struct ra_tls_options my_ra_tls_options;
+extern struct ecdsa_ra_tls_options my_ecdsa_ra_tls_options;
 
-void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of_cert, size_t asoc)
+void t_create_key_and_x509(int epid,
+						   void* cert, size_t size_of_cert,
+					       void* actual_size_of_cert, size_t asoc)
 {
     uint8_t der_key[2048];
     uint8_t der_cert[4 * 4096];
     int32_t der_key_len = sizeof(der_key);
     int32_t der_cert_len = sizeof(der_cert);
 
-    create_key_and_x509(der_key, &der_key_len,
-                        der_cert, &der_cert_len,
-                        &my_ra_tls_options);
+	if (epid)
+	{
+    	create_key_and_x509(der_key, &der_key_len,
+    	                    der_cert, &der_cert_len,
+    	                    &my_ra_tls_options);
+	}
+	else
+	{
+    	ecdsa_create_key_and_x509(der_key, &der_key_len,
+    	                          der_cert, &der_cert_len,
+    	                          &my_ecdsa_ra_tls_options);
+	}
+
     // Get private key
 	enc_priv_key = 0;
 	const unsigned char *key = (const unsigned char*)der_key;
@@ -514,7 +527,14 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
 	*(size_t*)actual_size_of_cert = der_cert_len;
 
 	// Get MRENCLAVE value from cert
-	get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
+	if (epid)
+	{
+		get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
+	}
+	else
+	{
+		ecdsa_get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
+	}
 }
 
 void t_free(void)

@@ -1,4 +1,3 @@
-#define ENABLE_DCAP 1
 #ifdef ENABLE_DCAP
 #include <string.h>
 #include <assert.h>

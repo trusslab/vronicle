@@ -26,11 +26,13 @@ extern const uint8_t ias_root_cert_oid[];
 extern const uint8_t ias_leaf_cert_oid[];
 extern const uint8_t ias_report_signature_oid[];
 
+#ifdef ENABLE_DCAP
 #include <sgx_quote_3.h>
 #include <sgx_ql_quote.h>
 #include <sgx_utils.h>
 #include <sgx_dcap_tvl.h>
 extern const uint8_t quote_oid[];
+#endif
 
 extern const size_t ias_oid_len;
 
@@ -487,6 +489,7 @@ void get_mrenclave
     *mrenclave = (char*)mr;
 }
 
+#ifdef ENABLE_DCAP
 /**
  * @return 0 if verified successfully, 1 otherwise.
  */
@@ -683,3 +686,4 @@ void ecdsa_get_mrenclave
     printf("MRENCLAVE: %s\n", (char*)mr);
     *mrenclave = (char*)mr;
 }
+#endif

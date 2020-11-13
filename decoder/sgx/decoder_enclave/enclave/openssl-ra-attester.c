@@ -7,7 +7,9 @@
 
 #include <sgx_uae_service.h>
 
+#ifdef ENABLE_DCAP
 #include <sgx_quote_3.h>
+#endif
 
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
@@ -210,6 +212,7 @@ openssl_create_key_and_x509
     evp_key = NULL;
 }
 
+#ifdef ENABLE_DCAP
 /**
  * Generate RA-TLS certificate containing ECDSA-based attestation evidence.
  * 
@@ -344,6 +347,7 @@ void ecdsa_create_key_and_x509
                                       der_cert, der_cert_len,
                                       opts);
 }
+#endif
 
 void create_key_and_x509
 (

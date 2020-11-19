@@ -212,6 +212,20 @@ openssl_create_key_and_x509
     evp_key = NULL;
 }
 
+void create_key_and_x509
+(
+    uint8_t* der_key,  /* out */
+    int* der_key_len,  /* in/out */
+    uint8_t* der_cert, /* out */
+    int* der_cert_len, /* in/out */
+    const struct ra_tls_options* opts /* in */
+)
+{
+    openssl_create_key_and_x509(der_key, der_key_len,
+                                der_cert, der_cert_len,
+                                opts);
+}
+
 #ifdef ENABLE_DCAP
 /**
  * Generate RA-TLS certificate containing ECDSA-based attestation evidence.
@@ -348,20 +362,6 @@ void ecdsa_create_key_and_x509
                                       opts);
 }
 #endif
-
-void create_key_and_x509
-(
-    uint8_t* der_key,  /* out */
-    int* der_key_len,  /* in/out */
-    uint8_t* der_cert, /* out */
-    int* der_cert_len, /* in/out */
-    const struct ra_tls_options* opts /* in */
-)
-{
-    openssl_create_key_and_x509(der_key, der_key_len,
-                                der_cert, der_cert_len,
-                                opts);
-}
 
 /* This function only exists to make edger8r happy. There must be at
    least one trusted (ECALL) function. */

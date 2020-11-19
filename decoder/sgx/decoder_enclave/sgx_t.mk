@@ -173,11 +173,20 @@ libh264bsd.a:
 	@cd $(DECODER_DIR) && mkdir -p include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 	@echo "GEN => H264 Decoder Shared Library Ready..."
 
+ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+else
+$(ENCLAVE_DIR)/TestEnclave_dcap_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave_dcap.edl
+	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave_dcap.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+endif
 	@echo "GEN  =>  $@"
 
+ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_t.c
+else
+$(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_dcap_t.c
+endif
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -222,6 +231,10 @@ TestEnclave.signed.so: TestEnclave.so
 	@echo "SIGN =>  $@"
 
 clean:
+ifeq ($(ENABLE_DCAP), 0)
 	@rm -f TestEnclave.* $(ENCLAVE_DIR)/TestEnclave_t.* $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+else
+	@rm -f TestEnclave.* $(ENCLAVE_DIR)/TestEnclave_dcap_t.* $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+endif
 	@rm -r $(DECODER_DIR)/include $(DECODER_DIR)/obj $(DECODER_DIR)/lib
 

@@ -38,7 +38,11 @@
 #include <limits.h>
 
 #include "TestEnclave.h"
-#include "TestEnclave_t.h"  /* print_string */
+#ifndef ENABLE_DCAP
+#include "TestEnclave_t.h"
+#else
+#include "TestEnclave_dcap_t.h"
+#endif
 #include "tSgxSSL_api.h"
 #include "RawBase.h"
 #include "SampleFilters.h"
@@ -494,8 +498,7 @@ int t_sgxver_decode_content(
 extern struct ra_tls_options my_ra_tls_options;
 extern struct ecdsa_ra_tls_options my_ecdsa_ra_tls_options;
 
-void t_create_key_and_x509(int epid,
-						   void* cert, size_t size_of_cert,
+void t_create_key_and_x509(void* cert, size_t size_of_cert,
 					       void* actual_size_of_cert, size_t asoc)
 {
     uint8_t der_key[2048];
@@ -503,18 +506,15 @@ void t_create_key_and_x509(int epid,
     int32_t der_key_len = sizeof(der_key);
     int32_t der_cert_len = sizeof(der_cert);
 
-	if (epid)
-	{
+#ifndef ENABLE_DCAP
     	create_key_and_x509(der_key, &der_key_len,
     	                    der_cert, &der_cert_len,
     	                    &my_ra_tls_options);
-	}
-	else
-	{
+#else
     	ecdsa_create_key_and_x509(der_key, &der_key_len,
     	                          der_cert, &der_cert_len,
     	                          &my_ecdsa_ra_tls_options);
-	}
+#endif
 
     // Get private key
 	enc_priv_key = 0;
@@ -527,14 +527,11 @@ void t_create_key_and_x509(int epid,
 	*(size_t*)actual_size_of_cert = der_cert_len;
 
 	// Get MRENCLAVE value from cert
-	if (epid)
-	{
+#ifndef ENABLE_DCAP
 		get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
-	}
-	else
-	{
+#else
 		ecdsa_get_mrenclave(der_cert, der_cert_len, &mrenclave, &mrenclave_len);
-	}
+#endif
 }
 
 void t_free(void)

@@ -1186,14 +1186,9 @@ int main(int argc, char *argv[], char **env)
     size_of_cert = 4 * 4096;
     der_cert = (unsigned char *)malloc(size_of_cert);
 
-    int epid = 1;
-#ifdef ENABLE_DCAP
-    epid = 0;
-#endif
-
     start = high_resolution_clock::now();
 
-    t_create_key_and_x509(global_eid, epid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
+    t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);

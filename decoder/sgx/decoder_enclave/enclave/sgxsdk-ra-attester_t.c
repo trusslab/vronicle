@@ -8,10 +8,11 @@
 #include "ra-attester.h"
 #include "ra_private.h"
 // #include "ra_tls_t.h" // OCALLs
+#ifndef ENABLE_DCAP
 #include "TestEnclave_t.h"
-
-#ifdef ENABLE_DCAP
+#else
 #include "sgx_quote_3.h"
+#include "TestEnclave_dcap_t.h"
 #endif
 
 /* Trusted portion (called from within the enclave) to do remote

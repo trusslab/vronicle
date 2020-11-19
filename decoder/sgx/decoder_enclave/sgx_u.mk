@@ -143,11 +143,20 @@ test: all
 
 ######## App Objects ########
 
+ifeq ($(ENABLE_DCAP), 0)
 $(UNTRUSTED_DIR)/TestEnclave_u.c: $(SGX_EDGER8R) enclave/TestEnclave.edl $(TCP_Server_Library_Compiled_Name)
 	@cd $(UNTRUSTED_DIR) && $(SGX_EDGER8R) --untrusted ../enclave/TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+else
+$(UNTRUSTED_DIR)/TestEnclave_dcap_u.c: $(SGX_EDGER8R) enclave/TestEnclave_dcap.edl $(TCP_Server_Library_Compiled_Name)
+	@cd $(UNTRUSTED_DIR) && $(SGX_EDGER8R) --untrusted ../enclave/TestEnclave_dcap.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+endif
 	@echo "GEN  =>  $@"
 
+ifeq ($(ENABLE_DCAP), 0)
 $(UNTRUSTED_DIR)/TestEnclave_u.o: $(UNTRUSTED_DIR)/TestEnclave_u.c
+else
+$(UNTRUSTED_DIR)/TestEnclave_u.o: $(UNTRUSTED_DIR)/TestEnclave_dcap_u.c
+endif
 	$(VCC) $(App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -160,6 +169,7 @@ $(UNTRUSTED_DIR)/%.o: $(UNTRUSTED_DIR)/%.c
 	@echo "CC  <=  $<"
 
 TestApp: $(UNTRUSTED_DIR)/TestEnclave_u.o $(App_Cpp_Objects) $(App_C_Objects)
+	@echo "$(VCXX) $^ -o $@ $(App_Link_Flags)"
 	$(VCXX) $^ -o $@ $(App_Link_Flags)
 	@echo "LINK =>  $@"
 
@@ -167,5 +177,9 @@ TestApp: $(UNTRUSTED_DIR)/TestEnclave_u.o $(App_Cpp_Objects) $(App_C_Objects)
 .PHONY: clean
 
 clean:
-	@rm -f TestApp  $(App_Cpp_Objects) $(UNTRUSTED_DIR)/TestEnclave_u.*
+ifeq ($(ENABLE_DCAP), 0)
+	@rm -f TestApp $(App_Cpp_Objects) $(App_C_Objects) $(UNTRUSTED_DIR)/TestEnclave_u.*
+else
+	@rm -f TestApp $(App_Cpp_Objects) $(App_C_Objects) $(UNTRUSTED_DIR)/TestEnclave_dcap_u.*
+endif
 	

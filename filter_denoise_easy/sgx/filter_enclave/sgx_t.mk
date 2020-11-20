@@ -35,6 +35,7 @@
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 ENCLAVE_DIR=enclave
+ENABLE_DCAP ?= 0
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -88,13 +89,17 @@ else
 		OpenSSL_Crypto_Library_Name := sgx_tsgxssl_crypto
 endif
 
-
 ifneq ($(SGX_MODE), HW)
 	Trts_Library_Name := sgx_trts_sim
 	Service_Library_Name := sgx_tservice_sim
 else
 	Trts_Library_Name := sgx_trts
 	Service_Library_Name := sgx_tservice
+endif
+
+ifeq ($(ENABLE_DCAP), 1)
+        SGX_COMMON_CFLAGS += -DENABLE_DCAP
+		Trts_Library_Name += -lsgx_dcap_tvl
 endif
 
 ifeq ($(SGX_MODE), HW)
@@ -144,11 +149,20 @@ test: all
 
 ######## TestEnclave Objects ########
 
+ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/TestEnclave_t.c: $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+else
+$(ENCLAVE_DIR)/TestEnclave_dcap_t.c: $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave_dcap.edl
+	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted TestEnclave_dcap.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+endif
 	@echo "GEN  =>  $@"
 
+ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_t.c
+else
+$(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_dcap_t.c
+endif
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -190,5 +204,9 @@ TestEnclave.signed.so: TestEnclave.so
 	@echo "SIGN =>  $@"
 
 clean:
+ifeq ($(ENABLE_DCAP), 0)
 	@rm -f TestEnclave.* $(ENCLAVE_DIR)/TestEnclave_t.* $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+else
+	@rm -f TestEnclave.* $(ENCLAVE_DIR)/TestEnclave_dcap_t.* $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+endif
 

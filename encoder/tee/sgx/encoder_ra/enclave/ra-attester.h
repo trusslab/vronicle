@@ -39,7 +39,7 @@ void create_key_and_x509_pem
     const struct ra_tls_options* opts
 );
 
-#ifdef RATLS_ECDSA
+#ifdef ENABLE_DCAP
 void ecdsa_create_key_and_x509
 (
     uint8_t* der_key,

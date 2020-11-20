@@ -35,6 +35,7 @@
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 ENCLAVE_DIR=enclave
+ENABLE_DCAP ?= 0
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -97,6 +98,11 @@ else
 	Service_Library_Name := sgx_tservice
 endif
 
+ifeq ($(ENABLE_DCAP), 1)
+        SGX_COMMON_CFLAGS += -DENABLE_DCAP
+		Trts_Library_Name += -lsgx_dcap_tvl
+endif
+
 ifeq ($(SGX_MODE), HW)
 ifndef DEBUG
 ifneq ($(SGX_PRERELEASE), 1)
@@ -144,11 +150,20 @@ test: all
 
 ######## EncoderEnclave Objects ########
 
+ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/EncoderEnclave_t.c: $(SGX_EDGER8R) $(ENCLAVE_DIR)/EncoderEnclave.edl
 	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted EncoderEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+else
+$(ENCLAVE_DIR)/EncoderEnclave_dcap_t.c: $(SGX_EDGER8R) $(ENCLAVE_DIR)/EncoderEnclave_dcap.edl
+	@cd $(ENCLAVE_DIR) && $(SGX_EDGER8R) --trusted EncoderEnclave_dcap.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+endif
 	@echo "GEN  =>  $@"
 
+ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/EncoderEnclave_t.o: $(ENCLAVE_DIR)/EncoderEnclave_t.c
+else
+$(ENCLAVE_DIR)/EncoderEnclave_t.o: $(ENCLAVE_DIR)/EncoderEnclave_dcap_t.c
+endif
 	$(VCC) $(EncoderEnclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -190,5 +205,8 @@ EncoderEnclave.signed.so: EncoderEnclave.so
 	@echo "SIGN =>  $@"
 
 clean:
+ifeq ($(ENABLE_DCAP), 0)
 	@rm -f EncoderEnclave.* $(ENCLAVE_DIR)/EncoderEnclave_t.* $(EncoderEnclave_Cpp_Objects) $(EncoderEnclave_C_Objects)
-
+else
+	@rm -f EncoderEnclave.* $(ENCLAVE_DIR)/EncoderEnclave_dcap_t.* $(EncoderEnclave_Cpp_Objects) $(EncoderEnclave_C_Objects)
+endif

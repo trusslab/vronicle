@@ -36,6 +36,7 @@ SGX_MODE ?= HW
 SGX_ARCH ?= x64
 UNTRUSTED_DIR=app
 USE_OPENSSL = 1
+ENABLE_DCAP ?= 0
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -75,6 +76,10 @@ else
 		SgxSSL_Link_Libraries := sgx_usgxssl
 endif
 
+ifeq ($(ENABLE_DCAP), 1)
+        SGX_COMMON_CFLAGS += -DENABLE_DCAP
+endif
+
 
 ######## App Settings ########
 
@@ -82,7 +87,7 @@ endif
 App_Cpp_Files := $(UNTRUSTED_DIR)/EncoderApp.cpp $(UNTRUSTED_DIR)/tcp_module/TCPServer.cpp $(UNTRUSTED_DIR)/tcp_module/TCPClient.cpp
 App_Cpp_Objects := $(App_Cpp_Files:.cpp=.o)
 
-App_C_Files := $(UNTRUSTED_DIR)/sgxsdk-ra-attester_u.c $(UNTRUSTED_DIR)/ias-ra.c
+App_C_Files := $(UNTRUSTED_DIR)/sgxsdk-ra-attester_u.c $(UNTRUSTED_DIR)/ias-ra.c $(UNTRUSTED_DIR)/ra-challenger_u.c
 App_C_Objects := $(App_C_Files:.c=.o)
 
 App_Include_Paths := -I$(UNTRUSTED_DIR) -I$(SGX_SDK_INC) -Icommon
@@ -92,27 +97,41 @@ App_Cpp_Flags := $(App_C_Flags) -std=c++11 -lcrypto -I/usr/include/openssl -lssl
 
 Security_Link_Flags := -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -pie
 
-# ifneq ($(SGX_MODE), HW)
-# 	Urts_Library_Name := sgx_urts_sim
-# 	Epid_Library_Name := sgx_epid_sim
-# 	Quote_Library_Name := sgx_quote_ex_sim
-# else
-# 	Urts_Library_Name := sgx_urts
-# 	Epid_Library_Name := sgx_epid
-# 	Quote_Library_Name := sgx_quote_ex
-# endif
-
-# App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(Epid_Library_Name) -l$(Quote_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread -lcurl
-
 ifneq ($(SGX_MODE), HW)
 	Urts_Library_Name := sgx_urts_sim
-	UaeService_Library_Name := sgx_uae_service_sim
+	Epid_Library_Name := sgx_epid_sim
+	Quote_Library_Name := sgx_quote_ex_sim
 else
 	Urts_Library_Name := sgx_urts
-	UaeService_Library_Name := sgx_uae_service
+	Epid_Library_Name := sgx_epid
+	Quote_Library_Name := sgx_quote_ex
+endif
+App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(Epid_Library_Name) -l$(Quote_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread -lcurl
+
+ifeq ($(ENABLE_DCAP), 0)
+	Epid_Library_Name := sgx_epid
+	ifneq ($(SGX_MODE), HW)
+		Epid_Library_Name += _sim
+	endif
+	App_Link_Flags += -l$(Epid_Library_Name)
+else
+	Dcap_Library_Name := sgx_dcap_ql
+	ifneq ($(SGX_MODE), HW)
+		Dcap_Library_Name += _sim
+	endif
+	App_Link_Flags += -l$(Dcap_Library_Name)
+	App_Link_Flags += -lsgx_dcap_quoteverify
 endif
 
-App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(UaeService_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread -lcurl
+# ifneq ($(SGX_MODE), HW)
+# 	Urts_Library_Name := sgx_urts_sim
+# 	UaeService_Library_Name := sgx_uae_service_sim
+# else
+# 	Urts_Library_Name := sgx_urts
+# 	UaeService_Library_Name := sgx_uae_service
+# endif
+
+# App_Link_Flags := -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/ $(SGX_COMMON_CFLAGS) $(Security_Link_Flags) $(SGX_SHARED_LIB_FLAG) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -l$(UaeService_Library_Name) -L$(OPENSSL_LIBRARY_PATH) -l$(SgxSSL_Link_Libraries) -lpthread -lcurl
 
 
 .PHONY: all test
@@ -125,11 +144,20 @@ test: all
 
 ######## App Objects ########
 
+ifeq ($(ENABLE_DCAP), 0)
 $(UNTRUSTED_DIR)/EncoderEnclave_u.c: $(SGX_EDGER8R) enclave/EncoderEnclave.edl
 	@cd $(UNTRUSTED_DIR) && $(SGX_EDGER8R) --untrusted ../enclave/EncoderEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+else
+$(UNTRUSTED_DIR)/EncoderEnclave_dcap_u.c: $(SGX_EDGER8R) enclave/EncoderEnclave_dcap.edl
+	@cd $(UNTRUSTED_DIR) && $(SGX_EDGER8R) --untrusted ../enclave/EncoderEnclave_dcap.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
+endif
 	@echo "GEN  =>  $@"
 
+ifeq ($(ENABLE_DCAP), 0)
 $(UNTRUSTED_DIR)/EncoderEnclave_u.o: $(UNTRUSTED_DIR)/EncoderEnclave_u.c
+else
+$(UNTRUSTED_DIR)/EncoderEnclave_u.o: $(UNTRUSTED_DIR)/EncoderEnclave_dcap_u.c
+endif
 	$(VCC) $(App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
@@ -149,5 +177,9 @@ EncoderApp: $(UNTRUSTED_DIR)/EncoderEnclave_u.o $(App_Cpp_Objects) $(App_C_Objec
 .PHONY: clean
 
 clean:
-	@rm -f EncoderApp  $(App_Cpp_Objects) $(UNTRUSTED_DIR)/EncoderEnclave_u.* 
+ifeq ($(ENABLE_DCAP), 0)
+	@rm -f EncoderApp $(App_Cpp_Objects) $(App_C_Objects) $(UNTRUSTED_DIR)/EncoderEnclave_u.*
+else
+	@rm -f EncoderApp $(App_Cpp_Objects) $(App_C_Objects) $(UNTRUSTED_DIR)/EncoderEnclave_dcap_u.*
+endif
 	

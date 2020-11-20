@@ -40,7 +40,11 @@
 #include "sgx_error.h"       /* sgx_status_t */
 #include "sgx_eid.h"     /* sgx_enclave_id_t */
 
+#ifndef ENABLE_DCAP
 #include "EncoderEnclave_u.h"
+#else
+#include "EncoderEnclave_dcap_u.h"
+#endif
 // #include "RawBase.h"    // For processing raw image
 
 #include <fstream>

@@ -38,9 +38,30 @@ int verify_sgx_cert_extensions
 );
 
 /**
- * Verify SGX-related X.509 extensions and retreive MRENCLAVe value
+ * Verify SGX-related X.509 extensions and retreive MRENCLAVE value
  */
 void get_mrenclave
+(
+    uint8_t* der_crt,
+    uint32_t der_crt_len,
+    char** mrenclave,
+    size_t* mrenclave_len
+);
+
+/**
+ * Verify SGX-related X.509 extensions.
+ * @return 0 if verification succeeds, 1 otherwise.
+ */
+int ecdsa_verify_sgx_cert_extensions
+(
+    uint8_t* der_crt,
+    uint32_t der_crt_len
+);
+
+/**
+ * Verify SGX-related X.509 extensions and retreive MRENCLAVE value
+ */
+void ecdsa_get_mrenclave
 (
     uint8_t* der_crt,
     uint32_t der_crt_len,
@@ -60,7 +81,6 @@ void get_mrenclave
 
 #if defined(__cplusplus)
 }
-
 #endif
 
 #endif

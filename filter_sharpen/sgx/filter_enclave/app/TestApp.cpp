@@ -77,6 +77,14 @@
 
 #include "metadata.h"
 
+#ifdef ENABLE_DCAP
+#define SGX_AESM_ADDR "SGX_AESM_ADDR"
+#include "sgx_dcap_ql_wrapper.h"
+#include "sgx_quote_3.h"
+#include "sgx_report.h"
+#include "sgx_pce.h"
+#endif
+
 // For TCP module
 #include <ctime>
 #include <cerrno>
@@ -320,6 +328,51 @@ int initialize_enclave(void)
             printf("Warning: Invalid launch token read from \"%s\".\n", token_path);
         }
     }
+
+#ifdef ENABLE_DCAP
+    /* Step 1.5: set enclave load policy to persistent if in-proc mode */
+    quote3_error_t qe3_ret = SGX_QL_SUCCESS;
+    bool is_out_of_proc = false;
+    char *out_of_proc = getenv(SGX_AESM_ADDR);
+    if(out_of_proc)
+        is_out_of_proc = true;
+    if(!is_out_of_proc)
+    {
+        // Following functions are valid in Linux in-proc mode only.
+        printf("sgx_qe_set_enclave_load_policy is valid in in-proc mode only and it is optional: the default enclave load policy is persistent: \n");
+        printf("set the enclave load policy as persistent:");
+        qe3_ret = sgx_qe_set_enclave_load_policy(SGX_QL_PERSISTENT);
+        if(SGX_QL_SUCCESS != qe3_ret) {
+            printf("Error in set enclave load policy: 0x%04x\n", qe3_ret);
+            if (fp != NULL) fclose(fp);
+            return -1;
+        }
+        printf("succeed!\n");
+
+        // Try to load PCE and QE3 from Ubuntu-like OS system path
+        if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_pce.signed.so") ||
+                SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_qe3.signed.so")) {
+
+            // Try to load PCE and QE3 from RHEL-like OS system path
+            if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib64/libsgx_pce.signed.so") ||
+                SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib64/libsgx_qe3.signed.so")) {
+                printf("Error in set PCE/QE3 directory.\n");
+                if (fp != NULL) fclose(fp);
+                return -1;
+            }
+        }
+
+        qe3_ret = sgx_ql_set_path(SGX_QL_QPL_PATH, "/usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so.1");
+        if (SGX_QL_SUCCESS != qe3_ret) {
+            qe3_ret = sgx_ql_set_path(SGX_QL_QPL_PATH, "/usr/lib64/libdcap_quoteprov.so.1");
+            if(SGX_QL_SUCCESS != qe3_ret) {
+                printf("Error in set QPL directory.\n");
+                if (fp != NULL) fclose(fp);
+                return -1;
+            }
+        }
+    }
+#endif
 
     /* Step 2: call sgx_create_enclave to initialize an enclave instance */
     /* Debug Support: set 2nd parameter to 1 */
@@ -1164,13 +1217,13 @@ int main(int argc, char *argv[], char **env)
 
     // Open file to store evaluation results
     mkdir("../../../evaluation/eval_result", 0777);
-    eval_file.open("../../../evaluation/eval_result/eval_filter_sharpen.csv");
+    eval_file.open("../../../evaluation/eval_result/eval_filter_blur.csv");
     if (!eval_file.is_open()) {
         printf("Could not open eval file.\n");
         return 1;
     }
 
-    alt_eval_file.open("../../../evaluation/eval_result/eval_filter_sharpen_one_time.csv");
+    alt_eval_file.open("../../../evaluation/eval_result/eval_filter_blur_one_time.csv");
     if (!alt_eval_file.is_open()) {
         printf("Could not open alt_eval_file file.\n");
         return 1;

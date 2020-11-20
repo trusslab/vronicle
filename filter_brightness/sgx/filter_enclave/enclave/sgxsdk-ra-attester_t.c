@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <sgx_uae_service.h>
 
@@ -7,6 +8,12 @@
 #include "ra-attester.h"
 #include "ra_private.h"
 // #include "ra_tls_t.h" // OCALLs
+#ifndef ENABLE_DCAP
+#include "TestEnclave_t.h"
+#else
+#include "sgx_quote_3.h"
+#include "TestEnclave_dcap_t.h"
+#endif
 
 /* Trusted portion (called from within the enclave) to do remote
    attestation with the SGX SDK.  */
@@ -37,3 +44,28 @@ void ra_tls_create_report(
 
     sgx_create_report(&target_info, &report_data, report);
 }
+
+#ifdef ENABLE_DCAP
+void do_ecdsa_remote_attestation
+(
+    const sgx_report_data_t* report_data,
+    uint8_t* quote,
+    uint32_t* quote_size
+)
+{
+    sgx_target_info_t qe_target_info = {0, };
+    ocall_ecdsa_get_qe_target_info(&qe_target_info);
+
+    sgx_report_t report = {0, };
+    sgx_status_t status = sgx_create_report(&qe_target_info, report_data, &report);
+    assert(status == SGX_SUCCESS);
+
+    ocall_ecdsa_get_quote_size(quote_size);
+
+    uint8_t tmp_quote[*quote_size];
+    memset(tmp_quote, 0, *quote_size);
+    ocall_ecdsa_get_quote(&report, tmp_quote, *quote_size);
+
+    memcpy(quote, tmp_quote, *quote_size);
+}
+#endif

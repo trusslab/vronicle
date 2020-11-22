@@ -495,8 +495,11 @@ int t_sgxver_decode_content(
 	return res;
 }
 
+#ifndef ENABLE_DCAP
 extern struct ra_tls_options my_ra_tls_options;
+#else
 extern struct ecdsa_ra_tls_options my_ecdsa_ra_tls_options;
+#endif
 
 void t_create_key_and_x509(void* cert, size_t size_of_cert,
 					       void* actual_size_of_cert, size_t asoc)

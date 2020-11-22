@@ -53,7 +53,6 @@
 # define TARGET_NUM_TIMES_RECEIVED 4
 # define TARGET_NUM_FILES_RECEIVED 1
 // #define SIZEOFPACKAGE 40000
-#define SGX_AESM_ADDR "SGX_AESM_ADDR"
 
 #include <sgx_urts.h>
 
@@ -83,6 +82,7 @@
 #include "basetype.h"
 
 #ifdef ENABLE_DCAP
+#define SGX_AESM_ADDR "SGX_AESM_ADDR"
 #include "sgx_dcap_ql_wrapper.h"
 #include "sgx_quote_3.h"
 #include "sgx_report.h"

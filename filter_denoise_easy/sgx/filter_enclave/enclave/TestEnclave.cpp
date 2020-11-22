@@ -120,7 +120,7 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 EVP_PKEY *enc_priv_key;
-EVP_PKEY *ias_pubkey;
+EVP_PKEY *pubkey;
 char* mrenclave;
 size_t mrenclave_len;
 
@@ -273,25 +273,29 @@ int get_filter_idx(metadata* md, char* filter_name)
 	return -1;
 }
 
-int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
+int t_verify_cert(void* cert, size_t size_of_cert)
 {
 	int ret = 1;
 	X509 *crt = NULL;
 	do {
-		// Verify IAS certificate
-		ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
+		// Verify certificate
+#ifndef ENABLE_DCAP
+		ret = verify_sgx_cert_extensions((uint8_t*)cert, (uint32_t)size_of_cert);
+#else
+		ret = ecdsa_verify_sgx_cert_extensions((uint8_t*)cert, (uint32_t)size_of_cert);
+#endif
 		if (ret) {
-			printf("IAS cert verification failed\n");
+			printf("Cert verification failed\n");
 			break;
 		}
 
-		// Extract public key from IAS certificate
-		ias_pubkey = EVP_PKEY_new();
- 	    const unsigned char* p = (unsigned char*)ias_cert;
- 	    crt = d2i_X509(NULL, &p, size_of_ias_cert);
+		// Extract public key from certificate
+		pubkey = EVP_PKEY_new();
+ 	    const unsigned char* p = (unsigned char*)cert;
+ 	    crt = d2i_X509(NULL, &p, size_of_cert);
  	    assert(crt != NULL);
- 	    ias_pubkey = X509_get_pubkey(crt);
-		if(!ias_pubkey){
+ 	    pubkey = X509_get_pubkey(crt);
+		if(!pubkey){
 			ret = 1;
 			printf("Failed to retreive public key\n");
 			break;
@@ -328,7 +332,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	memset(buf, 0, size_of_img_pixels + size_of_md_json);
 	memcpy(buf, img_pixels, size_of_img_pixels);
 	memcpy(buf + size_of_img_pixels, md_json, size_of_md_json);
-	ret = verify_hash(buf, size_of_img_pixels + size_of_md_json, (unsigned char*)img_sig, size_of_img_sig, ias_pubkey);
+	ret = verify_hash(buf, size_of_img_pixels + size_of_md_json, (unsigned char*)img_sig, size_of_img_sig, pubkey);
 	free(buf);
 	if (ret != 1) {
 		ret = 1;
@@ -441,6 +445,6 @@ void t_free(void)
 {
 	EVP_PKEY_free(enc_priv_key);
 
-	if(ias_pubkey)
-		EVP_PKEY_free(ias_pubkey);
+	if(pubkey)
+		EVP_PKEY_free(pubkey);
 }

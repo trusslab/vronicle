@@ -161,7 +161,7 @@ endif
 ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_t.c
 else
-$(ENCLAVE_DIR)/TestEnclave_t.o: $(ENCLAVE_DIR)/TestEnclave_dcap_t.c
+$(ENCLAVE_DIR)/TestEnclave_dcap_t.o: $(ENCLAVE_DIR)/TestEnclave_dcap_t.c
 endif
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
@@ -179,10 +179,6 @@ $(ENCLAVE_DIR)/ra_tls_options.c: $(ENCLAVE_DIR)/ra_tls_options.c.sh
 	bash $^ > $@
 	@echo "GEN  =>  $@"
 
-$(ENCLAVE_DIR)/ra_tls_options.o: $(ENCLAVE_DIR)/ra_tls_options.c
-	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
-	@echo "CC   <=  $<"
-
 $(ENCLAVE_DIR)/%.o: $(ENCLAVE_DIR)/%.cpp
 	$(VCXX) $(TestEnclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
@@ -195,7 +191,11 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(ENCLAVE_DIR)/ra_tls_options.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+ifeq ($(ENABLE_DCAP), 0)
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+else
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_dcap_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+endif
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 

@@ -105,8 +105,8 @@ char* msg_buf;
 pthread_t sender_msg;
 
 // For incoming data
-long size_of_ias_cert = 0;
-char *ias_cert = NULL;
+long size_of_cert = 0;
+char *cert = NULL;
 long md_json_len_i = 0;
 char* md_json_i = NULL;
 long raw_signature_length_i = 0;
@@ -125,7 +125,7 @@ char* raw_frame_buf = NULL;
 
 // For outgoing data
 unsigned char *der_cert;
-size_t size_of_cert;
+size_t size_of_der_cert;
 
 // For processing data
 int frame_size_p;
@@ -657,7 +657,7 @@ void * received(void * m)
         // printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
         if(current_mode == 0){
             string file_name = tcp_server.receive_name();
-            // printf("Got new file_name: %s\n", file_name.c_str());
+            printf("Got new file_name: %s\n", file_name.c_str());
             if(file_name == "frame"){
                 current_file_indicator = 0;
                 current_writing_size = &raw_frame_buf_len_i;
@@ -669,7 +669,7 @@ void * received(void * m)
                 current_writing_size = &raw_signature_length_i;
             } else if (file_name == "cert"){
                 current_file_indicator = 3;
-                current_writing_size = &size_of_ias_cert;
+                current_writing_size = &size_of_cert;
                 // Let's cheat the logic as we only need to receive cert once
                 num_of_files_received = TARGET_NUM_FILES_RECEIVED - 1;
             } else if (file_name == "no_more_frame"){
@@ -702,8 +702,8 @@ void * received(void * m)
                     current_writing_location = raw_signature_i;
                     break;
                 case 3:
-                    ias_cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = ias_cert;
+                    cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = cert;
                     break;
                 default:
                     printf("No file indicator is set, aborted...\n");
@@ -1064,7 +1064,7 @@ void request_process_loop(char** argv)
 
     // Verify certificate in enclave
     int ret;
-    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
+    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, cert, (size_t)size_of_cert);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1072,10 +1072,10 @@ void request_process_loop(char** argv)
 
     if (status_of_verification != SGX_SUCCESS) {
         cout << "Failed to read IAS certificate file" << endl;
-        free(ias_cert);
+        free(cert);
         return;
     }
-    free(ias_cert);
+    free(cert);
 
 
     printf("ias certificate verified successfully, going to start receving and processing frames...\n");
@@ -1095,7 +1095,7 @@ void request_process_loop(char** argv)
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
     send_message(msg_buf, size_of_msg_buf);
-    send_buffer(der_cert, size_of_cert);
+    send_buffer(der_cert, size_of_der_cert);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1236,12 +1236,12 @@ int main(int argc, char *argv[], char **env)
     auto duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", "; 
 
-    size_of_cert = 4 * 4096;
-    der_cert = (unsigned char *)malloc(size_of_cert);
+    size_of_der_cert = 4 * 4096;
+    der_cert = (unsigned char *)malloc(size_of_der_cert);
 
     start = high_resolution_clock::now();
 
-    t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
+    t_create_key_and_x509(global_eid, der_cert, size_of_der_cert, &size_of_der_cert, sizeof(size_t));
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", ";

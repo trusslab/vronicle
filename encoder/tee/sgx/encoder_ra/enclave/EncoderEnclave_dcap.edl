@@ -93,7 +93,7 @@ include "sgx_qve_header.h"
             [in, size=md_json_size] char* md_json,  size_t md_json_size
         );
         public int t_verify_cert(
-            [in, size=size_of_ias_cert] void *ias_cert, size_t size_of_ias_cert
+            [in, size=size_of_dcap_cert] void *dcap_cert, size_t size_of_dcap_cert
         );
         public void t_get_sig_size(
             [out] size_t* sig_size

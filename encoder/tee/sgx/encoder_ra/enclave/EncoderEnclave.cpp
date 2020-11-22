@@ -143,7 +143,7 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 EVP_PKEY *enc_priv_key;
-EVP_PKEY *ias_pubkey;
+EVP_PKEY *pubkey;
 
 static void psnr_init()
 {
@@ -365,7 +365,7 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
     int res = -1;
     // Verify first frame and metadata to obtain 
     // frame-related information from metadata
-    if (!ias_pubkey) {
+    if (!pubkey) {
         printf("Run t_verify_cert first\n");
         return res;
     }
@@ -379,7 +379,7 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
     printf("md_json(%d): [%s]\n", md_json_size, md_json);
-    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, pubkey);
     if (res != 1) {
         printf("Signature cannot be verified\n");
         return -1;
@@ -481,7 +481,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     // The signature should have two information:
     // (1) The frame
     // (2) A metadata of the frame (frame ID, total # of frames, segment ID)
-    if (!ias_pubkey) {
+    if (!pubkey) {
         printf("Run t_verify_cert first\n");
         return -1;
     }
@@ -493,7 +493,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     memset(buf, 0, frame_size + md_json_size);
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
-    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, ias_pubkey);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, pubkey);
     if (res != 1) {
         printf("Signature cannot be verified\n");
         return -1;
@@ -657,25 +657,29 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     return res;
 }
 
-int t_verify_cert(void* ias_cert, size_t size_of_ias_cert)
+int t_verify_cert(void* cert, size_t size_of_cert)
 {
 	int ret = 1;
 	X509 *crt = NULL;
 	do {
-		// Verify IAS certificate
-		ret = verify_sgx_cert_extensions((uint8_t*)ias_cert, (uint32_t)size_of_ias_cert);
+		// Verify certificate
+#ifndef ENABLE_DCAP
+		ret = verify_sgx_cert_extensions((uint8_t*)cert, (uint32_t)size_of_cert);
+#else
+		ret = ecdsa_verify_sgx_cert_extensions((uint8_t*)cert, (uint32_t)size_of_cert);
+#endif
 		if (ret) {
-			printf("IAS cert verification failed\n");
+			printf("Cert verification failed\n");
 			break;
 		}
 
-		// Extract public key from IAS certificate
-		ias_pubkey = EVP_PKEY_new();
- 	    const unsigned char* p = (unsigned char*)ias_cert;
- 	    crt = d2i_X509(NULL, &p, size_of_ias_cert);
+		// Extract public key from certificate
+		pubkey = EVP_PKEY_new();
+ 	    const unsigned char* p = (unsigned char*)cert;
+ 	    crt = d2i_X509(NULL, &p, size_of_cert);
  	    assert(crt != NULL);
- 	    ias_pubkey = X509_get_pubkey(crt);
-		if(!ias_pubkey){
+ 	    pubkey = X509_get_pubkey(crt);
+		if(!pubkey){
 			ret = 1;
 			printf("Failed to retreive public key\n");
 			break;
@@ -796,8 +800,8 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
 
 void t_free(void)
 {
-    if (ias_pubkey)
-        EVP_PKEY_free(ias_pubkey);
+    if (pubkey)
+        EVP_PKEY_free(pubkey);
     if (enc_priv_key)
         EVP_PKEY_free(enc_priv_key);
 

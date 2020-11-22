@@ -134,7 +134,7 @@ H264E_io_yuy2_t yuyv;
 uint8_t *buf_in, *buf_save;
 uint8_t *yuyv_buf_in, *temp_buf_in, *p;
 uint8_t *coded_data, *all_coded_data;
-char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_ias_cert_file, *out_ias_cert_file, *in_md_file, *out_md_file;
+char *input_file, *output_file, *input_file_sig, *output_file_sig, *in_cert_file, *out_cert_file, *in_md_file, *out_md_file;
 int sizeof_coded_data, _qp;
 cmdline *cl;
 
@@ -151,8 +151,8 @@ int size_of_msg_buf = 100;
 char* msg_buf;
 
 // For incoming data
-long size_of_ias_cert = 0;
-char *ias_cert = NULL;
+long size_of_cert = 0;
+char *cert = NULL;
 long md_json_len_i = 0;
 char* md_json_i = NULL;
 long raw_signature_length_i = 0;
@@ -896,7 +896,7 @@ void * received(void * m)
                 current_writing_size = &raw_signature_length_i;
             } else if (file_name == "cert"){
                 current_file_indicator = 3;
-                current_writing_size = &size_of_ias_cert;
+                current_writing_size = &size_of_cert;
                 // Let's cheat the logic as we only need to receive cert once
                 num_of_files_received = TARGET_NUM_FILES_RECEIVED - 1;
             } else if (file_name == "no_more_frame"){
@@ -928,8 +928,8 @@ void * received(void * m)
                     current_writing_location = raw_signature_i;
                     break;
                 case 3:
-                    ias_cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = ias_cert;
+                    cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = cert;
                     break;
                 default:
                     printf("No file indicator is set, aborted...\n");
@@ -1112,7 +1112,7 @@ int main(int argc, char *argv[], char **env)
 
     // Verify certificate in enclave
     int ret;
-    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
+    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, cert, (size_t)size_of_cert);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1120,10 +1120,10 @@ int main(int argc, char *argv[], char **env)
 
     if (status_of_verification != SGX_SUCCESS) {
         cout << "Failed to read IAS certificate file" << endl;
-        free(ias_cert);
+        free(cert);
         return 1;
     }
-    free(ias_cert);
+    free(cert);
     printf("ias certificate verified successfully, going to start receving and processing frames...\n");
 
     // Set up parameters for the case each frame is in a single file

@@ -156,7 +156,7 @@ endif
 ifeq ($(ENABLE_DCAP), 0)
 $(UNTRUSTED_DIR)/EncoderEnclave_u.o: $(UNTRUSTED_DIR)/EncoderEnclave_u.c
 else
-$(UNTRUSTED_DIR)/EncoderEnclave_u.o: $(UNTRUSTED_DIR)/EncoderEnclave_dcap_u.c
+$(UNTRUSTED_DIR)/EncoderEnclave_dcap_u.o: $(UNTRUSTED_DIR)/EncoderEnclave_dcap_u.c
 endif
 	$(VCC) $(App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
@@ -169,7 +169,11 @@ $(UNTRUSTED_DIR)/%.o: $(UNTRUSTED_DIR)/%.c
 	$(VCC) $(App_C_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
+ifeq ($(ENABLE_DCAP), 0)
 EncoderApp: $(UNTRUSTED_DIR)/EncoderEnclave_u.o $(App_Cpp_Objects) $(App_C_Objects)
+else
+EncoderApp: $(UNTRUSTED_DIR)/EncoderEnclave_dcap_u.o $(App_Cpp_Objects) $(App_C_Objects)
+endif
 	$(VCXX) $^ -o $@ $(App_Link_Flags)
 	@echo "LINK =>  $@"
 

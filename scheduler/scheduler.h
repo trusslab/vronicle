@@ -27,6 +27,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <utility>
 
 #include <time.h> /* for time() and ctime() */
 
@@ -40,11 +41,16 @@
 #include "tcp_module/TCPServer.h"
 #include "tcp_module/TCPClient.h"
 
-typedef struct workflow {
-    pthread_t* decoder, *encoder;
-    pthread_t** filters;
-    int num_of_filters;
-} workflow;
+typedef struct incoming_data {
+    long contentSize = 0;
+    u8* contentBuffer = NULL;
+    long camera_cert_len = 0;
+    char* camera_cert = NULL;
+    long vid_sig_buf_length = 0;
+    char* vid_sig_buf = NULL;
+    long md_json_len = 0;
+    char* md_json = NULL;
+} incoming_data;
 
 typedef struct decoder_args {
     char* path_of_cam_vender_pubkey;
@@ -65,8 +71,33 @@ typedef struct encoder_args {
     int outgoing_port;
 } encoder_args;
 
+typedef struct helper_scheduler_info {
+    string ip_addr;
+    int id_in_current_connection;
+    int type = 0;   // TO-DO: use type to dynamically distribute work to different helper_scheduler
+    int current_num_of_work = 0;
+    pthread_mutex_t individual_access_lock;
+} helper_scheduler_info;
+
+typedef struct pre_workflow {
+    pthread_mutex_t lock;
+    int incoming_source;
+    incoming_data *in_data;
+    decoder_args *d_args;
+    int number_of_filters;
+    filter_args **f_args;
+    encoder_args *e_args;
+} pre_workflow;
+
+typedef struct workflow {
+    pthread_t* decoder, *encoder;
+    pthread_t** filters;
+    int num_of_filters;
+} workflow;
+
 // For TCP module
 TCPServer tcp_server;
+TCPServer tcp_server_for_scheduler_helper;
 TCPServer tcp_server_for_decoder;
 TCPClient tcp_client;
 pthread_t msg1[MAX_CLIENT];
@@ -99,16 +130,35 @@ workflow** workflows = NULL;
 pthread_mutex_t lock_4_workflows;
 
 // To-Do: should manage all workflows dynamically so that we know which ports are free
-int self_server_port_marker = 10112;
-int encoder_outgoing_port_marker = 41234;   // Reason we have this seperately is Azure currently only have 10111(used by scheduler) and 41234 opened...
+int main_scheduler_report_port = 10111; // This port is used for helper scheduler to report to be controlled by main scheduler
+int self_server_port_marker = 10113;
+int encoder_outgoing_port_marker = 41231;   // Reason we have this seperately is Azure currently only have 10111(used by scheduler) and 41234 opened...
 
 // For filter-bundle test only
 int is_filter_bundle_detected = 0;
 int self_server_port_marker_extra = 20112;
-int num_of_filter_in_bundle = 3;
+int num_of_filter_in_bundle = 6;
+
+// For mode that current scheduler is running at
+int current_scheduler_mode = 0; // 0 is main, 1 is pool of scheduler_helper
+
+// For maintaining pool of scheduler (in helper mode)
+pthread_t helper_scheduler_accepter;
+vector<helper_scheduler_info*> helper_scheduler_pool;
+
+// For maintaining pool of resources(decoder, ) (TO-DO)
+// int num_of_free_decoder = 0;
+// pair <string, int> **decoder_pool;  // in format (ip, port)
+
+// For global mutexes
+pthread_mutex_t workflow_access_lock;
+pthread_mutex_t helper_scheduler_pool_access_lock;
+// pthread_mutex_t decoder_pool_access_lock;
 
 // Declare functions as needed
 void free_all_workflows();
 void send_cancel_request_to_all_workflows();
+void free_incoming_data(incoming_data *in_data_to_be_freed);
+void free_helper_scheduler_info(helper_scheduler_info *hs_info_to_be_freed);
 
 

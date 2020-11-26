@@ -1,39 +1,34 @@
 #include "scheduler.h"
 
-int method_of_connecting_decoder = 1;   // 0 means connect to decoder by client; 1 means connect to decoder passively by server
-string msg_reply_from_decoder;   // For method_of_connecting_decoder = 1;
+string msg_reply_from_decoder;
 
 void close_app(int signum) {
 	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
-	if(method_of_connecting_decoder == 0){
-	    tcp_client.exit();
-    } else if (method_of_connecting_decoder == 1){
-        tcp_server_for_decoder.closed();
-    }
+    tcp_server_for_decoder.closed();
     if(current_scheduler_mode == 0){
-        pthread_cancel(helper_scheduler_accepter);
         tcp_server_for_scheduler_helper.closed();
+        pthread_cancel(helper_scheduler_accepter);
+        free_all_helper_scheduler_info();
     }
     send_cancel_request_to_all_workflows();
     free_all_workflows();
+    pthread_mutex_destroy(&decoder_pool_access_lock);
 	exit(0);
 }
 
 void sigpipe_handler_scheduler(int signum){
 	printf("There is a SIGPIPE error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
-	if(method_of_connecting_decoder == 0){
-	    tcp_client.exit();
-    } else if (method_of_connecting_decoder == 1){
-        tcp_server_for_decoder.closed();
-    }
+    tcp_server_for_decoder.closed();
     if(current_scheduler_mode == 0){
-        pthread_cancel(helper_scheduler_accepter);
         tcp_server_for_scheduler_helper.closed();
+        pthread_cancel(helper_scheduler_accepter);
+        free_all_helper_scheduler_info();
     }
     send_cancel_request_to_all_workflows();
     free_all_workflows();
+    pthread_mutex_destroy(&decoder_pool_access_lock);
 	exit(0);
 }
 
@@ -41,7 +36,8 @@ void * received(void * m)
 {
     // Assume there is a connection for tcp_server
 
-    int current_connected_uploader_source = *((int*)m);
+    // int current_connected_uploader_source = *((int*)m);
+    pre_workflow* p_workflow = (pre_workflow*)m;
     // free(m);
 
 	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
@@ -59,67 +55,75 @@ void * received(void * m)
 	while(num_of_files_received != TARGET_NUM_FILES_RECEIVED)
 	{
         if(current_mode == 0){
-            string file_name = tcp_server.receive_name_with_id(current_connected_uploader_source);
+            string file_name = tcp_server.receive_name_with_id(p_workflow->incoming_source);
             printf("Got new file_name: %s\n", file_name.c_str());
+            pthread_mutex_lock(&(p_workflow->in_data->individual_access_lock));
             if(file_name == "vid"){
                 current_file_indicator = 0;
-                current_writing_size = &contentSize;
+                current_writing_size = &(p_workflow->in_data->contentSize);
             } else if (file_name == "meta"){
                 current_file_indicator = 1;
-                current_writing_size = &md_json_len;
+                current_writing_size = &(p_workflow->in_data->md_json_len);
             } else if (file_name == "sig"){
                 current_file_indicator = 2;
-                current_writing_size = &vid_sig_buf_length;
+                current_writing_size = &(p_workflow->in_data->vid_sig_buf_length);
             } else if (file_name == "cert"){
                 current_file_indicator = 3;
-                current_writing_size = &camera_cert_len;
+                current_writing_size = &(p_workflow->in_data->camera_cert_len);
             } else {
                 printf("The file_name is not valid: %s\n", file_name);
                 free(reply_msg);
                 return 0;
             }
+            pthread_mutex_unlock(&(p_workflow->in_data->individual_access_lock));
             current_mode = 1;
         } else if (current_mode == 1){
-            long size_of_data = tcp_server.receive_size_of_data_with_id(current_connected_uploader_source);
+            long size_of_data = tcp_server.receive_size_of_data_with_id(p_workflow->incoming_source);
             *current_writing_size = size_of_data;
             remaining_file_size = size_of_data;
             // printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
             // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
+            pthread_mutex_lock(&(p_workflow->in_data->individual_access_lock));
             switch(current_file_indicator){
                 case 0:
-                    contentBuffer = (u8*) malloc(*current_writing_size * sizeof(u8));
-                    current_writing_location = contentBuffer;
+                    p_workflow->in_data->contentBuffer = (u8*) malloc(*current_writing_size * sizeof(u8));
+                    current_writing_location = p_workflow->in_data->contentBuffer;
                     break;
                 case 1:
-                    md_json = (char*) malloc(*current_writing_size * sizeof(char));
-                    current_writing_location = md_json;
+                    p_workflow->in_data->md_json = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = p_workflow->in_data->md_json;
                     break;
                 case 2:
-                    vid_sig_buf = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = vid_sig_buf;
+                    p_workflow->in_data->vid_sig_buf = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = p_workflow->in_data->vid_sig_buf;
                     break;
                 case 3:
-                    camera_cert = (char*) malloc(*current_writing_size * sizeof(char));
-                    current_writing_location = camera_cert;
+                    p_workflow->in_data->camera_cert = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = p_workflow->in_data->camera_cert;
                     break;
                 default:
                     printf("No file indicator is set, aborted...\n");
                     free(reply_msg);
                     return 0;
             }
+            pthread_mutex_unlock(&(p_workflow->in_data->individual_access_lock));
             current_mode = 2;
         } else {
             char* data_received;
             if(remaining_file_size > SIZEOFPACKAGE){
                 // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
-                data_received = tcp_server.receive_exact_with_id(SIZEOFPACKAGE, current_connected_uploader_source);
+                data_received = tcp_server.receive_exact_with_id(SIZEOFPACKAGE, p_workflow->incoming_source);
+                pthread_mutex_lock(&(p_workflow->in_data->individual_access_lock));
                 memcpy(current_writing_location, data_received, SIZEOFPACKAGE);
+                pthread_mutex_unlock(&(p_workflow->in_data->individual_access_lock));
                 current_writing_location += SIZEOFPACKAGE;
                 remaining_file_size -= SIZEOFPACKAGE;
             } else {
                 // printf("???????????????????Last write to the current file location: %d\n", current_file_indicator);
-                data_received = tcp_server.receive_exact_with_id(remaining_file_size, current_connected_uploader_source);
+                data_received = tcp_server.receive_exact_with_id(remaining_file_size, p_workflow->incoming_source);
+                pthread_mutex_lock(&(p_workflow->in_data->individual_access_lock));
                 memcpy(current_writing_location, data_received, remaining_file_size);
+                pthread_mutex_unlock(&(p_workflow->in_data->individual_access_lock));
                 remaining_file_size = 0;
                 current_mode = 0;
                 ++num_of_files_received;
@@ -127,7 +131,7 @@ void * received(void * m)
 		}
         memset(reply_msg, 0, size_of_reply);
         memcpy(reply_msg, "ready", 5);
-        tcp_server.Send(reply_msg, size_of_reply, current_connected_uploader_source);
+        tcp_server.Send(reply_msg, size_of_reply, p_workflow->incoming_source);
 	}
     free(reply_msg);
 	return 0;
@@ -145,7 +149,7 @@ void *start_receiving_helper_scheduler_report(void * m)
         
         helper_scheduler_info *new_helper_scheduler_info = (helper_scheduler_info*) malloc(sizeof(helper_scheduler_info));
         new_helper_scheduler_info->id_in_current_connection = current_communicating_helper_scheduler_id;
-        new_helper_scheduler_info->ip_addr = tcp_server_for_scheduler_helper.get_ip_addr(current_communicating_helper_scheduler_id);
+        new_helper_scheduler_info->ip_addr = tcp_server_for_scheduler_helper.get_client_ip(current_communicating_helper_scheduler_id).c_str();
         pthread_mutex_init(&(new_helper_scheduler_info->individual_access_lock), NULL);
 
         pthread_mutex_lock(&helper_scheduler_pool_access_lock);
@@ -259,8 +263,8 @@ void* start_decoder_server(void* args){
     // pthread_detach(pthread_self());
 
     string cmd_for_starting_decoder = "cd ../decoder/sgx/decoder_enclave; ./TestApp ";
-    cmd_for_starting_decoder += d_args->path_of_cam_vender_pubkey;
-    cmd_for_starting_decoder += " ";
+    // cmd_for_starting_decoder += d_args->path_of_cam_vender_pubkey;
+    // cmd_for_starting_decoder += " ";
     cmd_for_starting_decoder += std::to_string(d_args->incoming_port);
     cmd_for_starting_decoder += " ";
     cmd_for_starting_decoder += d_args->outgoing_ip_addr;
@@ -405,6 +409,14 @@ void free_all_workflows(){
     free(workflows);
 }
 
+void free_all_helper_scheduler_info(){
+    // Note that you need to make sure you've cancelled the thread for accepting new helper scheduler before calling this function
+    for(int i = 0; i < helper_scheduler_pool.size(); ++i){
+        free_helper_scheduler_info(helper_scheduler_pool[i]);
+    }
+    helper_scheduler_pool.clear();
+}
+
 int send_buffer_to_decoder(void* buffer, long buffer_lenth){
     // Return 0 on success, return 1 on failure
 
@@ -456,12 +468,31 @@ void free_incoming_data(incoming_data *in_data_to_be_freed){
     free(in_data_to_be_freed->contentBuffer);
     free(in_data_to_be_freed->md_json);
     free(in_data_to_be_freed->vid_sig_buf);
+    pthread_mutex_destroy(&(in_data_to_be_freed->individual_access_lock));
     free(in_data_to_be_freed);
+}
+
+void free_pre_workflow(pre_workflow *p_workflow_to_be_freed){
+    free_metadata(p_workflow_to_be_freed->md);
+    free_incoming_data(p_workflow_to_be_freed->in_data);
+    free(p_workflow_to_be_freed);
 }
 
 void free_helper_scheduler_info(helper_scheduler_info *hs_info_to_be_freed){
     pthread_mutex_destroy(&(hs_info_to_be_freed->individual_access_lock));
     free(hs_info_to_be_freed);
+}
+
+void* prepare_decoder_pool(void* m){
+    pthread_mutex_init(&decoder_pool_access_lock, NULL);
+    
+}
+
+void* do_pre_workflow(void* pre_wf){
+    // TO-DO...
+    // Responsible for receiving all data, starting enclaves and call the normal workflow at the end
+    pre_workflow* p_workflow = (pre_workflow*)pre_wf;
+
 }
 
 int main(int argc, char *argv[], char **env)
@@ -547,7 +578,12 @@ int main(int argc, char *argv[], char **env)
             // int *current_communicating_uploader_source = (int*)malloc(sizeof(int));
             // *current_communicating_uploader_source = tcp_server.accepted();
 
-            int current_communicating_uploader_source = tcp_server.accepted();
+            pre_workflow* new_p_workflow = (pre_workflow*)malloc(sizeof(pre_workflow));
+            new_p_workflow->in_data = (incoming_data*)malloc(sizeof(incoming_data));
+            pthread_mutex_init(&(new_p_workflow->in_data->individual_access_lock), NULL);
+
+            // int current_communicating_uploader_source = tcp_server.accepted();
+            new_p_workflow->incoming_source = tcp_server.accepted();
             
             // declaring argument of time() 
             time_t my_time = time(NULL); 
@@ -557,7 +593,7 @@ int main(int argc, char *argv[], char **env)
             
             start = high_resolution_clock::now();
 
-            if(pthread_create(&msg, NULL, received, (void *)(&current_communicating_uploader_source)) != 0){
+            if(pthread_create(&msg, NULL, received, (void *)(new_p_workflow)) != 0){
                 printf("pthread for receiving created failed...quiting...\n");
                 return 1;
             }
@@ -569,7 +605,7 @@ int main(int argc, char *argv[], char **env)
             eval_file << duration.count() << ", ";
 
             // Start Remaining receiving mission
-            if(pthread_create(&msg, NULL, do_remaining_receving_jobs, (void *)(&current_communicating_uploader_source)) != 0){
+            if(pthread_create(&msg, NULL, do_remaining_receving_jobs, (void *)(new_p_workflow)) != 0){
                 printf("pthread for remaining receiving created failed...quiting...\n");
                 return 1;
             }
@@ -578,17 +614,19 @@ int main(int argc, char *argv[], char **env)
 
             // Parse Metadata
             // printf("md_json(%ld): %s\n", md_json_len, md_json);
-            if (md_json[md_json_len - 1] == '\0') md_json_len--;
-            if (md_json[md_json_len - 1] == '\0') md_json_len--;
-            metadata* md = json_2_metadata(md_json, md_json_len);
-            if (!md) {
+            pthread_mutex_lock(&(new_p_workflow->in_data->individual_access_lock));
+            if ((new_p_workflow->in_data->md_json)[new_p_workflow->in_data->md_json_len - 1] == '\0') (new_p_workflow->in_data->md_json_len)--;
+            if ((new_p_workflow->in_data->md_json)[new_p_workflow->in_data->md_json_len - 1] == '\0') (new_p_workflow->in_data->md_json_len)--;
+            new_p_workflow->md = json_2_metadata(new_p_workflow->in_data->md_json, new_p_workflow->in_data->md_json_len);
+            pthread_mutex_unlock(&(new_p_workflow->in_data->individual_access_lock));
+            if (!new_p_workflow->md) {
                 printf("Failed to parse metadata\n");
                 return 1;
             }
-            string first_filter_name = md->filters[0];
+            string first_filter_name = new_p_workflow->md->filters[0];
             if(first_filter_name == "test_bundle_sharpen_and_blur"){
                 printf("[scheduler]: test_bundle_sharpen_and_blur detected...\n");
-                is_filter_bundle_detected = 1;
+                new_p_workflow->is_filter_bundle_detected = 1;
             }
             
             end = high_resolution_clock::now();
@@ -602,19 +640,16 @@ int main(int argc, char *argv[], char **env)
             int decoder_outgoing_port = self_server_port_marker;
             int filter_port_with_scheduler;
 
-            // First make sure we have decoder server setup in certain method_of_connecting_decoder
-            if(method_of_connecting_decoder == 1){
-                // Create server and wait for decoder to connect
-                if( tcp_server_for_decoder.setup(decoder_port, opts) != 0) {
-                    cerr << "Errore apertura socket" << endl;
-                }
+            // Create server and wait for decoder to connect
+            if( tcp_server_for_decoder.setup(decoder_port, opts) != 0) {
+                cerr << "Errore apertura socket" << endl;
             }
 
             // Start Filter Servers
-            pthread_t** pt_filters = (pthread_t**) malloc(md->total_filters * sizeof(pthread_t*));
-            for(int i = 0; i < md->total_filters; ++i){
+            pthread_t** pt_filters = (pthread_t**) malloc(new_p_workflow->md->total_filters * sizeof(pthread_t*));
+            for(int i = 0; i < new_p_workflow->md->total_filters; ++i){
                 filter_args* f_args = (filter_args*) malloc(sizeof(filter_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
-                f_args->filter_name = (md->filters)[i];
+                f_args->filter_name = (new_p_workflow->md->filters)[i];
                 f_args->incoming_port = self_server_port_marker++;
                 f_args->outgoing_ip_addr = "127.0.0.1"; // To-Do: Make this flexible to scale up
                 f_args->outgoing_port = self_server_port_marker;
@@ -638,14 +673,14 @@ int main(int argc, char *argv[], char **env)
             // Reason we put starting decoder server at the end is that: in case of filter-bundle, we need to first start all filter-bundle enclaves...
             if(is_filter_bundle_detected){
                 printf("[Scheduler]: Trying to join all filter threads...\n");
-                for(int i = 0; i < md->total_filters; ++i){
+                for(int i = 0; i < new_p_workflow->md->total_filters; ++i){
                     pthread_join(*(pt_filters[i]), NULL);
                 }
             }
 
             // Start Decoder Server
             decoder_args* d_args = (decoder_args*) malloc(sizeof(decoder_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
-            d_args->path_of_cam_vender_pubkey = "../../../keys/camera_vendor_pub";  // To-Do: Make this flexible to different camera vendor
+            // d_args->path_of_cam_vender_pubkey = "../../../keys/camera_vendor_pub";  // To-Do: Make this flexible to different camera vendor
             d_args->incoming_port = decoder_port;
             d_args->outgoing_ip_addr = "127.0.0.1"; // To-Do: Make this flexible to scale up
             d_args->outgoing_port = decoder_outgoing_port;
@@ -669,121 +704,93 @@ int main(int argc, char *argv[], char **env)
             workflows[current_num_of_workflows - 1]->decoder = pt_decoder;
             workflows[current_num_of_workflows - 1]->encoder = pt_encoder;
             workflows[current_num_of_workflows - 1]->filters = pt_filters;
-            workflows[current_num_of_workflows - 1]->num_of_filters = md->total_filters;
+            workflows[current_num_of_workflows - 1]->num_of_filters = new_p_workflow->md->total_filters;
             pthread_mutex_unlock(&lock_4_workflows);
             
             char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
 
             start = high_resolution_clock::now();
 
-            if(method_of_connecting_decoder == 0){
+            // Reset counter for evaluation
+            start = high_resolution_clock::now();
 
-                // Hopefully sleep of 3 seconds will be enough for decoder to respond
-                sleep(3);
+            tcp_server_for_decoder.accepted();
 
-                end = high_resolution_clock::now();
-                duration = duration_cast<microseconds>(end - start);
-                eval_file << duration.count() << ", ";
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            eval_file << duration.count() << ", ";
 
-                // Reset counter for evaluation
-                start = high_resolution_clock::now();
+            // Reset counter for evaluation
+            start = high_resolution_clock::now();
 
-                // Send Data to Decoder
-                bool result_of_client_connection = tcp_client.setup("127.0.0.1", decoder_port);
-                if(!result_of_client_connection){
-                    printf("Connection to decoder failed...\n");
-                    return 1;
-                }
-
-                // Send MetaData
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "meta", 4);
-                send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-                send_buffer(md_json, md_json_len);
-                
-                // Send Video
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "vid", 3);
-                send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-                send_buffer(contentBuffer, contentSize);
-
-                // Send Signature
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "sig", 3);
-                send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-                send_buffer(vid_sig_buf, vid_sig_buf_length);
-
-                // Send Certificate
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "cert", 4);
-                send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
-                send_buffer(camera_cert, camera_cert_len);
-
-                tcp_client.exit();
-            } else if (method_of_connecting_decoder == 1){
-
-                // Reset counter for evaluation
-                start = high_resolution_clock::now();
-
-                tcp_server_for_decoder.accepted();
-
-                end = high_resolution_clock::now();
-                duration = duration_cast<microseconds>(end - start);
-                eval_file << duration.count() << ", ";
-
-                // Reset counter for evaluation
-                start = high_resolution_clock::now();
-
-                // printf("Sending metadata...\n");
-                // Send MetaData
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "meta", 4);
-                // printf("Going to send metadata name...\n");
-                tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-                // printf("Going to receive metadata name reply...\n");
-                msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
-                if(msg_reply_from_decoder != "ready"){
-                    printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
-                    return 1;
-                }
-                // printf("Going to send metadata data...\n");
-                send_buffer_to_decoder(md_json, md_json_len);
-                // printf("Metadata is sent...\n");
-                
-                // Send Video
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "vid", 3);
-                tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-                msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
-                if(msg_reply_from_decoder != "ready"){
-                    printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
-                    return 1;
-                }
-                send_buffer_to_decoder(contentBuffer, contentSize);
-                
-                // Send Signature
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "sig", 3);
-                tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-                msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
-                if(msg_reply_from_decoder != "ready"){
-                    printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
-                    return 1;
-                }
-                send_buffer_to_decoder(vid_sig_buf, vid_sig_buf_length);
-                
-                // Send Certificate
-                memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
-                memcpy(msg_to_send, "cert", 4);
-                tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-                msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
-                if(msg_reply_from_decoder != "ready"){
-                    printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
-                    return 1;
-                }
-                send_buffer_to_decoder(camera_cert, camera_cert_len);
-                tcp_server_for_decoder.closed();
+            // Send vendor pub name
+            // printf("Sending vendor pub name...\n");
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "camera_vendor_pub", 17);  // To-Do: Make this flexible to different camera vendor
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
             }
+
+            // printf("Sending metadata...\n");
+            // Send MetaData
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "meta", 4);
+            // printf("Going to send metadata name...\n");
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            // printf("Going to receive metadata name reply...\n");
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            // printf("Going to send metadata data...\n");
+            pthread_mutex_lock(&(new_p_workflow->in_data->individual_access_lock));
+            send_buffer_to_decoder(new_p_workflow->in_data->md_json, new_p_workflow->in_data->md_json_len);
+            pthread_mutex_unlock(&(new_p_workflow->in_data->individual_access_lock));
+            // printf("Metadata is sent...\n");
+            
+            // Send Video
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "vid", 3);
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            pthread_mutex_lock(&(new_p_workflow->in_data->individual_access_lock));
+            send_buffer_to_decoder(new_p_workflow->in_data->contentBuffer, new_p_workflow->in_data->contentSize);
+            pthread_mutex_unlock(&(new_p_workflow->in_data->individual_access_lock));
+            
+            // Send Signature
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "sig", 3);
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            pthread_mutex_lock(&(new_p_workflow->in_data->individual_access_lock));
+            send_buffer_to_decoder(new_p_workflow->in_data->vid_sig_buf, new_p_workflow->in_data->vid_sig_buf_length);
+            pthread_mutex_unlock(&(new_p_workflow->in_data->individual_access_lock));
+            
+            // Send Certificate
+            memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(msg_to_send, "cert", 4);
+            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            if(msg_reply_from_decoder != "ready"){
+                printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
+                return 1;
+            }
+            pthread_mutex_lock(&(new_p_workflow->in_data->individual_access_lock));
+            send_buffer_to_decoder(new_p_workflow->in_data->camera_cert, new_p_workflow->in_data->camera_cert_len);
+            pthread_mutex_unlock(&(new_p_workflow->in_data->individual_access_lock));
+            tcp_server_for_decoder.closed();
             
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
@@ -792,21 +799,8 @@ int main(int argc, char *argv[], char **env)
             start = high_resolution_clock::now();
 
             // Free Everything Else
-            free(d_args);
-            free_metadata(md);
             free(msg_to_send);
-            free(contentBuffer);
-            contentBuffer = NULL;
-            contentSize = 0;
-            free(camera_cert);
-            camera_cert = NULL;
-            camera_cert_len = 0;
-            free(vid_sig_buf);
-            vid_sig_buf = NULL;
-            vid_sig_buf_length = 0;
-            free(md_json);
-            md_json = NULL;
-            md_json_len = 0;
+            free_pre_workflow(new_p_workflow);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
@@ -815,15 +809,13 @@ int main(int argc, char *argv[], char **env)
 
         // Close Server & Client
         tcp_server.closed();
-        if(method_of_connecting_decoder == 0){
-            tcp_client.exit();
-        }
     }
     
     if(current_scheduler_mode == 0){
         // Cancel thread for accepting new helper scheduler
-        pthread_cancel(helper_scheduler_accepter);
         tcp_server_for_scheduler_helper.closed();
+        pthread_cancel(helper_scheduler_accepter);
+        free_all_helper_scheduler_info();
     }
 
     // Try join all workflows and free them
@@ -833,6 +825,7 @@ int main(int argc, char *argv[], char **env)
     // Free mutexes
     pthread_mutex_destroy(&helper_scheduler_pool_access_lock);
     pthread_mutex_destroy(&workflow_access_lock);
+    pthread_mutex_destroy(&decoder_pool_access_lock);
 
     // Close eval file
     eval_file.close();

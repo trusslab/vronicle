@@ -45,5 +45,6 @@ void ocall_sgx_init_quote
 {
     sgx_epid_group_id_t gid;
     sgx_status_t status = sgx_init_quote(target_info, &gid);
+    // printf("sgx_status_t: %d\n", status);
     assert(status == SGX_SUCCESS);
 }

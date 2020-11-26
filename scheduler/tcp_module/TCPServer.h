@@ -15,7 +15,7 @@ using namespace std;
 
 struct descript_socket{
 	int socket     = -1;
-	string ip      = "";
+	string ip;
 	int id         = -1; 
 	char* message;
 	int size_of_packet = 0;
@@ -37,7 +37,6 @@ class TCPServer
 	void detach(int id);
 	void clean(int id);
     bool is_online();
-	string get_ip_addr(int id);
 	int get_last_closed_sockets();
 	void closed();
     char* receive_exact(int size);

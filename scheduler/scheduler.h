@@ -50,14 +50,21 @@ typedef struct incoming_data {
     char* vid_sig_buf = NULL;
     long md_json_len = 0;
     char* md_json = NULL;
+    pthread_mutex_t individual_access_lock;
 } incoming_data;
 
 typedef struct decoder_args {
-    char* path_of_cam_vender_pubkey;
+    // char* path_of_cam_vender_pubkey;
     int incoming_port;
     char* outgoing_ip_addr;
     int outgoing_port;
 } decoder_args;
+
+typedef struct decoder_in_pool {
+    string ip_addr;
+    int incoming_port;
+    pthread_t* decoder;
+} decoder_in_pool;
 
 typedef struct filter_args {
     char* filter_name;
@@ -80,13 +87,10 @@ typedef struct helper_scheduler_info {
 } helper_scheduler_info;
 
 typedef struct pre_workflow {
-    pthread_mutex_t lock;
     int incoming_source;
     incoming_data *in_data;
-    decoder_args *d_args;
-    int number_of_filters;
-    filter_args **f_args;
-    encoder_args *e_args;
+    metadata* md;
+    int is_filter_bundle_detected = 0;
 } pre_workflow;
 
 typedef struct workflow {
@@ -106,14 +110,14 @@ int time_send   = 1;
 int num_of_times_received = 0;
 
 // For receiving data
-long contentSize = 0;
-u8* contentBuffer = NULL;
-long camera_cert_len = 0;
-char* camera_cert = NULL;
-long vid_sig_buf_length = 0;
-char* vid_sig_buf = NULL;
-long md_json_len = 0;
-char* md_json = NULL;
+// long contentSize = 0;
+// u8* contentBuffer = NULL;
+// long camera_cert_len = 0;
+// char* camera_cert = NULL;
+// long vid_sig_buf_length = 0;
+// char* vid_sig_buf = NULL;
+// long md_json_len = 0;
+// char* md_json = NULL;
 
 using namespace std;
 
@@ -146,9 +150,13 @@ int current_scheduler_mode = 0; // 0 is main, 1 is pool of scheduler_helper
 pthread_t helper_scheduler_accepter;
 vector<helper_scheduler_info*> helper_scheduler_pool;
 
-// For maintaining pool of resources(decoder, ) (TO-DO)
-// int num_of_free_decoder = 0;
-// pair <string, int> **decoder_pool;  // in format (ip, port)
+// For settings of maintaining pool
+#define NUM_OF_DECODER_IN_POOL 1
+
+// For maintaining pool of resources
+int num_of_free_decoder = 0;
+vector<pair<string, int>*> decoder_pool;  // in format (ip, port)
+pthread_mutex_t decoder_pool_access_lock;
 
 // For global mutexes
 pthread_mutex_t workflow_access_lock;
@@ -157,8 +165,10 @@ pthread_mutex_t helper_scheduler_pool_access_lock;
 
 // Declare functions as needed
 void free_all_workflows();
+void free_all_helper_scheduler_info();
 void send_cancel_request_to_all_workflows();
 void free_incoming_data(incoming_data *in_data_to_be_freed);
+void free_pre_workflow(pre_workflow *p_workflow_to_be_freed);
 void free_helper_scheduler_info(helper_scheduler_info *hs_info_to_be_freed);
 
 

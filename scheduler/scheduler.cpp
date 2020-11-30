@@ -547,7 +547,7 @@ int report_to_decoder_as_main_scheduler(TCPServer *tcp_server_for_decoder, int d
     return 0;
 }
 
-int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int decoder_id, char** argv){
+int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int decoder_id, char** argv, string main_scheduler_port_str){
     // Return 0 on success, otherwise return 1
     char *message_to_decoder = (char*)malloc(SIZEOFPACKAGEFORNAME);
     memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
@@ -560,7 +560,7 @@ int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int
     }
     
     memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, argv[3], sizeof(argv[3]) + 4);   // For some reason, the last period and three digits will not be counted...
+    memcpy(message_to_decoder, argv[3], size_of_typical_ip_addr);
     tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
     reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
@@ -569,7 +569,7 @@ int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int
     }
     
     memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, "10113", sizeof(argv[1]));
+    memcpy(message_to_decoder, main_scheduler_port_str.c_str(), sizeof(main_scheduler_port_str.c_str()));
     tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
     reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
@@ -599,8 +599,8 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
 
     memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
     // memcpy(message_to_decoder, d_args->outgoing_ip_addr.c_str(), sizeof(d_args->outgoing_ip_addr.c_str()));
-    memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 4); // Have to do +4 because there is a weird bug of not being able to show the last period and three digits
-    // printf("In send_next_filters_info_to_decoder, we have d_args->outgoing_ip_addr: {%s}, message_to_decoder: {%s}, sizeof(d_args->outgoing_ip_addr): [%d]\n", d_args->outgoing_ip_addr, message_to_decoder, sizeof(d_args->outgoing_ip_addr) + 4);
+    memcpy(message_to_decoder, d_args->outgoing_ip_addr, size_of_typical_ip_addr);
+    // printf("In send_next_filters_info_to_decoder, we have d_args->outgoing_ip_addr: {%s}, message_to_decoder: {%s}, sizeof(d_args->outgoing_ip_addr): [%d]\n", d_args->outgoing_ip_addr, message_to_decoder, size_of_typical_ip_addr);
     tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
     reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
@@ -622,7 +622,7 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
         for(int i = 1; i <= num_of_filter_in_bundle; ++i){
             memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
             // memcpy(message_to_decoder, d_args->outgoing_ip_addr.c_str(), sizeof(d_args->outgoing_ip_addr.c_str()));
-            memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 4);
+            memcpy(message_to_decoder, d_args->outgoing_ip_addr, size_of_typical_ip_addr);
             tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
             reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
             if(reply_from_decoder != "ready"){
@@ -688,6 +688,7 @@ int main(int argc, char *argv[], char **env)
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     pthread_mutex_lock(&port_access_lock);
     int scheduler_port_for_decoder = self_server_port_marker++;
+    string scheduler_port_for_decoder_str = to_string(scheduler_port_for_decoder);
     pthread_mutex_unlock(&port_access_lock);
     if( tcp_server_for_decoder.setup(scheduler_port_for_decoder, opts) != 0) {
         cerr << "Errore apertura socket" << endl;
@@ -712,6 +713,12 @@ int main(int argc, char *argv[], char **env)
         while(true){
             type_of_cmd = tcp_client.receive_name();
             if(type_of_cmd == "decoder"){
+
+                char* reply_msg = (char*) malloc(SIZEOFPACKAGEFORNAME);
+                memset(reply_msg, 0, SIZEOFPACKAGEFORNAME);
+                memcpy(reply_msg, "ready", 5);
+                tcp_client.Send(reply_msg, SIZEOFPACKAGEFORNAME);
+                string main_scheduler_port_for_decoder = tcp_client.receive_name();
 
                 // Init some parameters for decoder thread
                 pthread_t* pt_decoder;
@@ -742,7 +749,7 @@ int main(int argc, char *argv[], char **env)
                     free(d_args);
                 }
 
-                report_to_decoder_as_helper_scheduler(&tcp_server_for_decoder, decoder_id, argv);
+                report_to_decoder_as_helper_scheduler(&tcp_server_for_decoder, decoder_id, argv, main_scheduler_port_for_decoder);
 
                 pthread_mutex_lock(&workflow_access_lock);
                 workflows = (workflow**) realloc(workflows, ++current_num_of_workflows * sizeof(workflow*));
@@ -864,8 +871,8 @@ int main(int argc, char *argv[], char **env)
             pthread_mutex_unlock(&port_access_lock);
 
             // printf("Going to start filter server...\n");
-            int size_of_outgoing_ip_addr = sizeof(local_ip_addr) + 4;   // For some reason, the last period and three digits are never successfully counted...
-            printf("size_of_outgoing_ip_addr: [%d]\n", size_of_outgoing_ip_addr);
+            int size_of_outgoing_ip_addr = size_of_typical_ip_addr;
+            // printf("size_of_outgoing_ip_addr: [%d]\n", size_of_outgoing_ip_addr);
 
             // Start Filter Servers
             pthread_t** pt_filters = (pthread_t**) malloc(new_p_workflow->md->total_filters * sizeof(pthread_t*));
@@ -962,10 +969,25 @@ int main(int argc, char *argv[], char **env)
                 pthread_mutex_unlock(&helper_scheduler_pool_access_lock);
 
                 if(is_using_decoder_remotely){
+                    free(d_args->outgoing_ip_addr);
+                    d_args->outgoing_ip_addr = (char*)malloc(sizeof(local_remote_ip_addr) + 5);
+                    memset(d_args->outgoing_ip_addr, 0, size_of_typical_ip_addr + 1);
+                    memcpy(d_args->outgoing_ip_addr, local_remote_ip_addr, size_of_typical_ip_addr);
+
                     char *msg_to_remote_helper_scheduler = (char*)malloc(SIZEOFPACKAGEFORNAME);
                     memset(msg_to_remote_helper_scheduler, 0, SIZEOFPACKAGEFORNAME);
                     memcpy(msg_to_remote_helper_scheduler, "decoder", 7);
                     tcp_server_for_scheduler_helper.Send(msg_to_remote_helper_scheduler, SIZEOFPACKAGEFORNAME, helper_scheduler_id);
+                    string reply = tcp_server_for_scheduler_helper.receive_name_with_id(helper_scheduler_id);
+                    if(reply != "ready"){
+                        printf("Communication with remote server failed with reply: {%s}\n", reply);
+                        close_app(1);
+                    }
+                    memset(msg_to_remote_helper_scheduler, 0, SIZEOFPACKAGEFORNAME);
+                    memcpy(msg_to_remote_helper_scheduler, scheduler_port_for_decoder_str.c_str(), sizeof(scheduler_port_for_decoder_str.c_str()));
+                    tcp_server_for_scheduler_helper.Send(msg_to_remote_helper_scheduler, SIZEOFPACKAGEFORNAME, helper_scheduler_id);
+
+                    free(msg_to_remote_helper_scheduler);
                 }
             }
 

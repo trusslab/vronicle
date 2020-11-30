@@ -128,7 +128,9 @@ using namespace std;
 using namespace std::chrono;
 
 // For some fixed parameters
-const static char* local_ip_addr = "20.39.52.2";
+const static char* local_ip_addr = "127.0.0.1";
+const static char* local_remote_ip_addr = "20.39.52.2";
+const static int size_of_typical_ip_addr = 16;   // For some reason, the last period and three digits are never successfully counted...so we use this method...
 
 // For evaluation
 ofstream eval_file;
@@ -157,7 +159,7 @@ vector<helper_scheduler_info*> helper_scheduler_pool;
 int is_remote_scheduler_prefered = 1;
 
 // For settings of maintaining pool
-#define NUM_OF_DECODER_IN_POOL 1
+#define NUM_OF_DECODER_IN_POOL 0
 
 // For maintaining pool of resources
 int num_of_free_decoder = 0;

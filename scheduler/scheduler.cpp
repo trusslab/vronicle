@@ -681,6 +681,7 @@ int main(int argc, char *argv[], char **env)
     // Register signal handlers
     std::signal(SIGINT, close_app);
     std::signal(SIGPIPE, sigpipe_handler_scheduler);
+    std::signal(SIGSEGV, close_app);
 
     // Start TCPServer for managing decoder
     // Create server and wait for decoder to connect
@@ -750,6 +751,7 @@ int main(int argc, char *argv[], char **env)
                 pthread_mutex_unlock(&workflow_access_lock);
             } else {
                 printf("Invalid command received from main shceduler: {%s}\n", type_of_cmd.c_str());
+                close_app(1);
             }
         }
     }
@@ -925,9 +927,11 @@ int main(int argc, char *argv[], char **env)
             d_args->is_filter_bundle_detected = new_p_workflow->is_filter_bundle_detected;
 
             // Init some parameters for decoder thread
-            pthread_t* pt_decoder;
+            pthread_t* pt_decoder = NULL;
             int decoder_id;
             int is_using_decoder_in_pool = 0;
+            int is_using_decoder_remotely = 0;
+            int helper_scheduler_id = -1;
 
             // Check if we need to start new decoder enclave or we can use one in pool
             pthread_mutex_lock(&decoder_pool_access_lock);
@@ -940,10 +944,32 @@ int main(int argc, char *argv[], char **env)
             }
             pthread_mutex_unlock(&decoder_pool_access_lock);
 
-            if(!is_using_decoder_in_pool){
+            if(is_remote_scheduler_prefered){
+                pthread_mutex_lock(&helper_scheduler_pool_access_lock);
+                for(int i = 0; i < helper_scheduler_pool.size(); ++i){
+                    pthread_mutex_lock(&(helper_scheduler_pool[i]->individual_access_lock));
+                    if(helper_scheduler_pool[i]->current_num_of_work < helper_scheduler_pool[i]->type){
+                        ++(helper_scheduler_pool[i]->current_num_of_work);
+                        helper_scheduler_id = helper_scheduler_pool[i]->id_in_current_connection;
+                        is_using_decoder_remotely = 1;
+                        break;
+                    }
+                    pthread_mutex_unlock(&(helper_scheduler_pool[i]->individual_access_lock));
+                }
+                pthread_mutex_unlock(&helper_scheduler_pool_access_lock);
+
+                if(is_using_decoder_remotely){
+                    char *msg_to_remote_helper_scheduler = (char*)malloc(SIZEOFPACKAGEFORNAME);
+                    memset(msg_to_remote_helper_scheduler, 0, SIZEOFPACKAGEFORNAME);
+                    memcpy(msg_to_remote_helper_scheduler, "decoder", 7);
+                    tcp_server_for_scheduler_helper.Send(msg_to_remote_helper_scheduler, SIZEOFPACKAGEFORNAME, helper_scheduler_id);
+                }
+            }
+
+            if(!is_using_decoder_in_pool && !is_using_decoder_remotely){
                 pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
                 // printf("Going to get into start_decoder_server...\n");
-                printf("There is no decoder left in the pool, going to create one...\n");
+                printf("There is no decoder left in the pool and there is no prefered remote helper scheduler, going to create one...\n");
                 if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
                     printf("pthread for start_decoder_server created failed...quiting...\n");
                     return 1;
@@ -990,7 +1016,9 @@ int main(int argc, char *argv[], char **env)
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << ", ";
 
-            report_to_decoder_as_main_scheduler(&tcp_server_for_decoder, decoder_id);
+            if(!is_using_decoder_remotely){
+                report_to_decoder_as_main_scheduler(&tcp_server_for_decoder, decoder_id);
+            }
 
             // Reset counter for evaluation
             start = high_resolution_clock::now();

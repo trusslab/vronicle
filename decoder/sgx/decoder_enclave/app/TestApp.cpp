@@ -896,7 +896,6 @@ void do_decoding(
     char* vendor_pub;
 
     // declaring argument of time() 
-    time_t my_time = time(NULL); 
 
     // ctime() used to give the present time 
 
@@ -924,7 +923,10 @@ void do_decoding(
     input_vendor_pub_path = "../../../keys/";
     // printf("[decoder:TestApp]: Going to receive vendor pub name...\n");
     input_vendor_pub_path += tcp_client_rec.receive_name();
+
+    time_t my_time = time(NULL); 
     printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
+    
     // printf("[decoder:TestApp]: Receive vendor pub name and final path is: %s...\n", input_vendor_pub_path.c_str());
     memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
     memcpy(msg_buf_for_rec, "ready", 5);

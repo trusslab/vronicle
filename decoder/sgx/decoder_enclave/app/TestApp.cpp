@@ -96,12 +96,13 @@ pthread_t msg1[MAX_CLIENT];
 int num_message = 0;
 int time_send   = 1;
 int num_of_times_received = 0;
-int size_of_msg_buf_for_rec = 100;
+int size_of_msg_buf_for_rec = REPLYMSGSIZE;
 char* msg_buf_for_rec;
 
 // For multi bundle-filter enclaves
-int num_of_pair_of_output = 1;
+int num_of_pair_of_output = -1;
 int current_sending_target_id = 0;
+vector<pair<string, int>*> output_filters_info;
 
 // For data
 string input_vendor_pub_path = "../../../keys/camera_vendor_pub";
@@ -764,7 +765,116 @@ void send_message(char* message, int msg_size, int sending_target_id){
 	}
 }
 
+int check_and_change_to_main_scheduler(){
+    // Return 0 on success, otherwise return 1
 
+    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, going to receive...\n");
+    string scheduler_mode = tcp_client_rec.receive_name();
+    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, received: {%s}\n", scheduler_mode.c_str());
+    int mode_of_scheduler = 0;  // 0 means main; 1 means helper
+    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, is it main: {%d}\n", scheduler_mode == "main");
+    if(scheduler_mode == "main"){
+        mode_of_scheduler = 0;
+    } else if (scheduler_mode == "helper"){
+        mode_of_scheduler = 1;
+    } else {
+        return 1;
+    }
+
+    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, going to reply...mode_of_scheduler = [%d]\n", mode_of_scheduler);
+    char* reply_to_scheduler = (char*)malloc(REPLYMSGSIZE);
+    memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+    memcpy(reply_to_scheduler, "ready", 5);
+    tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, reply finished...\n");
+
+    // Change the scheduler connected accordingly
+    if(mode_of_scheduler == 1){
+        // Get ip and port of main scheduler from current helper scheduler
+        string ip_addr = tcp_client_rec.receive_name();
+        memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+        memcpy(reply_to_scheduler, "ready", 5);
+        tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+        string port = tcp_client_rec.receive_name();
+        memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+        memcpy(reply_to_scheduler, "ready", 5);
+        tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+
+        // Reconnect to the actual main scheduler
+        tcp_client_rec.exit();
+        bool connection_result = tcp_client_rec.setup(ip_addr.c_str(), atoi(port.c_str()));
+
+        if(!connection_result){
+            printf("[decoder:TestApp]: Connection cannot be established with main scheduler...\n");
+            return 1;
+        }
+    }
+
+    free(reply_to_scheduler);
+
+    return 0;
+}
+
+int set_num_of_pair_of_output(){
+    // Return 0 on success, otherwise return 1
+
+    long new_num = tcp_client_rec.receive_size_of_data();
+
+    char* reply_to_scheduler = (char*)malloc(REPLYMSGSIZE);
+    memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+    memcpy(reply_to_scheduler, "ready", 5);
+    tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+
+    if(new_num < 1){
+        printf("[decoder:TestApp]: num_of_pair_of_output with main scheduler invalid: [%ld]...\n", new_num);
+        return 1;
+    }
+
+    num_of_pair_of_output = (int)new_num;
+
+    return 0;
+}
+
+int setup_tcp_clients_auto(){
+    // Return 0 on success, otherwise return 1
+    tcp_clients = (TCPClient**) malloc(sizeof(TCPClient*) * num_of_pair_of_output);
+    char* reply_to_scheduler = (char*)malloc(REPLYMSGSIZE);
+    string ip_addr, port;
+
+    // Prepare sending cert to all bundle-filter enclaves
+    char* msg_buf = (char*) malloc(SIZEOFPACKAGEFORNAME);
+    memset(msg_buf, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(msg_buf, "cert", 4);
+
+    for(int i = 0; i < num_of_pair_of_output; ++i){
+        tcp_clients[i] = new TCPClient();
+        // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
+
+        ip_addr = tcp_client_rec.receive_name();
+        memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+        memcpy(reply_to_scheduler, "ready", 5);
+        tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+        port = tcp_client_rec.receive_name();
+        memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+        memcpy(reply_to_scheduler, "ready", 5);
+        tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+
+        // printf("[decoder:TestApp]: In setup_tcp_clients_auto, going to connect to next filter_enclave with ip: {%s} and port: {%s}\n", ip_addr.c_str(), port.c_str());
+
+        bool result_of_connection_setup = tcp_clients[i]->setup(ip_addr.c_str(), atoi(port.c_str()));
+        if(!result_of_connection_setup){
+            free(reply_to_scheduler);
+            return 1;
+        }
+        // Send certificate
+        send_message(msg_buf, SIZEOFPACKAGEFORNAME, i);
+        // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
+        send_buffer(der_cert, size_of_cert, i);
+        // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
+    }
+    free(reply_to_scheduler);
+    return 0;
+}
 
 void do_decoding(
     int argc,
@@ -789,7 +899,6 @@ void do_decoding(
     time_t my_time = time(NULL); 
 
     // ctime() used to give the present time 
-    printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
 
     // Prepare buf for sending message
     msg_buf_for_rec = (char*) malloc(size_of_msg_buf_for_rec);
@@ -803,15 +912,23 @@ void do_decoding(
         return;
     }
 
+    // Determine if the current scheduler is in main mode or in helper mode
+    // If in helper mode, be ready to change tcp_client for connecting the main scheduler
+    // printf("Going to do check_and_change_to_main_scheduler...\n");
+    check_and_change_to_main_scheduler();
+    // printf("check_and_change_to_main_scheduler finished...\n");
+
     // First receive vendor pub name
     // printf("[decoder:TestApp]: Going to receive vendor pub name...\n");
     input_vendor_pub_path.clear();
     input_vendor_pub_path = "../../../keys/";
+    // printf("[decoder:TestApp]: Going to receive vendor pub name...\n");
     input_vendor_pub_path += tcp_client_rec.receive_name();
+    printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
     // printf("[decoder:TestApp]: Receive vendor pub name and final path is: %s...\n", input_vendor_pub_path.c_str());
     memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
     memcpy(msg_buf_for_rec, "ready", 5);
-    tcp_client_rec.Send(msg_buf_for_rec, size_of_msg_buf_for_rec);
+    tcp_client_rec.Send(msg_buf_for_rec, REPLYMSGSIZE);
     // printf("[decoder:TestApp]: reply is sent...\n");
     // printf("[decoder:TestApp]: The input_vendor_pub_path is: %s\n", input_vendor_pub_path.c_str());
 
@@ -830,7 +947,9 @@ void do_decoding(
 
     // Start receiving other data
     while(num_of_times_received != TARGET_NUM_TIMES_RECEIVED){
+        // printf("[decoder:TestApp]: Start receiving data...\n");
         string name_of_current_file = tcp_client_rec.receive_name();
+        // printf("[decoder:TestApp]: Got new data: {%s}\n", name_of_current_file.c_str());
         void* current_writting_location;
         long current_writting_location_size;
         // printf("[decoder:TestApp]: Got new file name: %s\n", name_of_current_file.c_str());
@@ -977,28 +1096,39 @@ void do_decoding(
         memset(msg_buf, 0, size_of_msg_buf);
         memcpy(msg_buf, "cert", 4);
 
+        // printf("Going to prepare all tcp clients...\n");
+
         // Prepare all tcp clients
-        tcp_clients = (TCPClient**) malloc(sizeof(TCPClient*) * num_of_pair_of_output);
-        for(int i = 0; i < num_of_pair_of_output; ++i){
-            tcp_clients[i] = new TCPClient();
-            // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
-            bool result_of_connection_setup = false;
-            while(!result_of_connection_setup){
-                result_of_connection_setup = tcp_clients[i]->setup(argv[2 + i * 2], atoi(argv[3 + i * 2]));
-                sleep(1);
-            }
-            // if(!result_of_connection_setup){
-            //     printf("[decoder:TestApp]: TCPClient connection set-up failed with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
-            //     return;
-            // }
-            
-            // printf("[decoder:TestApp]: Going to send_message for cert to ip: (%s), port: (%s)...\n", argv[2 + i * 2], argv[3 + i * 2]);
-            // Send certificate
-            send_message(msg_buf, size_of_msg_buf, i);
-            // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
-            send_buffer(der_cert, size_of_cert, i);
-            // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
+        if(set_num_of_pair_of_output() != 0){
+            printf("[decoder:TestApp]: Failed to do set_num_of_pair_of_output\n");
+            return;
         }
+        // printf("[decoder:TestApp]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
+        if(setup_tcp_clients_auto() != 0){
+            printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");
+            return;
+        }
+        // tcp_clients = (TCPClient**) malloc(sizeof(TCPClient*) * num_of_pair_of_output);
+        // for(int i = 0; i < num_of_pair_of_output; ++i){
+        //     tcp_clients[i] = new TCPClient();
+        //     // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
+        //     bool result_of_connection_setup = false;
+        //     while(!result_of_connection_setup){
+        //         result_of_connection_setup = tcp_clients[i]->setup(argv[2 + i * 2], atoi(argv[3 + i * 2]));
+        //         sleep(1);
+        //     }
+        //     // if(!result_of_connection_setup){
+        //     //     printf("[decoder:TestApp]: TCPClient connection set-up failed with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
+        //     //     return;
+        //     // }
+            
+        //     // printf("[decoder:TestApp]: Going to send_message for cert to ip: (%s), port: (%s)...\n", argv[2 + i * 2], argv[3 + i * 2]);
+        //     // Send certificate
+        //     send_message(msg_buf, size_of_msg_buf, i);
+        //     // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
+        //     send_buffer(der_cert, size_of_cert, i);
+        //     // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
+        // }
 
         end = high_resolution_clock::now();
         duration = duration_cast<microseconds>(end - start_s);
@@ -1236,14 +1366,14 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 4){
+    if(argc < 2){
         printf("[decoder:TestApp]: argc: %d\n", argc);
         // printf("%s, %s, %s, %s...\n", argv[0], argv[1], argv[2], argv[3]);
-        printf("[decoder:TestApp]: Usage: ./TestApp [incoming_port] ([outgoing_ip_address] [outgoing_port])+\n");
+        printf("[decoder:TestApp]: Usage: ./TestApp [incoming_port] \n");
         return 1;
     }
 
-    num_of_pair_of_output += (argc - 4) / 2;
+    // num_of_pair_of_output += (argc - 4) / 2;
 
     // Open file to store evaluation results
     mkdir("../../../evaluation/eval_result", 0777);

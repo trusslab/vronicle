@@ -159,9 +159,9 @@ int TCPServer::accepted()
 	last_client_num = num_client;
 	so->ip              = inet_ntoa(clientAddress.sin_addr);
 	newsockfd.push_back( so );
-	cerr << "[Encoder:TCPServer]: accept client[ id:" << newsockfd[num_client]->id << 
-	                      " ip:" << newsockfd[num_client]->ip << 
-		              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
+	// cerr << "[Encoder:TCPServer]: accept client[ id:" << newsockfd[num_client]->id << 
+	//                       " ip:" << newsockfd[num_client]->ip << 
+	// 	              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
 	isonline=true;
 	num_client++;
 	return so->id;
@@ -232,7 +232,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	printf("[Encoder:TCPServer]: TCPServer is going to be closed...\n");
+	// printf("[Encoder:TCPServer]: TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

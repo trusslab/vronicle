@@ -232,7 +232,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	printf("[Encoder:TCPServer]: TCPServer is going to be closed...\n");
+	// printf("[Encoder:TCPServer]: TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

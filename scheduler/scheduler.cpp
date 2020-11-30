@@ -14,6 +14,7 @@ void close_app(int signum) {
     send_cancel_request_to_all_workflows();
     free_all_workflows();
     pthread_mutex_destroy(&decoder_pool_access_lock);
+    pthread_mutex_destroy(&port_access_lock);
 	exit(0);
 }
 
@@ -29,6 +30,7 @@ void sigpipe_handler_scheduler(int signum){
     send_cancel_request_to_all_workflows();
     free_all_workflows();
     pthread_mutex_destroy(&decoder_pool_access_lock);
+    pthread_mutex_destroy(&port_access_lock);
 	exit(0);
 }
 
@@ -266,26 +268,26 @@ void* start_decoder_server(void* args){
     // cmd_for_starting_decoder += d_args->path_of_cam_vender_pubkey;
     // cmd_for_starting_decoder += " ";
     cmd_for_starting_decoder += std::to_string(d_args->incoming_port);
-    cmd_for_starting_decoder += " ";
-    cmd_for_starting_decoder += d_args->outgoing_ip_addr;
-    cmd_for_starting_decoder += " ";
-    cmd_for_starting_decoder += std::to_string(d_args->outgoing_port);
+    // cmd_for_starting_decoder += " ";
+    // cmd_for_starting_decoder += d_args->outgoing_ip_addr.c_str();
+    // cmd_for_starting_decoder += " ";
+    // cmd_for_starting_decoder += std::to_string(d_args->outgoing_port);
 
 
-    if(is_filter_bundle_detected){
-        int filter_bundle_port_marker = self_server_port_marker_extra;
-        for(int i = 1; i < num_of_filter_in_bundle; ++i){
-            cmd_for_starting_decoder += " ";
-            cmd_for_starting_decoder += d_args->outgoing_ip_addr;
-            cmd_for_starting_decoder += " ";
-            cmd_for_starting_decoder += std::to_string(filter_bundle_port_marker++);
-        }
-    }
+    // if(is_filter_bundle_detected){
+    //     int filter_bundle_port_marker = self_server_port_marker_extra;
+    //     for(int i = 1; i < num_of_filter_in_bundle; ++i){
+    //         cmd_for_starting_decoder += " ";
+    //         cmd_for_starting_decoder += d_args->outgoing_ip_addr.c_str();
+    //         cmd_for_starting_decoder += " ";
+    //         cmd_for_starting_decoder += std::to_string(filter_bundle_port_marker++);
+    //     }
+    // }
 
     printf("Cmd for starting decoder: %s\n", cmd_for_starting_decoder.c_str());
     system(cmd_for_starting_decoder.c_str());
 
-    free(args);
+    // free(args);
 
     return 0;
 }
@@ -302,11 +304,12 @@ void* start_filter_server(void* args){
     cmd_for_starting_filter += "/sgx/filter_enclave; ./TestApp ";
     cmd_for_starting_filter += std::to_string(f_args->incoming_port);
     cmd_for_starting_filter += " ";
+    // cmd_for_starting_filter += f_args->outgoing_ip_addr.c_str();
     cmd_for_starting_filter += f_args->outgoing_ip_addr;
     cmd_for_starting_filter += " ";
     cmd_for_starting_filter += std::to_string(f_args->outgoing_port);
 
-    if(is_filter_bundle_detected){
+    if(f_args->is_filter_bundle_detected){
         cmd_for_starting_filter += " 1 &";
     } else {
         cmd_for_starting_filter += " 0";
@@ -315,7 +318,7 @@ void* start_filter_server(void* args){
     printf("Cmd for starting filter: %s\n", cmd_for_starting_filter.c_str());
     system(cmd_for_starting_filter.c_str());
 
-    if(is_filter_bundle_detected){
+    if(f_args->is_filter_bundle_detected){
         int filter_bundle_port_marker = self_server_port_marker_extra;
         for(int i = 1; i < num_of_filter_in_bundle; ++i){
             string cmd_for_starting_extra_filter = "cd ../filter_";
@@ -323,7 +326,8 @@ void* start_filter_server(void* args){
             cmd_for_starting_extra_filter += "/sgx/filter_enclave; ./TestApp ";
             cmd_for_starting_extra_filter += std::to_string(filter_bundle_port_marker++);
             cmd_for_starting_extra_filter += " ";
-            cmd_for_starting_extra_filter += f_args->outgoing_ip_addr;
+            // cmd_for_starting_extra_filter += f_args->outgoing_ip_addr.c_str();
+            cmd_for_starting_filter += f_args->outgoing_ip_addr;
             cmd_for_starting_extra_filter += " ";
             cmd_for_starting_extra_filter += std::to_string(f_args->outgoing_port);
             cmd_for_starting_extra_filter += " 1 &";
@@ -332,6 +336,7 @@ void* start_filter_server(void* args){
         }
     }
 
+    free(f_args->outgoing_ip_addr);
     free(args);
 
     return 0;
@@ -340,8 +345,6 @@ void* start_filter_server(void* args){
 void* start_encoder_server(void* args){
 
     encoder_args* e_args = (encoder_args*) args;
-    
-    printf("in start_encoder_server...\n");
 
     // pthread_detach(pthread_self());
 
@@ -351,7 +354,7 @@ void* start_encoder_server(void* args){
     cmd_for_starting_encoder += std::to_string(e_args->outgoing_port);
     cmd_for_starting_encoder += "  -fps10 -is_rgb";
 
-    if(is_filter_bundle_detected){
+    if(e_args->is_filter_bundle_detected){
         cmd_for_starting_encoder += " -multi_in";
         cmd_for_starting_encoder += std::to_string(num_of_filter_in_bundle);
     }
@@ -381,12 +384,16 @@ void send_cancel_request_to_everything_inside_workflow(workflow* workflow){
 }
 
 void free_everything_inside_workflow(workflow* workflow){
-    free(workflow->decoder);
-    free(workflow->encoder);
-    for(int i = 0; i < workflow->num_of_filters; ++i){
-        free(workflow->filters[i]);
+    if(workflow->decoder != NULL)
+        free(workflow->decoder);
+    if(workflow->encoder != NULL)
+        free(workflow->encoder);
+    if(workflow->filters != NULL){
+        for(int i = 0; i < workflow->num_of_filters; ++i){
+            free(workflow->filters[i]);
+        }
+        free(workflow->filters);
     }
-    free(workflow->filters);
 }
 
 void try_join_all_workflows(){
@@ -483,9 +490,35 @@ void free_helper_scheduler_info(helper_scheduler_info *hs_info_to_be_freed){
     free(hs_info_to_be_freed);
 }
 
-void* prepare_decoder_pool(void* m){
-    pthread_mutex_init(&decoder_pool_access_lock, NULL);
-    
+int prepare_decoder_pool(int scheduler_port_for_decoder){
+    // Return 0 on success; otherwise return 1
+    pthread_mutex_lock(&decoder_pool_access_lock);
+    int num_of_decoder_should_be_prepared = NUM_OF_DECODER_IN_POOL - num_of_free_decoder;
+    pthread_mutex_unlock(&decoder_pool_access_lock);
+    while(num_of_decoder_should_be_prepared){
+        decoder_args* d_args = (decoder_args*) malloc(sizeof(decoder_args));
+        d_args->incoming_port = scheduler_port_for_decoder;
+        pthread_t* pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
+        // printf("Going to get into start_decoder_server...\n");
+        if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
+            printf("pthread for start_decoder_server created failed...quiting...\n");
+            return 1;
+        }
+        decoder_in_pool *new_pool_decoder = (decoder_in_pool*) malloc(sizeof(new_pool_decoder));
+        new_pool_decoder->decoder = pt_decoder;
+        new_pool_decoder->decoder_id = tcp_server_for_decoder.accepted();
+        new_pool_decoder->incoming_port = scheduler_port_for_decoder;
+        
+        pthread_mutex_lock(&decoder_pool_access_lock);
+        ++num_of_free_decoder;
+        decoder_pool.push_back(new_pool_decoder);
+        pthread_mutex_unlock(&decoder_pool_access_lock);
+
+        free(d_args);
+        --num_of_decoder_should_be_prepared;
+    }
+
+    return 0;
 }
 
 void* do_pre_workflow(void* pre_wf){
@@ -493,6 +526,123 @@ void* do_pre_workflow(void* pre_wf){
     // Responsible for receiving all data, starting enclaves and call the normal workflow at the end
     pre_workflow* p_workflow = (pre_workflow*)pre_wf;
 
+}
+
+int report_to_decoder_as_main_scheduler(TCPServer *tcp_server_for_decoder, int decoder_id){
+    // Return 0 on success, otherwise return 1
+    char *message_to_decoder = (char*)malloc(SIZEOFPACKAGEFORNAME);
+    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_decoder, "main", 4);
+    // printf("In report_to_decoder_as_main_scheduler, going to send...\n");
+    // tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+    // printf("In report_to_decoder_as_main_scheduler, going to receive...\n");
+    string reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    // printf("In report_to_decoder_as_main_scheduler, received {%s}\n", reply_from_decoder.c_str());
+    if(reply_from_decoder != "ready"){
+        printf("report_to_decoder_as_main_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        return 1;
+    }
+    free(message_to_decoder);
+    return 0;
+}
+
+int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int decoder_id, char** argv){
+    // Return 0 on success, otherwise return 1
+    char *message_to_decoder = (char*)malloc(SIZEOFPACKAGEFORNAME);
+    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_decoder, "helper", 6);
+    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+    string reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    if(reply_from_decoder != "ready"){
+        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        return 1;
+    }
+    
+    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_decoder, argv[3], sizeof(argv[3]));
+    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+    reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    if(reply_from_decoder != "ready"){
+        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        return 1;
+    }
+    
+    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_decoder, argv[1], sizeof(argv[1]));
+    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+    reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    if(reply_from_decoder != "ready"){
+        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        return 1;
+    }
+    
+    free(message_to_decoder);
+    return 0;
+}
+
+int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int decoder_id, decoder_args* d_args, int is_bundle){
+    // Return 0 on success, otherwise return 1
+    
+    char *message_to_decoder = (char*)malloc(SIZEOFPACKAGEFORNAME);
+
+    long num_of_next_filters = 1;
+    if(d_args->is_filter_bundle_detected){
+        num_of_next_filters = num_of_filter_in_bundle;
+    }
+    tcp_server_for_decoder->Send(&num_of_next_filters, sizeof(long), decoder_id);
+    string reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    if(reply_from_decoder != "ready"){
+        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        return 1;
+    }
+
+    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+    // memcpy(message_to_decoder, d_args->outgoing_ip_addr.c_str(), sizeof(d_args->outgoing_ip_addr.c_str()));
+    memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 3); // Have to do +3 because there is a weird bug of not being able to show the last three digits
+    // printf("In send_next_filters_info_to_decoder, we have d_args->outgoing_ip_addr: {%s}, message_to_decoder: {%s}, sizeof(d_args->outgoing_ip_addr): [%d]\n", d_args->outgoing_ip_addr, message_to_decoder, sizeof(d_args->outgoing_ip_addr) + 3);
+    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+    reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    if(reply_from_decoder != "ready"){
+        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        return 1;
+    }
+
+    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_decoder, to_string(d_args->outgoing_port).c_str(), sizeof(to_string(d_args->outgoing_port).c_str()));
+    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+    reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    if(reply_from_decoder != "ready"){
+        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        return 1;
+    }
+
+    if(is_bundle){
+        int filter_bundle_port_marker = self_server_port_marker_extra;
+        for(int i = 1; i <= num_of_filter_in_bundle; ++i){
+            memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+            // memcpy(message_to_decoder, d_args->outgoing_ip_addr.c_str(), sizeof(d_args->outgoing_ip_addr.c_str()));
+            memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 3);
+            tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+            reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+            if(reply_from_decoder != "ready"){
+                printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+                return 1;
+            }
+
+            memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
+            memcpy(message_to_decoder, to_string(filter_bundle_port_marker).c_str(), sizeof(to_string(filter_bundle_port_marker++).c_str()));
+            tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
+            reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+            if(reply_from_decoder != "ready"){
+                printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+                return 1;
+            }
+        }
+    }
+    
+    free(message_to_decoder);
+    return 0;
 }
 
 int main(int argc, char *argv[], char **env)
@@ -505,8 +655,14 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
+    // Declare some variables for helper scheduler
+    string main_scheduler_ip_address;
+    int main_scheduler_port;
+
     if(argc >= 3){
         current_scheduler_mode = atoi(argv[2]);
+        main_scheduler_ip_address = argv[3];
+        main_scheduler_port = atoi(argv[1]);
     }
 
     // Print current mode of scheduler
@@ -517,13 +673,32 @@ int main(int argc, char *argv[], char **env)
     }
 
     // Init some mutexes
+    pthread_mutex_init(&port_access_lock, NULL);
     pthread_mutex_init(&workflow_access_lock, NULL);
     pthread_mutex_init(&helper_scheduler_pool_access_lock, NULL);
+    pthread_mutex_init(&decoder_pool_access_lock, NULL);
+
+    // Register signal handlers
+    std::signal(SIGINT, close_app);
+    std::signal(SIGPIPE, sigpipe_handler_scheduler);
+
+    // Start TCPServer for managing decoder
+    // Create server and wait for decoder to connect
+    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
+    pthread_mutex_lock(&port_access_lock);
+    int scheduler_port_for_decoder = self_server_port_marker++;
+    pthread_mutex_unlock(&port_access_lock);
+    if( tcp_server_for_decoder.setup(scheduler_port_for_decoder, opts) != 0) {
+        cerr << "Errore apertura socket" << endl;
+    }
+    
+    prepare_decoder_pool(scheduler_port_for_decoder);
 
     // Send alive info to main scheduler if in helper mode
+    // and start listening commands from main scheduler
     if(current_scheduler_mode == 1){
 
-        bool result_of_client_connection = tcp_client.setup(argv[3], atoi(argv[1]));
+        bool result_of_client_connection = tcp_client.setup(main_scheduler_ip_address.c_str(), main_scheduler_port);
 
         if(!result_of_client_connection){
             printf("Connection to main scheduler failed...\n");
@@ -531,6 +706,52 @@ int main(int argc, char *argv[], char **env)
         }
 
         // TO-DO: Start listener for hearing cmds from main scheduler
+        string type_of_cmd;
+        
+        while(true){
+            type_of_cmd = tcp_client.receive_name();
+            if(type_of_cmd == "decoder"){
+
+                // Init some parameters for decoder thread
+                pthread_t* pt_decoder;
+                int decoder_id;
+                int is_using_decoder_in_pool = 0;
+
+                // Check if we need to start new decoder enclave or we can use one in pool
+                pthread_mutex_lock(&decoder_pool_access_lock);
+                if(num_of_free_decoder > 0){
+                    --num_of_free_decoder;
+                    pt_decoder = decoder_pool[num_of_free_decoder]->decoder;
+                    decoder_id = decoder_pool[num_of_free_decoder]->decoder_id;
+                    is_using_decoder_in_pool = 1;
+                    decoder_pool.pop_back();
+                }
+                pthread_mutex_unlock(&decoder_pool_access_lock);
+
+                if(!is_using_decoder_in_pool){
+                    decoder_args* d_args = (decoder_args*) malloc(sizeof(decoder_args));
+                    d_args->incoming_port = scheduler_port_for_decoder;
+                    pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
+                    printf("There is no decoder left in the pool, going to create one...\n");
+                    if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
+                        printf("pthread for start_decoder_server created failed...quiting...\n");
+                        return 1;
+                    }
+                }
+
+                report_to_decoder_as_helper_scheduler(&tcp_server_for_decoder, decoder_id, argv);
+
+                pthread_mutex_lock(&workflow_access_lock);
+                workflows = (workflow**) realloc(workflows, ++current_num_of_workflows * sizeof(workflow*));
+                workflows[current_num_of_workflows - 1] = (workflow*) malloc(sizeof(workflow));
+                workflows[current_num_of_workflows - 1]->decoder = pt_decoder;
+                workflows[current_num_of_workflows - 1]->encoder = NULL;
+                workflows[current_num_of_workflows - 1]->filters = NULL;
+                pthread_mutex_unlock(&workflow_access_lock);
+            } else {
+                printf("Invalid command received from main shceduler: {%s}\n", type_of_cmd.c_str());
+            }
+        }
     }
 
     // Do main scheduler things
@@ -554,19 +775,17 @@ int main(int argc, char *argv[], char **env)
         auto end = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(end - start);
 
-        // Register signal handlers
-        std::signal(SIGINT, close_app);
-        std::signal(SIGPIPE, sigpipe_handler_scheduler);
-
         // Start receiving helper scheduler to check in
         pthread_create(&helper_scheduler_accepter, NULL, start_receiving_helper_scheduler_report, (void *)0);
 
         // Start TCPServer for receving incoming data
         pthread_t msg;
-        vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
         if( tcp_server.setup(atoi(argv[1]),opts) != 0) {
             cerr << "Errore apertura socket" << endl;
         }
+
+        // Prepare decoder pool if necessary
+        prepare_decoder_pool(scheduler_port_for_decoder);
 
         int num_of_times_scheduler_run = 1;
         
@@ -636,23 +855,30 @@ int main(int argc, char *argv[], char **env)
             start = high_resolution_clock::now();
 
             // Assigning port(s)
-            int decoder_port = self_server_port_marker++;
+            pthread_mutex_lock(&port_access_lock);
             int decoder_outgoing_port = self_server_port_marker;
-            int filter_port_with_scheduler;
+            pthread_mutex_unlock(&port_access_lock);
 
-            // Create server and wait for decoder to connect
-            if( tcp_server_for_decoder.setup(decoder_port, opts) != 0) {
-                cerr << "Errore apertura socket" << endl;
-            }
+            // printf("Going to start filter server...\n");
+            int size_of_outgoing_ip_addr = sizeof(local_ip_addr) + 3;   // For some reason, the last three digits are never successfully counted...
+            printf("size_of_outgoing_ip_addr: [%d]\n", size_of_outgoing_ip_addr);
 
             // Start Filter Servers
             pthread_t** pt_filters = (pthread_t**) malloc(new_p_workflow->md->total_filters * sizeof(pthread_t*));
             for(int i = 0; i < new_p_workflow->md->total_filters; ++i){
                 filter_args* f_args = (filter_args*) malloc(sizeof(filter_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
                 f_args->filter_name = (new_p_workflow->md->filters)[i];
+                pthread_mutex_lock(&port_access_lock);
                 f_args->incoming_port = self_server_port_marker++;
-                f_args->outgoing_ip_addr = "127.0.0.1"; // To-Do: Make this flexible to scale up
+                pthread_mutex_unlock(&port_access_lock);
+                // f_args->outgoing_ip_addr = local_ip_addr; // To-Do: Make this flexible to scale up
+                f_args->outgoing_ip_addr = (char*)malloc(size_of_outgoing_ip_addr + 1);
+                memset(f_args->outgoing_ip_addr, 0, size_of_outgoing_ip_addr + 1);
+                memcpy(f_args->outgoing_ip_addr, local_ip_addr, size_of_outgoing_ip_addr);
+                pthread_mutex_lock(&port_access_lock);
                 f_args->outgoing_port = self_server_port_marker;
+                pthread_mutex_unlock(&port_access_lock);
+                f_args->is_filter_bundle_detected = new_p_workflow->is_filter_bundle_detected;
                 pt_filters[i] = (pthread_t*) malloc(sizeof(pthread_t));
                 if(pthread_create(pt_filters[i], NULL, start_filter_server, f_args) != 0){
                     printf("pthread for start_filter_server created failed...quiting...\n");
@@ -660,10 +886,15 @@ int main(int argc, char *argv[], char **env)
                 }
             }
 
+            // printf("Going to start encoder server...\n");
+
             // Start Encoder Servers
             encoder_args* e_args = (encoder_args*) malloc(sizeof(encoder_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
+            pthread_mutex_lock(&port_access_lock);
             e_args->incoming_port = self_server_port_marker++;
+            pthread_mutex_unlock(&port_access_lock);
             e_args->outgoing_port = encoder_outgoing_port_marker++;
+            e_args->is_filter_bundle_detected = new_p_workflow->is_filter_bundle_detected;
             pthread_t* pt_encoder = (pthread_t*) malloc(sizeof(pthread_t));
             if(pthread_create(pt_encoder, NULL, start_encoder_server, e_args) != 0){
                 printf("pthread for start_encoder_server created failed...quiting...\n");
@@ -671,41 +902,69 @@ int main(int argc, char *argv[], char **env)
             }
 
             // Reason we put starting decoder server at the end is that: in case of filter-bundle, we need to first start all filter-bundle enclaves...
-            if(is_filter_bundle_detected){
+            if(new_p_workflow->is_filter_bundle_detected){
                 printf("[Scheduler]: Trying to join all filter threads...\n");
                 for(int i = 0; i < new_p_workflow->md->total_filters; ++i){
                     pthread_join(*(pt_filters[i]), NULL);
                 }
             }
+            
+            // printf("Going to start decoder server...\n");
 
             // Start Decoder Server
             decoder_args* d_args = (decoder_args*) malloc(sizeof(decoder_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
             // d_args->path_of_cam_vender_pubkey = "../../../keys/camera_vendor_pub";  // To-Do: Make this flexible to different camera vendor
-            d_args->incoming_port = decoder_port;
+            d_args->incoming_port = scheduler_port_for_decoder;
             d_args->outgoing_ip_addr = "127.0.0.1"; // To-Do: Make this flexible to scale up
+            // printf("d_args->outgoing_ip_addr: {%s}\n", d_args->outgoing_ip_addr.c_str());
+            d_args->outgoing_ip_addr = (char*)malloc(size_of_outgoing_ip_addr + 1);
+            memset(d_args->outgoing_ip_addr, 0, size_of_outgoing_ip_addr + 1);
+            memcpy(d_args->outgoing_ip_addr, local_ip_addr, size_of_outgoing_ip_addr);
+            // printf("After setting up d_args, we have local_ip_addr: {%s} and d_args->outgoing_ip_addr: {%s} with size_of_outgoing_ip_add: [%d]\n", local_ip_addr, d_args->outgoing_ip_addr, size_of_outgoing_ip_addr);
             d_args->outgoing_port = decoder_outgoing_port;
-            pthread_t* pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
-            if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
-                printf("pthread for start_decoder_server created failed...quiting...\n");
-                return 1;
-            }
+            d_args->is_filter_bundle_detected = new_p_workflow->is_filter_bundle_detected;
 
-            // Join the receiver thread
-            pthread_join(msg, NULL);
+            // Init some parameters for decoder thread
+            pthread_t* pt_decoder;
+            int decoder_id;
+            int is_using_decoder_in_pool = 0;
+
+            // Check if we need to start new decoder enclave or we can use one in pool
+            pthread_mutex_lock(&decoder_pool_access_lock);
+            if(num_of_free_decoder > 0){
+                --num_of_free_decoder;
+                pt_decoder = decoder_pool[num_of_free_decoder]->decoder;
+                decoder_id = decoder_pool[num_of_free_decoder]->decoder_id;
+                is_using_decoder_in_pool = 1;
+                decoder_pool.pop_back();
+            }
+            pthread_mutex_unlock(&decoder_pool_access_lock);
+
+            if(!is_using_decoder_in_pool){
+                pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
+                // printf("Going to get into start_decoder_server...\n");
+                printf("There is no decoder left in the pool, going to create one...\n");
+                if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
+                    printf("pthread for start_decoder_server created failed...quiting...\n");
+                    return 1;
+                }
+            }
             
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << (duration.count() - 3000) << ", ";
 
+            // printf("Going to manage worklow...\n");
+
             // Manage workflows
-            pthread_mutex_lock(&lock_4_workflows);
+            pthread_mutex_lock(&workflow_access_lock);
             workflows = (workflow**) realloc(workflows, ++current_num_of_workflows * sizeof(workflow*));
             workflows[current_num_of_workflows - 1] = (workflow*) malloc(sizeof(workflow));
             workflows[current_num_of_workflows - 1]->decoder = pt_decoder;
             workflows[current_num_of_workflows - 1]->encoder = pt_encoder;
             workflows[current_num_of_workflows - 1]->filters = pt_filters;
             workflows[current_num_of_workflows - 1]->num_of_filters = new_p_workflow->md->total_filters;
-            pthread_mutex_unlock(&lock_4_workflows);
+            pthread_mutex_unlock(&workflow_access_lock);
             
             char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
 
@@ -714,11 +973,24 @@ int main(int argc, char *argv[], char **env)
             // Reset counter for evaluation
             start = high_resolution_clock::now();
 
-            tcp_server_for_decoder.accepted();
+            if(!is_using_decoder_in_pool){
+                decoder_id = tcp_server_for_decoder.accepted();
+            }
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << ", ";
+
+            start = high_resolution_clock::now();
+            
+            // Join the receiver thread
+            pthread_join(msg, NULL);
+            
+            end = high_resolution_clock::now();
+            duration = duration_cast<microseconds>(end - start);
+            eval_file << duration.count() << ", ";
+
+            report_to_decoder_as_main_scheduler(&tcp_server_for_decoder, decoder_id);
 
             // Reset counter for evaluation
             start = high_resolution_clock::now();
@@ -727,8 +999,9 @@ int main(int argc, char *argv[], char **env)
             // printf("Sending vendor pub name...\n");
             memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
             memcpy(msg_to_send, "camera_vendor_pub", 17);  // To-Do: Make this flexible to different camera vendor
-            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            tcp_server_for_decoder.Send(msg_to_send, SIZEOFPACKAGEFORNAME, decoder_id);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name_with_id(decoder_id);
+            // printf("For vendor pub name, got reply: {%s}\n", msg_reply_from_decoder.c_str());
             if(msg_reply_from_decoder != "ready"){
                 printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
                 return 1;
@@ -739,9 +1012,9 @@ int main(int argc, char *argv[], char **env)
             memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
             memcpy(msg_to_send, "meta", 4);
             // printf("Going to send metadata name...\n");
-            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
+            tcp_server_for_decoder.Send(msg_to_send, SIZEOFPACKAGEFORNAME, decoder_id);
             // printf("Going to receive metadata name reply...\n");
-            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name_with_id(decoder_id);
             if(msg_reply_from_decoder != "ready"){
                 printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
                 return 1;
@@ -755,8 +1028,8 @@ int main(int argc, char *argv[], char **env)
             // Send Video
             memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
             memcpy(msg_to_send, "vid", 3);
-            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            tcp_server_for_decoder.Send(msg_to_send, SIZEOFPACKAGEFORNAME, decoder_id);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name_with_id(decoder_id);
             if(msg_reply_from_decoder != "ready"){
                 printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
                 return 1;
@@ -768,8 +1041,8 @@ int main(int argc, char *argv[], char **env)
             // Send Signature
             memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
             memcpy(msg_to_send, "sig", 3);
-            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            tcp_server_for_decoder.Send(msg_to_send, SIZEOFPACKAGEFORNAME, decoder_id);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name_with_id(decoder_id);
             if(msg_reply_from_decoder != "ready"){
                 printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
                 return 1;
@@ -781,8 +1054,8 @@ int main(int argc, char *argv[], char **env)
             // Send Certificate
             memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
             memcpy(msg_to_send, "cert", 4);
-            tcp_server_for_decoder.send_to_last_connected_client(msg_to_send, SIZEOFPACKAGEFORNAME);
-            msg_reply_from_decoder = tcp_server_for_decoder.receive_name();
+            tcp_server_for_decoder.Send(msg_to_send, SIZEOFPACKAGEFORNAME, decoder_id);
+            msg_reply_from_decoder = tcp_server_for_decoder.receive_name_with_id(decoder_id);
             if(msg_reply_from_decoder != "ready"){
                 printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
                 return 1;
@@ -790,7 +1063,7 @@ int main(int argc, char *argv[], char **env)
             pthread_mutex_lock(&(new_p_workflow->in_data->individual_access_lock));
             send_buffer_to_decoder(new_p_workflow->in_data->camera_cert, new_p_workflow->in_data->camera_cert_len);
             pthread_mutex_unlock(&(new_p_workflow->in_data->individual_access_lock));
-            tcp_server_for_decoder.closed();
+            // tcp_server_for_decoder.closed();
             
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
@@ -805,10 +1078,19 @@ int main(int argc, char *argv[], char **env)
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << "\n";
+
+            // Setup decoder's next filters
+            // printf("Going to call send_next_filters_info_to_decoder...\n");
+            send_next_filters_info_to_decoder(&tcp_server_for_decoder, decoder_id, d_args, new_p_workflow->is_filter_bundle_detected);
+
+            // Now we can free d_args
+            free(d_args->outgoing_ip_addr);
+            free(d_args);
         }
 
         // Close Server & Client
         tcp_server.closed();
+        tcp_server_for_decoder.closed();
     }
     
     if(current_scheduler_mode == 0){
@@ -823,6 +1105,7 @@ int main(int argc, char *argv[], char **env)
     free_all_workflows();
 
     // Free mutexes
+    pthread_mutex_destroy(&port_access_lock);
     pthread_mutex_destroy(&helper_scheduler_pool_access_lock);
     pthread_mutex_destroy(&workflow_access_lock);
     pthread_mutex_destroy(&decoder_pool_access_lock);

@@ -58,11 +58,12 @@ typedef struct decoder_args {
     int incoming_port;
     char* outgoing_ip_addr;
     int outgoing_port;
+    int is_filter_bundle_detected = 0;
 } decoder_args;
 
 typedef struct decoder_in_pool {
-    string ip_addr;
     int incoming_port;
+    int decoder_id; // For tcp_server_for_decoder
     pthread_t* decoder;
 } decoder_in_pool;
 
@@ -71,11 +72,13 @@ typedef struct filter_args {
     int incoming_port;
     char* outgoing_ip_addr;
     int outgoing_port;
+    int is_filter_bundle_detected = 0;
 } filter_args;
 
 typedef struct encoder_args {
     int incoming_port;
     int outgoing_port;
+    int is_filter_bundle_detected = 0;
 } encoder_args;
 
 typedef struct helper_scheduler_info {
@@ -124,6 +127,9 @@ using namespace std;
 #include <chrono> 
 using namespace std::chrono;
 
+// For some fixed parameters
+const static char* local_ip_addr = "127\.0\.0\.1";
+
 // For evaluation
 ofstream eval_file;
 ofstream alt_eval_file;
@@ -131,22 +137,21 @@ ofstream alt_eval_file;
 // To-Do: manage all workflows instead of detaching
 int current_num_of_workflows = 0;
 workflow** workflows = NULL;
-pthread_mutex_t lock_4_workflows;
 
 // To-Do: should manage all workflows dynamically so that we know which ports are free
-int main_scheduler_report_port = 10111; // This port is used for helper scheduler to report to be controlled by main scheduler
+int main_scheduler_report_port = 10111; // This port is used for helper scheduler to report to main scheduler in order to be controlled by main scheduler
 int self_server_port_marker = 10113;
 int encoder_outgoing_port_marker = 41231;   // Reason we have this seperately is Azure currently only have 10111(used by scheduler) and 41234 opened...
 
 // For filter-bundle test only
-int is_filter_bundle_detected = 0;
+// int is_filter_bundle_detected = 0;   // Replaced by pre_workflow
 int self_server_port_marker_extra = 20112;
 int num_of_filter_in_bundle = 6;
 
 // For mode that current scheduler is running at
-int current_scheduler_mode = 0; // 0 is main, 1 is pool of scheduler_helper
+int current_scheduler_mode = 0; // 0 is main, 1 is scheduler_helper
 
-// For maintaining pool of scheduler (in helper mode)
+// For maintaining pool of scheduler
 pthread_t helper_scheduler_accepter;
 vector<helper_scheduler_info*> helper_scheduler_pool;
 
@@ -155,13 +160,13 @@ vector<helper_scheduler_info*> helper_scheduler_pool;
 
 // For maintaining pool of resources
 int num_of_free_decoder = 0;
-vector<pair<string, int>*> decoder_pool;  // in format (ip, port)
-pthread_mutex_t decoder_pool_access_lock;
+vector<decoder_in_pool*> decoder_pool;  // in format (ip, port)
 
 // For global mutexes
+pthread_mutex_t port_access_lock;
 pthread_mutex_t workflow_access_lock;
 pthread_mutex_t helper_scheduler_pool_access_lock;
-// pthread_mutex_t decoder_pool_access_lock;
+pthread_mutex_t decoder_pool_access_lock;
 
 // Declare functions as needed
 void free_all_workflows();

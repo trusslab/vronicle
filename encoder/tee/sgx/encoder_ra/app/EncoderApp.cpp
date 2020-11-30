@@ -1388,7 +1388,7 @@ int main(int argc, char *argv[], char **env)
 
     tcp_server.closed();
 
-    printf("Encoding completed...going to try sending frames\n");
+    // printf("Encoding completed...going to try sending frames\n");
 
     // declaring argument of time() 
     time_t my_time = time(NULL); 

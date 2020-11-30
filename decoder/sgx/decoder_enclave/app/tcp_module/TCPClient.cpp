@@ -163,4 +163,7 @@ string TCPClient::read()
 void TCPClient::exit()
 {
     close( sock );
+	sock = -1;
+	port = 0;
+	address = "";
 }

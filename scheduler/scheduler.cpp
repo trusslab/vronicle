@@ -948,7 +948,8 @@ int main(int argc, char *argv[], char **env)
                 pthread_mutex_lock(&helper_scheduler_pool_access_lock);
                 for(int i = 0; i < helper_scheduler_pool.size(); ++i){
                     pthread_mutex_lock(&(helper_scheduler_pool[i]->individual_access_lock));
-                    if(helper_scheduler_pool[i]->current_num_of_work < helper_scheduler_pool[i]->type){
+                    // TO-DO: Make the following depend on capacity of helper scheulder
+                    if(helper_scheduler_pool[i]->current_num_of_work < 4){
                         ++(helper_scheduler_pool[i]->current_num_of_work);
                         helper_scheduler_id = helper_scheduler_pool[i]->id_in_current_connection;
                         is_using_decoder_remotely = 1;

@@ -84,7 +84,7 @@ typedef struct encoder_args {
 typedef struct helper_scheduler_info {
     string ip_addr;
     int id_in_current_connection;
-    int type = 4;   // TO-DO: use type to dynamically distribute work to different helper_scheduler
+    int type = 0;   // TO-DO: use type to dynamically distribute work to different helper_scheduler
     int current_num_of_work = 0;
     pthread_mutex_t individual_access_lock;
 } helper_scheduler_info;
@@ -157,7 +157,7 @@ vector<helper_scheduler_info*> helper_scheduler_pool;
 int is_remote_scheduler_prefered = 1;
 
 // For settings of maintaining pool
-#define NUM_OF_DECODER_IN_POOL 1
+#define NUM_OF_DECODER_IN_POOL 0
 
 // For maintaining pool of resources
 int num_of_free_decoder = 0;

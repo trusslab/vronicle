@@ -738,6 +738,8 @@ int main(int argc, char *argv[], char **env)
                         printf("pthread for start_decoder_server created failed...quiting...\n");
                         return 1;
                     }
+                    decoder_id = tcp_server_for_decoder.accepted();
+                    free(d_args);
                 }
 
                 report_to_decoder_as_helper_scheduler(&tcp_server_for_decoder, decoder_id, argv);

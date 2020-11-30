@@ -157,7 +157,7 @@ vector<helper_scheduler_info*> helper_scheduler_pool;
 int is_remote_scheduler_prefered = 1;
 
 // For settings of maintaining pool
-#define NUM_OF_DECODER_IN_POOL 0
+#define NUM_OF_DECODER_IN_POOL 1
 
 // For maintaining pool of resources
 int num_of_free_decoder = 0;

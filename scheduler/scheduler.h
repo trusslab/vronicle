@@ -128,7 +128,7 @@ using namespace std;
 using namespace std::chrono;
 
 // For some fixed parameters
-const static char* local_ip_addr = "127\.0\.0\.1";
+const static char* local_ip_addr = "20.39.52.2";
 
 // For evaluation
 ofstream eval_file;

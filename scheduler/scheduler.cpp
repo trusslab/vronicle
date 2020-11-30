@@ -560,7 +560,7 @@ int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int
     }
     
     memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, argv[3], sizeof(argv[3]));
+    memcpy(message_to_decoder, argv[3], sizeof(argv[3]) + 4);   // For some reason, the last period and three digits will not be counted...
     tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
     reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
@@ -569,7 +569,7 @@ int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int
     }
     
     memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, argv[1], sizeof(argv[1]));
+    memcpy(message_to_decoder, "10113", sizeof(argv[1]));
     tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
     reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
@@ -593,18 +593,18 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
     tcp_server_for_decoder->Send(&num_of_next_filters, sizeof(long), decoder_id);
     string reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
-        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        printf("send_next_filters_info_to_decoder: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
         return 1;
     }
 
     memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
     // memcpy(message_to_decoder, d_args->outgoing_ip_addr.c_str(), sizeof(d_args->outgoing_ip_addr.c_str()));
-    memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 3); // Have to do +3 because there is a weird bug of not being able to show the last three digits
-    // printf("In send_next_filters_info_to_decoder, we have d_args->outgoing_ip_addr: {%s}, message_to_decoder: {%s}, sizeof(d_args->outgoing_ip_addr): [%d]\n", d_args->outgoing_ip_addr, message_to_decoder, sizeof(d_args->outgoing_ip_addr) + 3);
+    memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 4); // Have to do +4 because there is a weird bug of not being able to show the last period and three digits
+    // printf("In send_next_filters_info_to_decoder, we have d_args->outgoing_ip_addr: {%s}, message_to_decoder: {%s}, sizeof(d_args->outgoing_ip_addr): [%d]\n", d_args->outgoing_ip_addr, message_to_decoder, sizeof(d_args->outgoing_ip_addr) + 4);
     tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
     reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
-        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        printf("send_next_filters_info_to_decoder: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
         return 1;
     }
 
@@ -613,7 +613,7 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
     tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
     reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
     if(reply_from_decoder != "ready"){
-        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        printf("send_next_filters_info_to_decoder: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
         return 1;
     }
 
@@ -622,11 +622,11 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
         for(int i = 1; i <= num_of_filter_in_bundle; ++i){
             memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
             // memcpy(message_to_decoder, d_args->outgoing_ip_addr.c_str(), sizeof(d_args->outgoing_ip_addr.c_str()));
-            memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 3);
+            memcpy(message_to_decoder, d_args->outgoing_ip_addr, sizeof(d_args->outgoing_ip_addr) + 4);
             tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
             reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
             if(reply_from_decoder != "ready"){
-                printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+                printf("send_next_filters_info_to_decoder: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
                 return 1;
             }
 
@@ -635,7 +635,7 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
             tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
             reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
             if(reply_from_decoder != "ready"){
-                printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+                printf("send_next_filters_info_to_decoder: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
                 return 1;
             }
         }
@@ -864,7 +864,7 @@ int main(int argc, char *argv[], char **env)
             pthread_mutex_unlock(&port_access_lock);
 
             // printf("Going to start filter server...\n");
-            int size_of_outgoing_ip_addr = sizeof(local_ip_addr) + 3;   // For some reason, the last three digits are never successfully counted...
+            int size_of_outgoing_ip_addr = sizeof(local_ip_addr) + 4;   // For some reason, the last period and three digits are never successfully counted...
             printf("size_of_outgoing_ip_addr: [%d]\n", size_of_outgoing_ip_addr);
 
             // Start Filter Servers

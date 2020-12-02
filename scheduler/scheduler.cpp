@@ -58,7 +58,7 @@ void * received(void * m)
 	{
         if(current_mode == 0){
             string file_name = tcp_server.receive_name_with_id(p_workflow->incoming_source);
-            printf("Got new file_name: %s\n", file_name.c_str());
+            // printf("Got new file_name: %s\n", file_name.c_str());
             pthread_mutex_lock(&(p_workflow->in_data->individual_access_lock));
             if(file_name == "vid"){
                 current_file_indicator = 0;
@@ -327,7 +327,7 @@ void* start_filter_server(void* args){
             cmd_for_starting_extra_filter += std::to_string(filter_bundle_port_marker++);
             cmd_for_starting_extra_filter += " ";
             // cmd_for_starting_extra_filter += f_args->outgoing_ip_addr.c_str();
-            cmd_for_starting_filter += f_args->outgoing_ip_addr;
+            cmd_for_starting_extra_filter += f_args->outgoing_ip_addr;
             cmd_for_starting_extra_filter += " ";
             cmd_for_starting_extra_filter += std::to_string(f_args->outgoing_port);
             cmd_for_starting_extra_filter += " 1 &";
@@ -368,10 +368,14 @@ void* start_encoder_server(void* args){
 }
 
 void join_everything_inside_workflow(workflow* workflow){
-    pthread_join(*(workflow->decoder), NULL);
-    pthread_join(*(workflow->encoder), NULL);
-    for(int i = 0; i < workflow->num_of_filters; ++i){
-        pthread_join(*(workflow->filters[i]), NULL);
+    if(workflow->decoder)
+        pthread_join(*(workflow->decoder), NULL);
+    if(workflow->encoder)
+        pthread_join(*(workflow->encoder), NULL);
+    if(workflow->num_of_filters){
+        for(int i = 0; i < workflow->num_of_filters; ++i){
+            pthread_join(*(workflow->filters[i]), NULL);
+        }
     }
 }
 
@@ -619,7 +623,8 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
 
     if(is_bundle){
         int filter_bundle_port_marker = self_server_port_marker_extra;
-        for(int i = 1; i <= num_of_filter_in_bundle; ++i){
+        for(int i = 1; i < num_of_filter_in_bundle; ++i){
+            // printf("Setting up extra filter[%d] with outgoing_ip: {%s} and port: {%d}\n", i, d_args->outgoing_ip_addr, filter_bundle_port_marker);
             memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
             // memcpy(message_to_decoder, d_args->outgoing_ip_addr.c_str(), sizeof(d_args->outgoing_ip_addr.c_str()));
             memcpy(message_to_decoder, d_args->outgoing_ip_addr, size_of_typical_ip_addr);
@@ -631,13 +636,15 @@ int send_next_filters_info_to_decoder(TCPServer *tcp_server_for_decoder, int dec
             }
 
             memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-            memcpy(message_to_decoder, to_string(filter_bundle_port_marker).c_str(), sizeof(to_string(filter_bundle_port_marker++).c_str()));
+            memcpy(message_to_decoder, to_string(filter_bundle_port_marker).c_str(), sizeof(to_string(filter_bundle_port_marker).c_str()));
             tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
             reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
             if(reply_from_decoder != "ready"){
                 printf("send_next_filters_info_to_decoder: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
                 return 1;
             }
+            
+            ++filter_bundle_port_marker;
         }
     }
     
@@ -883,9 +890,10 @@ int main(int argc, char *argv[], char **env)
                 f_args->incoming_port = self_server_port_marker++;
                 pthread_mutex_unlock(&port_access_lock);
                 // f_args->outgoing_ip_addr = local_ip_addr; // To-Do: Make this flexible to scale up
-                f_args->outgoing_ip_addr = (char*)malloc(size_of_outgoing_ip_addr + 1);
-                memset(f_args->outgoing_ip_addr, 0, size_of_outgoing_ip_addr + 1);
-                memcpy(f_args->outgoing_ip_addr, local_ip_addr, size_of_outgoing_ip_addr);
+                f_args->outgoing_ip_addr = (char*)malloc(size_of_typical_ip_addr + 1);
+                memset(f_args->outgoing_ip_addr, 0, size_of_typical_ip_addr + 1);
+                memcpy(f_args->outgoing_ip_addr, local_ip_addr, size_of_typical_ip_addr);
+                // printf("After setting up f_args, we have local_ip_addr: {%s} and f_args->outgoing_ip_addr: {%s} with size_of_outgoing_ip_add: [%d]\n", local_ip_addr, f_args->outgoing_ip_addr, size_of_typical_ip_addr);
                 pthread_mutex_lock(&port_access_lock);
                 f_args->outgoing_port = self_server_port_marker;
                 pthread_mutex_unlock(&port_access_lock);
@@ -914,7 +922,7 @@ int main(int argc, char *argv[], char **env)
 
             // Reason we put starting decoder server at the end is that: in case of filter-bundle, we need to first start all filter-bundle enclaves...
             if(new_p_workflow->is_filter_bundle_detected){
-                printf("[Scheduler]: Trying to join all filter threads...\n");
+                // printf("[Scheduler]: Trying to join all filter threads...\n");
                 for(int i = 0; i < new_p_workflow->md->total_filters; ++i){
                     pthread_join(*(pt_filters[i]), NULL);
                 }
@@ -970,7 +978,7 @@ int main(int argc, char *argv[], char **env)
 
                 if(is_using_decoder_remotely){
                     free(d_args->outgoing_ip_addr);
-                    d_args->outgoing_ip_addr = (char*)malloc(sizeof(local_remote_ip_addr) + 5);
+                    d_args->outgoing_ip_addr = (char*)malloc(size_of_typical_ip_addr + 1);
                     memset(d_args->outgoing_ip_addr, 0, size_of_typical_ip_addr + 1);
                     memcpy(d_args->outgoing_ip_addr, local_remote_ip_addr, size_of_typical_ip_addr);
 

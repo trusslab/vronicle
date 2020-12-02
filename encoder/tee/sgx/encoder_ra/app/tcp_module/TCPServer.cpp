@@ -25,7 +25,7 @@ char* TCPServer::receive_exact(int size)
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_exact)" << endl;
 		return nullptr;
   	}
 
@@ -40,7 +40,7 @@ char* TCPServer::receive_exact_with_id(int size, int id)
   	string reply;
 	if( recv(newsockfd[id]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_exact_with_id)" << endl;
 		return nullptr;
   	}
 
@@ -57,7 +57,7 @@ string TCPServer::receive_name()
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_name)" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -75,7 +75,7 @@ string TCPServer::receive_name_with_id(int id)
   	string reply;
 	if( recv(newsockfd[id]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_name_with_id)" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -91,7 +91,7 @@ long TCPServer::receive_size_of_data()
 
 	if( recv(newsockfd[last_client_num]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_size_of_data)" << endl;
 		return -1;
   	}
 	
@@ -108,7 +108,7 @@ long TCPServer::receive_size_of_data_with_id(int id)
 
 	if( recv(newsockfd[id]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_size_of_data_with_id)" << endl;
 		return -1;
   	}
 	

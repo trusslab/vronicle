@@ -12,7 +12,7 @@
 std::mutex TCPServer::mt;
 
 void sigpipe_handler(int signum){
-	printf("[Encoder:TCPServer]: There is a SIGPIPE error happened...exiting......(%d)\n", signum);
+	printf("[Scheduler]: There is a SIGPIPE error happened...exiting......(%d)\n", signum);
 	// tcp.closed();
 	exit(0);
 }
@@ -25,7 +25,7 @@ char* TCPServer::receive_exact(int size)
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive failed!" << endl;
 		return nullptr;
   	}
 
@@ -40,7 +40,7 @@ char* TCPServer::receive_exact_with_id(int size, int id)
   	string reply;
 	if( recv(newsockfd[id]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive failed!" << endl;
 		return nullptr;
   	}
 
@@ -57,7 +57,7 @@ string TCPServer::receive_name()
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive failed!" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -70,12 +70,12 @@ string TCPServer::receive_name_with_id(int id)
   	char buffer[SIZEOFPACKAGEFORNAME + 1];
 	memset(&buffer[0], 0, sizeof(buffer));
 
-	// printf("[Encoder:TCPServer]: Trying to receive from id: %d, where last_client_num is: %d\n", id, last_client_num);
+	// printf("[Scheduler]: Trying to receive from id: %d, where last_client_num is: %d\n", id, last_client_num);
 
   	string reply;
 	if( recv(newsockfd[id]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive failed!" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -91,7 +91,7 @@ long TCPServer::receive_size_of_data()
 
 	if( recv(newsockfd[last_client_num]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive failed!" << endl;
 		return -1;
   	}
 	
@@ -108,7 +108,7 @@ long TCPServer::receive_size_of_data_with_id(int id)
 
 	if( recv(newsockfd[id]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive failed!" << endl;
 		return -1;
   	}
 	
@@ -127,7 +127,7 @@ int TCPServer::setup(int port, vector<int> opts)
 
 	for(unsigned int i = 0; i < opts.size(); i++) {
 		if( (setsockopt(sockfd, SOL_SOCKET, opts.size(), (char *)&opt, sizeof(opt))) < 0 ) {
-			cerr << "[Encoder:TCPServer]: Errore setsockopt" << endl; 
+			cerr << "[Scheduler]: Errore setsockopt" << endl; 
       			return -1;
 	      	}
 	}
@@ -137,12 +137,12 @@ int TCPServer::setup(int port, vector<int> opts)
 	serverAddress.sin_port        = htons(port);
 
 	if((::bind(sockfd,(struct sockaddr *)&serverAddress, sizeof(serverAddress))) < 0){
-		cerr << "[Encoder:TCPServer]: Errore bind" << endl;
+		cerr << "[Scheduler]: Errore bind" << endl;
 		return -1;
 	}
 	
  	if(listen(sockfd,5) < 0){
-		cerr << "[Encoder:TCPServer]: Errore listen" << endl;
+		cerr << "[Scheduler]: Errore listen" << endl;
 		return -1;
 	}
 	num_client = 0;
@@ -159,7 +159,7 @@ int TCPServer::accepted()
 	last_client_num = num_client;
 	so->ip              = inet_ntoa(clientAddress.sin_addr);
 	newsockfd.push_back( so );
-	// cerr << "[Encoder:TCPServer]: accept client[ id:" << newsockfd[num_client]->id << 
+	// cerr << "[Scheduler]: accept client[ id:" << newsockfd[num_client]->id << 
 	//                       " ip:" << newsockfd[num_client]->ip << 
 	// 	              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
 	isonline=true;
@@ -232,7 +232,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	// printf("[Encoder:TCPServer]: TCPServer is going to be closed...\n");
+	// printf("[Scheduler]: TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

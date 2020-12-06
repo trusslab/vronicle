@@ -132,6 +132,29 @@ EVP_PKEY *enc_priv_key;
 char* mrenclave;
 size_t mrenclave_len;
 
+int is_source_video_verified = -3;
+int is_decoding_finished = 0;
+
+// For Decoding use
+char* s_md_json;
+long s_md_json_len;
+u32 status;
+storage_t dec;
+u8* byteStrm;
+u32 readBytes;
+u32 len;
+int numPics = 0;
+size_t frame_size_in_rgb = 0;
+u8* pic;
+size_t pic_sig_len = 0;
+u32 picId, isIdrPic, numErrMbs;
+u32 top, left, width = 0, height = 0, croppingFlag;
+metadata* tmp;
+unsigned char* data_buf = NULL;
+// Obtain signature length and allocate memory for signature
+int tmp_total_digests = 0;
+
+
 int freeEverthing(){
 	EVP_PKEY_free(enc_priv_key);
     return 0;
@@ -283,6 +306,272 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 	free(buf);
 }
 
+int t_sgxver_prepare_decoder(
+	void* input_content_buffer, long size_of_input_content_buffer, 
+	void* md_json, long md_json_len,
+	void* vendor_pub, long vendor_pub_len,
+	void* camera_cert, long camera_cert_len,
+	void* vid_sig, size_t vid_sig_len) {
+	// Return 1 on success, return 0 on fail, return -1 on error, return -2 on already verified
+
+	if(is_source_video_verified != -3){
+		return -2;
+	}
+
+    int res = -1;
+
+	// Verify certificate
+	BIO* bo_pub = BIO_new( BIO_s_mem() );
+	BIO_write(bo_pub, (char*)vendor_pub, vendor_pub_len);
+
+	EVP_PKEY* vendor_pubkey = EVP_PKEY_new();
+	vendor_pubkey = PEM_read_bio_PUBKEY(bo_pub, &vendor_pubkey, 0, 0);
+	BIO_free(bo_pub);
+
+	BIO* bo = BIO_new( BIO_s_mem() );
+	BIO_write(bo, (char*)camera_cert, camera_cert_len);
+    X509* cam_cert;
+    cam_cert = X509_new();
+	cam_cert = PEM_read_bio_X509(bo, &cam_cert, 0, NULL);
+	BIO_free(bo);
+
+	res = verify_cert(cam_cert, vendor_pubkey);
+
+	if(res != 1){
+		printf("Verify certificate failed\n");
+		return 0;
+	}
+
+	// Verify signature
+	EVP_PKEY* pukey = EVP_PKEY_new();
+	pukey = X509_get_pubkey(cam_cert);
+	unsigned char* buf = (unsigned char*)malloc(size_of_input_content_buffer + md_json_len);
+	if (!buf) {
+		printf("No memory left\n");
+		return 0;
+	}
+	memset(buf, 0, size_of_input_content_buffer + md_json_len);
+	memcpy(buf, input_content_buffer, size_of_input_content_buffer);
+	memcpy(buf + size_of_input_content_buffer, md_json, md_json_len);
+	// printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
+	res = verify_hash(buf, size_of_input_content_buffer + md_json_len, (unsigned char*)vid_sig, vid_sig_len, pukey);
+	free(buf);
+	if(res != 1){
+		printf("Verify signature failed\n");
+		return 0;
+	}
+
+	// Cleanup
+	X509_free(cam_cert);
+	EVP_PKEY_free(vendor_pubkey);
+	EVP_PKEY_free(pukey);
+
+	is_source_video_verified = res;
+
+	if(is_source_video_verified){
+		// Prepare Decoder
+		status = h264bsdInit(&dec, HANTRO_FALSE);
+
+		if (status != HANTRO_OK) {
+			// fprintf(stderr, "h264bsdInit failed\n");
+			printf("h264bsdInit failed\n");
+			return 0;
+		}
+
+		len = size_of_input_content_buffer;
+		byteStrm = (u8*)malloc(len);
+		memset(byteStrm, 0, len);
+		memcpy(byteStrm, input_content_buffer, len);
+
+		s_md_json_len = md_json_len;
+		s_md_json = (char*)malloc(s_md_json_len);
+		memset(s_md_json, 0, s_md_json_len);
+		memcpy(s_md_json, md_json, s_md_json_len);
+	} else {
+		printf("Source video is not verified...\n");
+		return 0;
+	}
+
+	// while (!frame_size_in_rgb){
+	// 	u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
+	// 	printf("[decoder:TestEnclave]: t_sgxver_prepare_decoder: readBytes: [%d], frame_size: [%d]\n", readBytes, frame_size_in_rgb);
+	// 	len -= readBytes;
+	// 	byteStrm += readBytes;
+
+	// 	switch (result) {
+	// 		case H264BSD_HDRS_RDY:
+	// 			// Obtain frame parameters
+	// 			h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
+	// 			if (!croppingFlag) {
+	// 			width = h264bsdPicWidth(&dec) * 16;
+	// 			height = h264bsdPicHeight(&dec) * 16;
+	// 			}
+	// 			// Allocate memory for frame
+	// 			if(!frame_size_in_rgb){
+	// 				frame_size_in_rgb = width * height * 3;
+	// 				InitConvt(width, height);
+	// 			}
+	// 			break;
+	// 		case H264BSD_RDY:
+	// 			break;
+	// 		case H264BSD_ERROR:
+	// 			printf("Error\n");
+	// 			return 1;
+	// 		case H264BSD_PARAM_SET_ERROR:
+	// 			printf("Param set error\n");
+	// 			return 1;
+	// 		default:
+	// 			break;
+	// 	}
+	// }
+
+	return res;
+}
+
+int t_sgxver_decode_single_frame(
+	void* decoded_frame, long size_of_decoded_frame, 
+	void* output_md_json, long size_of_output_json,
+	void* output_sig, long size_of_output_sig) {
+	
+	// Return 0 on success; return -1 on finish all decoding; otherwise fail...
+
+	if(is_decoding_finished){
+		printf("[decoder:TestEnclave]: decoding is already finished...\n");
+		return 1;
+	}
+
+	if(is_source_video_verified != 1){
+		printf("[decoder:TestEnclave]: please init the decoder first...\n");
+		return 1;
+	}
+
+	u8* decoded_frame_temp = (u8*)decoded_frame;
+	memset(decoded_frame_temp, 0, size_of_decoded_frame);
+	char* output_md_json_temp = (char*)output_md_json;
+	memset(output_md_json_temp, 0, size_of_output_json);
+	unsigned char* output_sig_temp = (unsigned char*)output_sig;
+	memset(output_sig_temp, 0, size_of_output_sig);
+
+	int is_single_frame_successfully_decoded = 0;
+
+	// For some temp variables
+	size_t real_size_of_output_md_json = 0;
+	int res = -1;
+	char* output_json_n = NULL;
+	u8* pic_rgb = NULL;
+
+	while (len > 0 && !is_single_frame_successfully_decoded) {
+		u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
+		// printf("[decoder:TestEnclave]: readBytes: [%d], frame_size: [%d]\n", readBytes, frame_size_in_rgb);
+		len -= readBytes;
+		byteStrm += readBytes;
+
+		switch (result) {
+			case H264BSD_PIC_RDY:
+				// Extract frame
+				pic = h264bsdNextOutputPicture(&dec, &picId, &isIdrPic, &numErrMbs);
+				++numPics;
+				if(!frame_size_in_rgb){
+					printf("No valid video header detected, exiting...\n");
+					exit(1);
+				}
+
+				// Convert frame to RGB packed format
+				yuv420_prog_planar_to_rgb_packed(pic, decoded_frame_temp, width, height);
+
+				// Generate metadata
+				tmp = json_2_metadata((char*)s_md_json, s_md_json_len);
+				if (!tmp) {
+					printf("Failed to parse metadata\n");
+					exit(1);
+				}
+				tmp->frame_id = numPics - 1;
+				tmp_total_digests = tmp->total_digests;
+				tmp->total_digests = tmp_total_digests + 1;
+				tmp->digests = (char**)malloc(sizeof(char*) * 1);
+				tmp->digests[0] = (char*)malloc(mrenclave_len);
+				memset(tmp->digests[0], 0, mrenclave_len);
+				memcpy(tmp->digests[0], mrenclave, mrenclave_len);
+				output_json_n = metadata_2_json(tmp);
+				// printf("[decode:TestEnclave]: We now have output_json_n[%d]: {%s}\n", strlen(output_json_n), output_json_n);
+
+				// Check size of md_json
+				real_size_of_output_md_json = strlen(output_json_n);
+				if(real_size_of_output_md_json != (size_t)size_of_output_json){
+					printf("[decode:TestEnclave]: Incorrect md_json size...real_size_of_output_md_json: [%d]; size_of_output_json: [%ld]\n", real_size_of_output_md_json, size_of_output_json);
+					return 1;
+				}
+				memcpy(output_md_json_temp, output_json_n, real_size_of_output_md_json);
+				// printf("[decode:TestEnclave]: We now have output_json_n[%d]: {%s}\n", real_size_of_output_md_json, output_md_json_temp);
+
+				// Create buffer for signing
+				data_buf = (unsigned char*)malloc(frame_size_in_rgb + real_size_of_output_md_json);
+				memset(data_buf, 0, frame_size_in_rgb + real_size_of_output_md_json);
+				memcpy(data_buf, decoded_frame_temp, frame_size_in_rgb);
+				memcpy(data_buf + frame_size_in_rgb, output_md_json_temp, real_size_of_output_md_json);
+
+				// Generate signature
+				// printf("[decode:TestEnclave]: orig size: %li, sig size: %li, json: %s\n", frame_size_in_rgb + real_size_of_output_md_json, pic_sig_len, output_md_json_temp);
+				// printf("[decode:TestEnclave]: orig size: %li, sig size: %li, json: %s\n", frame_size_in_rgb + real_size_of_output_md_json, pic_sig_len, output_md_json_temp);
+				res = sign(enc_priv_key, data_buf, frame_size_in_rgb + real_size_of_output_md_json, output_sig_temp, &pic_sig_len);
+				if(res != 0){
+					printf("Signing frame failed\n");
+					return 1;
+				}
+
+				// Clean up
+				free_metadata(tmp);
+				free(output_json_n);
+				free(data_buf);
+
+				is_single_frame_successfully_decoded = 1;
+
+				break;
+			case H264BSD_HDRS_RDY:
+				// printf("[decoder:TestEnclave]: in H264BSD_HDRS_RDY ...\n");
+				// Obtain frame parameters
+				h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
+				if (!croppingFlag) {
+				width = h264bsdPicWidth(&dec) * 16;
+				height = h264bsdPicHeight(&dec) * 16;
+				}
+				// Allocate memory for frame
+				if(!frame_size_in_rgb){
+					frame_size_in_rgb = width * height * 3;
+					if(size_of_decoded_frame != frame_size_in_rgb){
+						printf("[decoder:TestEnclave]: Incorrect size...size_of_decoded_frame: [%d]; frame_size_in_rgb: [%d]...\n", size_of_decoded_frame, frame_size_in_rgb);
+						return 1;
+					}
+					InitConvt(width, height);
+					pic_rgb = (u8*)malloc(frame_size_in_rgb);
+					res = sign(enc_priv_key, pic_rgb, frame_size_in_rgb, NULL, &pic_sig_len);
+					free(pic_rgb);
+					if(res != 0){
+						printf("Failed to obtain signature length\n");
+						return res;
+					}
+				}
+				break;
+			case H264BSD_RDY:
+				break;
+			case H264BSD_ERROR:
+				printf("Error\n");
+				return 1;
+			case H264BSD_PARAM_SET_ERROR:
+				printf("Param set error\n");
+				return 1;
+		}
+	}
+
+	if(len <= 0){
+		h264bsdShutdown(&dec);
+		is_decoding_finished = 1;
+		return -1;
+	}
+	
+	return 0;
+}
+
 int t_sgxver_decode_content(
 	void* input_content_buffer, long size_of_input_content_buffer, 
 	void* md_json, long md_json_len,
@@ -376,6 +665,7 @@ int t_sgxver_decode_content(
 
 	while (len > 0) {
 		u32 result = h264bsdDecode(&dec, byteStrm, len, 0, &readBytes);
+		// printf("[decoder:TestEnclave]: readBytes: [%d], frame_size: [%d]\n", readBytes, frame_size_in_rgb);
 		len -= readBytes;
 		byteStrm += readBytes;
 
@@ -415,7 +705,7 @@ int t_sgxver_decode_content(
 
 			// Generate signature
 			res = sign(enc_priv_key, data_buf, frame_size_in_rgb + strlen(output_json), pic_sig, &pic_sig_len);
-			// printf("orig size: %li, sig size: %li, json: %s\n", frame_size_in_rgb + strlen(output_json), pic_sig_len, output_json);
+			// printf("[decode:TestEnclave]: orig size: %li, sig size: %li, json: %s\n", frame_size_in_rgb + strlen(output_json), pic_sig_len, output_json);
 			if(res != 0){
 				printf("Signing frame failed\n");
 				break;
@@ -445,6 +735,7 @@ int t_sgxver_decode_content(
 
 			break;
 		case H264BSD_HDRS_RDY:
+			// printf("[decoder:TestEnclave]: in H264BSD_HDRS_RDY ...\n");
 			// Obtain frame parameters
 			h264bsdCroppingParams(&dec, &croppingFlag, &left, &width, &top, &height);
 			if (!croppingFlag) {

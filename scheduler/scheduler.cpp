@@ -532,56 +532,56 @@ void* do_pre_workflow(void* pre_wf){
 
 }
 
-int report_to_decoder_as_main_scheduler(TCPServer *tcp_server_for_decoder, int decoder_id){
+int report_to_module_as_main_scheduler(TCPServer *tcp_server_for_module, int module_id){
     // Return 0 on success, otherwise return 1
-    char *message_to_decoder = (char*)malloc(SIZEOFPACKAGEFORNAME);
-    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, "main", 4);
-    // printf("In report_to_decoder_as_main_scheduler, going to send...\n");
-    // tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
-    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
-    // printf("In report_to_decoder_as_main_scheduler, going to receive...\n");
-    string reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
-    // printf("In report_to_decoder_as_main_scheduler, received {%s}\n", reply_from_decoder.c_str());
+    char *message_to_module = (char*)malloc(SIZEOFPACKAGEFORNAME);
+    memset(message_to_module, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_module, "main", 4);
+    // printf("In report_to_module_as_main_scheduler, going to send...\n");
+    // tcp_server_for_module->Send(message_to_module, SIZEOFPACKAGEFORNAME, module_id);
+    tcp_server_for_module->Send(message_to_module, SIZEOFPACKAGEFORNAME, module_id);
+    // printf("In report_to_module_as_main_scheduler, going to receive...\n");
+    string reply_from_decoder = tcp_server_for_module->receive_name_with_id(module_id);
+    // printf("In report_to_module_as_main_scheduler, received {%s}\n", reply_from_decoder.c_str());
     if(reply_from_decoder != "ready"){
-        printf("report_to_decoder_as_main_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        printf("report_to_module_as_main_scheduler: failed with reply from module: {%s}\n", reply_from_decoder.c_str());
         return 1;
     }
-    free(message_to_decoder);
+    free(message_to_module);
     return 0;
 }
 
-int report_to_decoder_as_helper_scheduler(TCPServer *tcp_server_for_decoder, int decoder_id, char** argv, string main_scheduler_port_str){
+int report_to_module_as_helper_scheduler(TCPServer *tcp_server_for_module, int module_id, char** argv, string main_scheduler_port_str){
     // Return 0 on success, otherwise return 1
-    char *message_to_decoder = (char*)malloc(SIZEOFPACKAGEFORNAME);
-    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, "helper", 6);
-    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
-    string reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    char *message_to_module = (char*)malloc(SIZEOFPACKAGEFORNAME);
+    memset(message_to_module, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_module, "helper", 6);
+    tcp_server_for_module->Send(message_to_module, SIZEOFPACKAGEFORNAME, module_id);
+    string reply_from_decoder = tcp_server_for_module->receive_name_with_id(module_id);
     if(reply_from_decoder != "ready"){
-        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        printf("report_to_module_as_helper_scheduler: failed with reply from module: {%s}\n", reply_from_decoder.c_str());
         return 1;
     }
     
-    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, argv[3], size_of_typical_ip_addr);
-    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
-    reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    memset(message_to_module, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_module, argv[3], size_of_typical_ip_addr);
+    tcp_server_for_module->Send(message_to_module, SIZEOFPACKAGEFORNAME, module_id);
+    reply_from_decoder = tcp_server_for_module->receive_name_with_id(module_id);
     if(reply_from_decoder != "ready"){
-        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        printf("report_to_module_as_helper_scheduler: failed with reply from module: {%s}\n", reply_from_decoder.c_str());
         return 1;
     }
     
-    memset(message_to_decoder, 0, SIZEOFPACKAGEFORNAME);
-    memcpy(message_to_decoder, main_scheduler_port_str.c_str(), sizeof(main_scheduler_port_str.c_str()));
-    tcp_server_for_decoder->Send(message_to_decoder, SIZEOFPACKAGEFORNAME, decoder_id);
-    reply_from_decoder = tcp_server_for_decoder->receive_name_with_id(decoder_id);
+    memset(message_to_module, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(message_to_module, main_scheduler_port_str.c_str(), sizeof(main_scheduler_port_str.c_str()));
+    tcp_server_for_module->Send(message_to_module, SIZEOFPACKAGEFORNAME, module_id);
+    reply_from_decoder = tcp_server_for_module->receive_name_with_id(module_id);
     if(reply_from_decoder != "ready"){
-        printf("report_to_decoder_as_helper_scheduler: failed with reply from decoder: {%s}\n", reply_from_decoder.c_str());
+        printf("report_to_module_as_helper_scheduler: failed with reply from module: {%s}\n", reply_from_decoder.c_str());
         return 1;
     }
     
-    free(message_to_decoder);
+    free(message_to_module);
     return 0;
 }
 
@@ -692,6 +692,7 @@ int main(int argc, char *argv[], char **env)
 
     // Start TCPServer for managing decoder
     // Create server and wait for decoder to connect
+    // Create server and wait for filter to connect
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     pthread_mutex_lock(&port_access_lock);
     int scheduler_port_for_decoder = self_server_port_marker++;
@@ -756,7 +757,7 @@ int main(int argc, char *argv[], char **env)
                     free(d_args);
                 }
 
-                report_to_decoder_as_helper_scheduler(&tcp_server_for_decoder, decoder_id, argv, main_scheduler_port_for_decoder);
+                report_to_module_as_helper_scheduler(&tcp_server_for_decoder, decoder_id, argv, main_scheduler_port_for_decoder);
 
                 pthread_mutex_lock(&workflow_access_lock);
                 workflows = (workflow**) realloc(workflows, ++current_num_of_workflows * sizeof(workflow*));
@@ -1050,7 +1051,7 @@ int main(int argc, char *argv[], char **env)
             eval_file << duration.count() << ", ";
 
             if(!is_using_decoder_remotely){
-                report_to_decoder_as_main_scheduler(&tcp_server_for_decoder, decoder_id);
+                report_to_module_as_main_scheduler(&tcp_server_for_decoder, decoder_id);
             }
 
             // Reset counter for evaluation

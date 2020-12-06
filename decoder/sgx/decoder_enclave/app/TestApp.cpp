@@ -1034,9 +1034,10 @@ void do_decoding(
     size_t md_size = md_json_len + 16 + 46 + 1;
 
     // Parameters to be acquired from enclave
-    u32* frame_width = (u32*)malloc(sizeof(u32)); 
-    u32* frame_height = (u32*)malloc(sizeof(u32));
-    int* num_of_frames = (int*)malloc(sizeof(int));
+    // u32* frame_width = (u32*)malloc(sizeof(u32)); 
+    // u32* frame_height = (u32*)malloc(sizeof(u32));
+    // int* num_of_frames = (int*)malloc(sizeof(int));
+    int num_of_frames = md->total_frames;
     int frame_size = sizeof(u8) * md->width * md->height * 3;
     size_t total_size_of_raw_rgb_buffer = frame_size * md->total_frames;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
@@ -1064,14 +1065,22 @@ void do_decoding(
     start = high_resolution_clock::now();
 
     int ret = 0;
-    sgx_status_t status = t_sgxver_decode_content(global_eid, &ret,
+    sgx_status_t status = t_sgxver_prepare_decoder(global_eid, &ret,
                                                   contentBuffer, contentSize, 
                                                   md_json, md_json_len,
                                                   vendor_pub, vendor_pub_len,
                                                   camera_cert, camera_cert_len,
-                                                  vid_sig, vid_sig_length,
-                                                  frame_width, frame_height, num_of_frames, 
-                                                  output_rgb_buffer, output_sig_buffer, output_md_buffer);
+                                                  vid_sig, vid_sig_length);
+    // printf("[decoder: TestApp]: t_sgxver_prepare_decoder: [%d]\n", ret);
+
+    // status = t_sgxver_decode_content(global_eid, &ret,
+    //                                               contentBuffer, contentSize, 
+    //                                               md_json, md_json_len,
+    //                                               vendor_pub, vendor_pub_len,
+    //                                               camera_cert, camera_cert_len,
+    //                                               vid_sig, vid_sig_length,
+    //                                               frame_width, frame_height, &num_of_frames, 
+    //                                               output_rgb_buffer, output_sig_buffer, output_md_buffer);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
@@ -1079,12 +1088,15 @@ void do_decoding(
 
     auto start_s = high_resolution_clock::now();
 
-    if (ret) {
-        printf("[decoder:TestApp]: Failed to decode video\n");
+    if (ret != 1) {
+        printf("[decoder:TestApp]: Failed to prepare decoding video with error code: [%d]\n", ret);
+        close_app(0);
     }
     else {
-        printf("[decoder:TestApp]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
-            *frame_width, *frame_height, *num_of_frames);
+        // printf("[decoder:TestApp]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+        //     *frame_width, *frame_height, *num_of_frames);
+
+        // Clean signle frame info each time before getting something new...
 
         u8* temp_output_rgb_buffer = output_rgb_buffer;
         u8* temp_output_sig_buffer = output_sig_buffer;
@@ -1110,38 +1122,40 @@ void do_decoding(
             printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");
             return;
         }
-        // tcp_clients = (TCPClient**) malloc(sizeof(TCPClient*) * num_of_pair_of_output);
-        // for(int i = 0; i < num_of_pair_of_output; ++i){
-        //     tcp_clients[i] = new TCPClient();
-        //     // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
-        //     bool result_of_connection_setup = false;
-        //     while(!result_of_connection_setup){
-        //         result_of_connection_setup = tcp_clients[i]->setup(argv[2 + i * 2], atoi(argv[3 + i * 2]));
-        //         sleep(1);
-        //     }
-        //     // if(!result_of_connection_setup){
-        //     //     printf("[decoder:TestApp]: TCPClient connection set-up failed with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
-        //     //     return;
-        //     // }
-            
-        //     // printf("[decoder:TestApp]: Going to send_message for cert to ip: (%s), port: (%s)...\n", argv[2 + i * 2], argv[3 + i * 2]);
-        //     // Send certificate
-        //     send_message(msg_buf, size_of_msg_buf, i);
-        //     // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
-        //     send_buffer(der_cert, size_of_cert, i);
-        //     // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
-        // }
 
         end = high_resolution_clock::now();
         duration = duration_cast<microseconds>(end - start_s);
         alt_eval_file << duration.count() << ", ";
 
-        // Start sending frames 
-        for(int i = 0; i < *num_of_frames; ++i){
+        // Init for single frame info
+        u8* single_frame_buf = (u8*)malloc(frame_size);
+        u8* single_frame_md_json = (u8*)malloc(md_size);
+        u8* single_frame_sig = (u8*)malloc(sig_size);
 
-            string frame_num = to_string(i);
+        // Start sending frames 
+        for(int i = 0; i < num_of_frames; ++i){
 
             // printf("[decoder:TestApp]: Sending frame: %d\n", i);
+
+            // Clean signle frame info each time before getting something new...
+            memset(single_frame_buf, 0, frame_size);
+            memset(single_frame_md_json, 0, md_size);
+            memset(single_frame_sig, 0, sig_size);
+
+            sgx_status_t status = t_sgxver_decode_single_frame(global_eid, &ret,
+                                                            single_frame_buf, frame_size,
+                                                            single_frame_md_json, md_size,
+                                                            single_frame_sig, sig_size);
+
+            if(ret == -1 && i + 1 < num_of_frames){
+                printf("[decoder:TestApp]: Finished decoding video on incorrect frame: [%d], where total frame is: [%d]...\n", i, num_of_frames);
+                close_app(0);
+            } else if(ret != 0 && ret != -1){
+                printf("[decoder:TestApp]: Failed to decode video on frame: [%d]\n", i);
+                close_app(0);
+            }
+
+            string frame_num = to_string(i);
             
             // Send frame
             // char* b64_frame = NULL;
@@ -1158,14 +1172,15 @@ void do_decoding(
             // int last_pixel_position = 1280 * 720 * 3 - 3;
             // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
             // printf("Going to send frame %d's info...\n", i);
-            send_buffer(temp_output_rgb_buffer, frame_size, current_sending_target_id);
+            // send_buffer(temp_output_rgb_buffer, frame_size, current_sending_target_id);
+            send_buffer(single_frame_buf, frame_size, current_sending_target_id);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << ", ";
 
             // free(b64_frame);
-            temp_output_rgb_buffer += frame_size;
+            // temp_output_rgb_buffer += frame_size;
 
             // Send signature
             // char* b64_sig = NULL;
@@ -1180,14 +1195,15 @@ void do_decoding(
             send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
             // printf("signature(%d) going to be sent is: [%s]\n", b64_sig_size, b64_sig);
             // printf("Going to send frame %d's sig's info...\n", i);
-            send_buffer(temp_output_sig_buffer, sig_size, current_sending_target_id);
+            // send_buffer(temp_output_sig_buffer, sig_size, current_sending_target_id);
+            send_buffer(single_frame_sig, sig_size, current_sending_target_id);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << ", ";
             
             //free(b64_sig);
-            temp_output_sig_buffer += sig_size;
+            // temp_output_sig_buffer += sig_size;
 
             // Send metadata
             memset(msg_buf, 0, size_of_msg_buf);
@@ -1203,14 +1219,15 @@ void do_decoding(
             start = high_resolution_clock::now();
 
             send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
-            send_buffer(temp_output_md_buffer, md_size, current_sending_target_id);
+            // send_buffer(temp_output_md_buffer, md_size, current_sending_target_id);
+            send_buffer(single_frame_md_json, md_size, current_sending_target_id);
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << "\n";
 
             //free(md_for_print);
-            temp_output_md_buffer += md_size;
+            // temp_output_md_buffer += md_size;
 
             // Switch to next sending target
             current_sending_target_id = (current_sending_target_id + 1) % num_of_pair_of_output;
@@ -1234,12 +1251,12 @@ void do_decoding(
 
     // Free everything
     // printf("[decoder:TestApp]: Going to call free at the end of decoder...\n");
-    if(frame_width)
-        free(frame_width);
-    if(frame_height)
-        free(frame_height);
-    if(num_of_frames)
-        free(num_of_frames);
+    // if(frame_width)
+    //     free(frame_width);
+    // if(frame_height)
+    //     free(frame_height);
+    // if(num_of_frames)
+    //     free(num_of_frames);
     if(contentBuffer)
         free(contentBuffer);
     if(output_rgb_buffer)

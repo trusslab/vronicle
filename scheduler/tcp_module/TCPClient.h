@@ -20,7 +20,9 @@ class TCPClient
     bool Send(string data);
     bool Send(void* data, size_t len);
     string receive(int size = 4096);
-    string receive_exact(int size);
+    char* receive_exact(int size);
+    string receive_name();
+    long receive_size_of_data();
     string read();
     void exit();
 };

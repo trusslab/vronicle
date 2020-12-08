@@ -318,32 +318,34 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	int ret = 1;
 	char* filter_name = "gray";
 	if (!img_pixels) {
-		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
+		printf("[filter_gray:TestEnclave]: Holy sh*t, this should never happen!!!!!!!!!\n");
 		return ret;
 	}
 
 	// Verify signature
 	unsigned char* buf = (unsigned char*)malloc(size_of_img_pixels + size_of_md_json);
 	if (!buf) {
-		printf("No memory left\n");
+		printf("[filter_gray:TestEnclave]: No memory left\n");
 		ret = 1;
 		return ret;
 	}
 	memset(buf, 0, size_of_img_pixels + size_of_md_json);
 	memcpy(buf, img_pixels, size_of_img_pixels);
 	memcpy(buf + size_of_img_pixels, md_json, size_of_md_json);
+    // printf("[filter_gray:TestEnclave]: md_json(%d): [%s]\n", size_of_md_json, md_json);
+    // printf("[filter_gray:TestEnclave]: frame_sig(%d): [%s]\n", size_of_img_sig, img_sig);
 	ret = verify_hash(buf, size_of_img_pixels + size_of_md_json, (unsigned char*)img_sig, size_of_img_sig, pubkey);
 	free(buf);
 	if (ret != 1) {
 		ret = 1;
-		printf("Failed to verify signature\n");
+		printf("[filter_gray:TestEnclave]: Failed to verify signature\n");
 		return ret;
 	}
 
 	// Parse metadata
 	metadata* tmp = json_2_metadata((char*)md_json, size_of_md_json);
 	if (!tmp) {
-		printf("Failed to parse metadata\n");
+		printf("[filter_gray:TestEnclave]: Failed to parse metadata\n");
 		ret = 1;
 		return ret;
 	}
@@ -363,7 +365,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	memset(tmp->digests[filter_idx + 1], 0, mrenclave_len);
 	memcpy(tmp->digests[filter_idx + 1], mrenclave, mrenclave_len);
 	char* output_json = metadata_2_json(tmp);
-	free(tmp);
+	free_metadata(tmp);
 
 	// Create buffer for signing
 	unsigned char* data_buf = (unsigned char*)malloc(processed_pixels_size + strlen(output_json));
@@ -374,6 +376,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	// Generate signature
 	size_t sig_size = 384;
 	unsigned char* sig = (unsigned char*)malloc(sig_size);
+    // printf("[filter_gray:TestEnclave]: for signing: processed_pixels_size: %d; md_json(%d): [%s]\n", processed_pixels_size, strlen(output_json), output_json);
 	ret = sign(enc_priv_key, (void*)data_buf, processed_pixels_size + strlen(output_json), sig, &sig_size);
 	if(ret != 0){
 		free(processed_pixels);

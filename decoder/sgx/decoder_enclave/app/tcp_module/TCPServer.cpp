@@ -289,7 +289,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	printf("TCPServer is going to be closed...\n");
+	// printf("TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

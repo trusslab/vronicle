@@ -15,7 +15,7 @@ using namespace std;
 
 struct descript_socket{
 	int socket     = -1;
-	string ip      = "";
+	string ip;
 	int id         = -1; 
 	char* message;
 	int size_of_packet = 0;
@@ -29,19 +29,22 @@ class TCPServer
 	public:
 	int setup(int port, vector<int> opts = vector<int>());
 	vector<descript_socket*> getMessage();
-	void accepted();
+	int accepted();
+	string get_client_ip(int client_id);
 	void Send(string msg, int id);
-	void Send(char* msg, int msg_len, int id);
+	void Send(void* data, int data_size, int id);
 	void send_to_last_connected_client(void* data, int data_size);
 	void detach(int id);
 	void clean(int id);
-        bool is_online();
-	string get_ip_addr(int id);
+    bool is_online();
 	int get_last_closed_sockets();
 	void closed();
     char* receive_exact(int size);
+	char* receive_exact_with_id(int size, int id);
     string receive_name();
+    string receive_name_with_id(int id);
     long receive_size_of_data();
+    long receive_size_of_data_with_id(int id);
 
 	private:
 	int sockfd, n, pid;
@@ -49,16 +52,15 @@ class TCPServer
 	struct sockaddr_in clientAddress;
 	pthread_t serverThread[ MAX_CLIENT ];
 
-	static vector<descript_socket*> newsockfd;
-	static char msg[ MAXPACKETSIZE ];
-	static vector<descript_socket*> Message;//[CODA_MSG];
+	vector<descript_socket*> newsockfd;
+	char msg[ MAXPACKETSIZE ];
+	vector<descript_socket*> Message;//[CODA_MSG];
 
-	static bool isonline;
-	static int last_closed;
-	static int last_client_num;
-	static int num_client;
+	bool isonline;
+	int last_closed;
+	int last_client_num;
+	int num_client;
 	static std::mutex mt;
-	static void * Task(void * argv);
 };
 
 #endif

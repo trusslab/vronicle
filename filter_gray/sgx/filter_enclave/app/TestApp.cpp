@@ -318,7 +318,7 @@ int initialize_enclave(void)
     if (fp == NULL && (fp = fopen(token_path, "wb")) == NULL) {
         printf("Warning: Failed to create/open the launch token file \"%s\".\n", token_path);
     }
-    printf("token_path: %s\n", token_path);
+    // printf("token_path: %s\n", token_path);
     if (fp != NULL) {
         /* read the token from saved file */
         size_t read_num = fread(token, 1, sizeof(sgx_launch_token_t), fp);
@@ -625,7 +625,7 @@ int str_to_hash(char* str_for_hashing, int size_of_str_for_hashing, char* hash_o
 }
 
 void close_app(int signum) {
-	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
+	printf("[filter_gray:TestApp]: There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
 	tcp_client.exit();
 	exit(0);
@@ -706,7 +706,7 @@ void * received(void * m)
                     current_writing_location = cert;
                     break;
                 default:
-                    printf("No file indicator is set, aborted...\n");
+                    printf("[filter_gray:TestApp]: No file indicator is set, aborted...\n");
                     free(reply_msg);
                     return 0;
             }
@@ -857,7 +857,7 @@ int verification_reply(
     // printf("md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
-        printf("Failed to parse metadata\n");
+        printf("[filter_gray:TestApp]: Failed to parse metadata\n");
         return 1;
     }
 
@@ -875,7 +875,7 @@ int verification_reply(
     // printf("Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size_p * sizeof(char), raw_frame_buf_len);
     pixel* image_pixels = (pixel*)malloc(frame_size_p * sizeof(char));
     if (!image_pixels) {
-        printf("No memory left(image_pixels)\n");
+        printf("[filter_gray:TestApp]: No memory left(image_pixels)\n");
         return 1;
     }
 
@@ -890,14 +890,14 @@ int verification_reply(
     // Prepare processed Image
     processed_pixels_p = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
     if (!processed_pixels_p) {
-        printf("No memory left(processed_pixels_p)\n");
+        printf("[filter_gray:TestApp]: No memory left(processed_pixels_p)\n");
         return 1;
     }
     // Prepare for signature output and its hash
     size_of_processed_img_signature_p = 384;
     processed_img_signature_p = (unsigned char*)malloc(size_of_processed_img_signature_p);
     if (!processed_img_signature_p) {
-        printf("No memory left\n");
+        printf("[filter_gray:TestApp]: No memory left\n");
         return 1;
     }
 
@@ -906,7 +906,7 @@ int verification_reply(
     out_md_json_p = (char*)malloc(out_md_json_len_p);
     memset(out_md_json_p, 0, out_md_json_len_p);
     if (!out_md_json_p) {
-        printf("No memory left(out_md_json_p)\n");
+        printf("[filter_gray:TestApp]: No memory left(out_md_json_p)\n");
         return 1;
     }
 
@@ -931,12 +931,12 @@ int verification_reply(
     eval_file << duration.count() << ", "; 
 
     if (status != SGX_SUCCESS) {
-        printf("Call to t_sgxver_call_apis has failed.\n");
+        printf("[filter_gray:TestApp]: Call to t_sgxver_call_apis has failed.\n");
         return 1;    //Test failed
     }
 
     if (ret != 0) {
-        printf("Runtime result verification failed: %d\n", ret);
+        printf("[filter_gray:TestApp]: Runtime result verification failed: %d\n", ret);
         return 1;
     }
 
@@ -973,7 +973,7 @@ int verification_reply(
 
     // Placeholder for sending frame info
     if(pthread_create(&sender_msg, NULL, send_frame_info_to_next_enclave, (void *)0) != 0){
-        printf("pthread for sending created failed...quiting...\n");
+        printf("[filter_gray:TestApp]: pthread for sending created failed...quiting...\n");
         return 1;
     }
 
@@ -996,7 +996,7 @@ int verification_reply(
     if(processed_img_signature_p)
         free(processed_img_signature_p);
     if(md)
-        free(md);
+        free_metadata(md);
     if(md_json){
         free(md_json);
         md_json = NULL;
@@ -1041,12 +1041,12 @@ void request_process_loop(char** argv)
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
         tcp_server.accepted();
-        cerr << "Accepted" << endl;
+        // cerr << "Accepted" << endl;
 
         start = high_resolution_clock::now();
 
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("pthread for receiving created failed...quiting...\n");
+            printf("[filter_gray:TestApp]: pthread for receiving created failed...quiting...\n");
             return;
         }
         pthread_join(msg, NULL);
@@ -1055,10 +1055,10 @@ void request_process_loop(char** argv)
         duration = duration_cast<microseconds>(stop - start);
         alt_eval_file << duration.count() << ", ";
 
-        printf("ias cert received successfully...\n");
+        // printf("[filter_gray:TestApp]: ias cert received successfully...\n");
     }
     else
-        cerr << "Errore apertura socket" << endl;
+        cerr << "[filter_gray:TestApp]: Errore apertura socket" << endl;
 
     start = high_resolution_clock::now();
 
@@ -1071,14 +1071,14 @@ void request_process_loop(char** argv)
     alt_eval_file << duration.count() << ", ";
 
     if (status_of_verification != SGX_SUCCESS) {
-        cout << "Failed to read IAS certificate file" << endl;
+        cout << "[filter_gray:TestApp]: Failed to read IAS certificate file" << endl;
         free(cert);
         return;
     }
     free(cert);
 
 
-    printf("ias certificate verified successfully, going to start receving and processing frames...\n");
+    // printf("[filter_gray:TestApp]: ias certificate verified successfully, going to start receving and processing frames...\n");
 	// tcp_server.closed();
     
     start = high_resolution_clock::now();
@@ -1087,10 +1087,10 @@ void request_process_loop(char** argv)
     msg_buf = (char*) malloc(size_of_msg_buf);
 
     // Prepare tcp client
-    printf("Setting up tcp client...\n");
+    // printf("[filter_gray:TestApp]: Setting up tcp client...\n");
     tcp_client.setup(argv[2], atoi(argv[3]));
 
-    printf("Going to first send der_cert through tcp client...\n");
+    // printf("[filter_gray:TestApp]: Going to first send der_cert through tcp client...\n");
     // Send certificate
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
@@ -1110,7 +1110,7 @@ void request_process_loop(char** argv)
     auto start_of_processing = high_resolution_clock::now();
 
     if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-        printf("pthread for receiving created failed...quiting...\n");
+        printf("[filter_gray:TestApp]: pthread for receiving created failed...quiting...\n");
         return;
     }
 
@@ -1137,7 +1137,7 @@ void request_process_loop(char** argv)
         eval_file << duration.count() << ", ";
         
         ++num_of_times_received;
-        printf("Now on frame: %d\n", num_of_times_received);
+        // printf("[filter_gray:TestApp]: Now on frame: %d\n", num_of_times_received);
         
         start = high_resolution_clock::now();
 
@@ -1168,7 +1168,7 @@ void request_process_loop(char** argv)
         eval_file << duration.count() << ", ";
 
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("pthread for receiving created failed...quiting...\n");
+            printf("[filter_gray:TestApp]: pthread for receiving created failed...quiting...\n");
             return;
         }
         // printf("Going to process frame %d\n", num_of_times_received);
@@ -1176,7 +1176,7 @@ void request_process_loop(char** argv)
         // printf("Going to process and send frame: %d\n", num_of_times_received - 1);
         int process_status = verification_reply(&src_addr , src_addrlen, buf, recv_time, argv);
         if(process_status != 0){
-            printf("frame process error...exiting...\n");
+            printf("[filter_gray:TestApp]: frame process error...exiting...\n");
             break;
         }
         // md_json = NULL;
@@ -1211,7 +1211,7 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 4){
-        printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
+        printf("[filter_gray:TestApp]: Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
         return 1;
     }
 
@@ -1219,13 +1219,13 @@ int main(int argc, char *argv[], char **env)
     mkdir("../../../evaluation/eval_result", 0777);
     eval_file.open("../../../evaluation/eval_result/eval_filter_blur.csv");
     if (!eval_file.is_open()) {
-        printf("Could not open eval file.\n");
+        printf("[filter_gray:TestApp]: Could not open eval file.\n");
         return 1;
     }
 
     alt_eval_file.open("../../../evaluation/eval_result/eval_filter_blur_one_time.csv");
     if (!alt_eval_file.is_open()) {
-        printf("Could not open alt_eval_file file.\n");
+        printf("[filter_gray:TestApp]: Could not open alt_eval_file file.\n");
         return 1;
     }
     

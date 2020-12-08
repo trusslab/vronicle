@@ -121,7 +121,6 @@ char* metadata_2_json(metadata *md)
 
 metadata* json_2_metadata(char* json, size_t json_len)
 {
-    // TO-DO: FIX the memory leakage
     metadata* md = (metadata*)malloc(sizeof(metadata));
     jsmn_parser p;
     jsmntok_t t[128];
@@ -138,46 +137,59 @@ metadata* json_2_metadata(char* json, size_t json_len)
             i++;
         }
         else if (jsoneq(json, &t[i], "timestamp") == 0)
-        {  
-            // Part of an example fix for all memory leak happened
-            char* temp_pointer = get_token_data(t[i+1], json);
-            md->timestamp = atoi(temp_pointer);
-            free(temp_pointer);
+        {
+            char* temp_timestamp_char_array = get_token_data(t[i+1], json);
+            md->timestamp = atoi(temp_timestamp_char_array);
+            free(temp_timestamp_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "width") == 0)
         {
-            md->width = atoi(get_token_data(t[i+1], json));
+            char* temp_width_char_array = get_token_data(t[i+1], json);
+            md->width = atoi(temp_width_char_array);
+            free(temp_width_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "height") == 0)
         {
-            md->height = atoi(get_token_data(t[i+1], json));
+            char* temp_height_char_array = get_token_data(t[i+1], json);
+            md->height = atoi(temp_height_char_array);
+            free(temp_height_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "segment_id") == 0)
         {
-            md->segment_id = atoi(get_token_data(t[i+1], json));
+            char* temp_segment_id_char_array = get_token_data(t[i+1], json);
+            md->segment_id = atoi(temp_segment_id_char_array);
+            free(temp_segment_id_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "total_segments") == 0)
         {
-            md->total_segments = atoi(get_token_data(t[i+1], json));
+            char* temp_total_segments_char_array = get_token_data(t[i+1], json);
+            md->total_segments = atoi(temp_total_segments_char_array);
+            free(temp_total_segments_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "frame_rate") == 0)
         {
-            md->frame_rate = atoi(get_token_data(t[i+1], json));
+            char* temp_frame_rate_char_array = get_token_data(t[i+1], json);
+            md->frame_rate = atoi(temp_frame_rate_char_array);
+            free(temp_frame_rate_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "total_frames") == 0)
         {
-            md->total_frames = atoi(get_token_data(t[i+1], json));
+            char* temp_total_frames_char_array = get_token_data(t[i+1], json);
+            md->total_frames = atoi(temp_total_frames_char_array);
+            free(temp_total_frames_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "total_filters") == 0)
         {
-            md->total_filters = atoi(get_token_data(t[i+1], json));
+            char* temp_total_frames_char_array = get_token_data(t[i+1], json);
+            md->total_filters = atoi(temp_total_frames_char_array);
+            free(temp_total_frames_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "filters") == 0)
@@ -192,7 +204,9 @@ metadata* json_2_metadata(char* json, size_t json_len)
         }
         else if (jsoneq(json, &t[i], "total_digests") == 0)
         {
-            md->total_digests = atoi(get_token_data(t[i+1], json));
+            char* temp_total_digests_char_array = get_token_data(t[i+1], json);
+            md->total_digests = atoi(temp_total_digests_char_array);
+            free(temp_total_digests_char_array);
             i++;
         }
         else if (jsoneq(json, &t[i], "digests") == 0)
@@ -207,7 +221,9 @@ metadata* json_2_metadata(char* json, size_t json_len)
         }
         else if (jsoneq(json, &t[i], "frame_id") == 0)
         {
-            md->frame_id = atoi(get_token_data(t[i+1], json));
+            char* temp_frame_id_char_array = get_token_data(t[i+1], json);
+            md->frame_id = atoi(temp_frame_id_char_array);
+            free(temp_frame_id_char_array);
             i++;
         }
         else
@@ -243,6 +259,25 @@ void print_metadata(metadata* md) {
         printf("    digest %i: %s\n", i, md->digests[i]);
     }
     printf("frame_id:  %i\n", md->frame_id);
+}
+
+void free_metadata(metadata* md){
+    if(md->video_id){
+        free(md->video_id);
+    }
+    if(md->filters){
+        for(int i = 0; i < md->total_filters; ++i){
+            free(md->filters[i]);
+        }
+        free(md->filters);
+    }
+    if(md->digests){
+        for(int i = 0; i < md->total_digests; ++i){
+            free(md->digests[i]);
+        }
+        free(md->digests);
+    }
+    free(md);
 }
 
 #ifdef __cplusplus

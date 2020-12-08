@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "chrono": "cpp",
+        "iostream": "cpp",
+        "ostream": "cpp"
     }
 }

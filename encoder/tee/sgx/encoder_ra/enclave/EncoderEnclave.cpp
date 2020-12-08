@@ -143,7 +143,8 @@ struct evp_pkey_st {
 } /* EVP_PKEY */ ;
 
 EVP_PKEY *enc_priv_key;
-EVP_PKEY *pubkey;
+EVP_PKEY **pubkeys;
+int num_of_pubkey_allocated = 0;    // Note that this may not be the true number of ias_pubkeys available
 
 static void psnr_init()
 {
@@ -214,13 +215,13 @@ int sign(EVP_PKEY* priKey, unsigned char *data, size_t data_size, unsigned char*
         * signature. Length is returned in slen */
         if (!sig) {
             if (1 != EVP_DigestSignFinal(mdctx, NULL, sig_size)) {
-                printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+                printf("[EncoderEnclave]: EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
                 ret = 1;
                 break;
             }
         } else {
             if (1 != EVP_DigestSignFinal(mdctx, *sig, sig_size)) {
-                printf("EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+                printf("[EncoderEnclave]: EVP_DigestSignFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
                 ret = 1;
                 break;
             }
@@ -248,7 +249,7 @@ int verify_sig (void* file, size_t size_of_file,
 		md = EVP_get_digestbyname("SHA256");
 
 		if (md == NULL) {
-			printf("Unknown message digest %s\n", "SHA256");
+			printf("[EncoderEnclave]: Unknown message digest %s\n", "SHA256");
 			break;
 		}
 
@@ -257,19 +258,19 @@ int verify_sig (void* file, size_t size_of_file,
 
 		ret = EVP_VerifyInit_ex(mdctx, EVP_sha256(), NULL);
 		if(ret != 1){
-			printf("EVP_VerifyInit_ex error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			printf("[EncoderEnclave]: EVP_VerifyInit_ex error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 			break;
 		}
 
 		ret = EVP_VerifyUpdate(mdctx, file, size_of_file);
 		if(ret != 1){
-			printf("EVP_VerifyUpdate error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			printf("[EncoderEnclave]: EVP_VerifyUpdate error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 			break;
 		}
 
 		ret = EVP_VerifyFinal(mdctx, signature, (unsigned int)size_of_siganture, public_key);
 		if(ret != 1){
-			printf("EVP_VerifyFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
+			printf("[EncoderEnclave]: EVP_VerifyFinal error: %s. \n", ERR_error_string(ERR_get_error(), NULL));
 			break;
 		}
 	} while(0);
@@ -360,12 +361,13 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 int t_encoder_init (cmdline *cl_in, size_t cl_size, 
                     unsigned char* frame_sig, size_t frame_sig_size,
                     uint8_t* frame, size_t frame_size,
-                    char* md_json,  size_t md_json_size)
+                    char* md_json,  size_t md_json_size, 
+                    size_t client_id)
 {
     int res = -1;
     // Verify first frame and metadata to obtain 
     // frame-related information from metadata
-    if (!pubkey) {
+    if (!pubkeys || !pubkeys[client_id]) {
         printf("Run t_verify_cert first\n");
         return res;
     }
@@ -378,15 +380,23 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
     memset(buf, 0, frame_size + md_json_size);
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
-    printf("md_json(%d): [%s]\n", md_json_size, md_json);
-    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, pubkey);
+    // printf("[EncoderEnclave]: frame_size: %d; md_json(%d): [%s]; client_id: [%d]\n", frame_size, md_json_size, md_json, client_id);
+    // printf("[EncoderEnclave]: frame_sig(%d): [%s]\n", frame_sig_size, frame_sig);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, pubkeys[client_id]);
     if (res != 1) {
-        printf("Signature cannot be verified\n");
+        printf("[EncoderEnclave]: Signature cannot be verified\n");
         return -1;
     }
     md_json[md_json_size - 18] = '}'; // Remove frame_id from metadata
     memset(md_json + (md_json_size - 17), '\0', 17);
+    // printf("[EncoderEnclave]: Let's see if we actually remove frame_id(%d)(%d): [%s]\n", strlen(md_json), md_json_size - 17, md_json);
     in_md = json_2_metadata(md_json, md_json_size - 17);
+
+    // char* output_json_4_in = metadata_2_json_without_frame_id(in_md);
+    
+    // printf("[EncoderEnclave]: In t_encoder_init, we have output_json_4_in(%d): [%s]\n", strlen(output_json_4_in), output_json_4_in);
+    // free(output_json_4_in);
+
     cl = (cmdline*)malloc(sizeof(cmdline));
     memset(cl, 0, sizeof(cmdline));
     memcpy(cl, cl_in, sizeof(cmdline));
@@ -469,19 +479,21 @@ int t_encoder_init (cmdline *cl_in, size_t cl_size,
         printf("H264E_init error = %d\n", error);
         return 1;
     }
+
     return 0;
 }
 
 int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
                     uint8_t* frame, size_t frame_size,
-                    char* md_json,  size_t md_json_size)
+                    char* md_json,  size_t md_json_size, 
+                    size_t client_id)
 {
     int res = -1;
     // Verify signature of frame
     // The signature should have two information:
     // (1) The frame
     // (2) A metadata of the frame (frame ID, total # of frames, segment ID)
-    if (!pubkey) {
+    if (!pubkeys || !pubkeys[client_id]) {
         printf("Run t_verify_cert first\n");
         return -1;
     }
@@ -493,7 +505,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     memset(buf, 0, frame_size + md_json_size);
     memcpy(buf, frame, frame_size);
     memcpy(buf + frame_size, md_json, md_json_size);
-    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, pubkey);
+    res = verify_sig((void*)buf, frame_size + md_json_size, frame_sig, frame_sig_size, pubkeys[client_id]);
     if (res != 1) {
         printf("Signature cannot be verified\n");
         return -1;
@@ -506,7 +518,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
         return -1;
     }
     int fps = md->frame_rate;
-    free(md);
+    free_metadata(md);
     frame_counter++;
     // Encode frame
     if (cl->is_yuyv) {
@@ -657,7 +669,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     return res;
 }
 
-int t_verify_cert(void* cert, size_t size_of_cert)
+int t_verify_cert(void* cert, size_t size_of_cert, size_t client_id)
 {
 	int ret = 1;
 	X509 *crt = NULL;
@@ -673,13 +685,18 @@ int t_verify_cert(void* cert, size_t size_of_cert)
 			break;
 		}
 
+        if(client_id + 1 > num_of_pubkey_allocated){
+            num_of_pubkey_allocated = client_id + 1;
+            pubkeys = (EVP_PKEY**)realloc(pubkeys, num_of_pubkey_allocated * sizeof(EVP_PKEY*));
+        }
+
 		// Extract public key from certificate
-		pubkey = EVP_PKEY_new();
+		pubkeys[client_id] = EVP_PKEY_new();
  	    const unsigned char* p = (unsigned char*)cert;
  	    crt = d2i_X509(NULL, &p, size_of_cert);
  	    assert(crt != NULL);
- 	    pubkey = X509_get_pubkey(crt);
-		if(!pubkey){
+ 	    pubkeys[client_id] = X509_get_pubkey(crt);
+		if(!pubkey[client_id]){
 			ret = 1;
 			printf("Failed to retreive public key\n");
 			break;
@@ -694,6 +711,12 @@ int t_verify_cert(void* cert, size_t size_of_cert)
 void t_get_sig_size (size_t* sig_size)
 {
     // Generate metadata
+
+    // char* output_json_4_in = metadata_2_json(in_md);
+    
+    // printf("[EncoderEnclave]: In t_get_sig_size, we have output_json_4_in(%d): [%s]\n", strlen(output_json_4_in), output_json_4_in);
+    // free(output_json_4_in);
+
     out_md = in_md;
 	int tmp_total_digests = out_md->total_digests;
 	out_md->total_digests = tmp_total_digests + 1;
@@ -701,7 +724,9 @@ void t_get_sig_size (size_t* sig_size)
 	out_md->digests[tmp_total_digests] = (char*)malloc(mrenclave_len);
 	memset(out_md->digests[tmp_total_digests], 0, mrenclave_len);
 	memcpy(out_md->digests[tmp_total_digests], mrenclave, mrenclave_len);
-	char* output_json = metadata_2_json(out_md);
+	char* output_json = metadata_2_json_without_frame_id(out_md);
+
+    // printf("[EncoderEnclave]: In t_get_sig_size, we have output_json(%d): [%s]\n", strlen(output_json), output_json);
 
 	// Create buffer for signing
 	unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
@@ -719,7 +744,9 @@ void t_get_sig_size (size_t* sig_size)
 
 void t_get_sig (unsigned char* sig, size_t sig_size)
 {
-	char* output_json = metadata_2_json(out_md);
+	char* output_json = metadata_2_json_without_frame_id(out_md);
+
+    // printf("[EncoderEnclave]: In t_get_sig, we have output_json(%d): [%s]\n", strlen(output_json), output_json);
 
 	// Create buffer for signing
 	unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
@@ -736,14 +763,19 @@ void t_get_sig (unsigned char* sig, size_t sig_size)
 
 void t_get_metadata (char* metadata, size_t metadata_size)
 {
-	char* output_json = metadata_2_json(out_md);
+    // printf("[EncoderEnclave]: We are not in t_get_metadata...with metadata_size: %d\n", metadata_size);
+	char* output_json = metadata_2_json_without_frame_id(out_md);
 
-    // printf("In t_get_metadata, we get metadata(%d): [%s]\n", strlen(output_json), output_json);
+    // printf("[EncoderEnclave]: In t_get_metadata, we get metadata(%d): [%s]\n", strlen(output_json), output_json);
 
     metadata_size = strlen(output_json);
     memcpy(metadata, output_json, metadata_size);
 
+    // printf("[EncoderEnclave]: Going to free output_json...\n");
+
     free(output_json);
+
+    // printf("[EncoderEnclave]: t_get_metadata finished...\n");
 }
 
 void t_get_encoded_video_size (size_t* out_data_size)
@@ -800,8 +832,13 @@ void t_create_key_and_x509(void* cert, size_t size_of_cert, void* actual_size_of
 
 void t_free(void)
 {
-    if (pubkey)
-        EVP_PKEY_free(pubkey);
+    if (pubkeys) {
+        for(int i = 0; i < num_of_pubkey_allocated; ++i){
+            if(pubkeys[i])
+                EVP_PKEY_free(pubkeys[i]);
+        }
+        free(pubkeys);
+    }
     if (enc_priv_key)
         EVP_PKEY_free(enc_priv_key);
 
@@ -816,6 +853,10 @@ void t_free(void)
         free(buf_in);
     if (buf_save)
         free(buf_save);
+    
+    // Probably just need to free in_md as I saw out_md is the same as in_md
+    // if (in_md)
+    //     free_metadata(in_md);
 
     // Need to free more if yuyv frames are src
     if (cl->is_yuyv) {

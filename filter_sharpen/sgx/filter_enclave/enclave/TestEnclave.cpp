@@ -352,7 +352,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
     pixel* processed_pixels;
 	size_t processed_pixels_size = sizeof(pixel) * tmp->height * tmp->width;
     processed_pixels = (pixel*)malloc(processed_pixels_size);
-	sharpen((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 5);
+	sharpen((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 7);
 
 	// Generate metadata
 	int tmp_total_digests = tmp->total_digests;
@@ -363,7 +363,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	memset(tmp->digests[filter_idx + 1], 0, mrenclave_len);
 	memcpy(tmp->digests[filter_idx + 1], mrenclave, mrenclave_len);
 	char* output_json = metadata_2_json(tmp);
-	free(tmp);
+	free_metadata(tmp);
 
 	// Create buffer for signing
 	unsigned char* data_buf = (unsigned char*)malloc(processed_pixels_size + strlen(output_json));

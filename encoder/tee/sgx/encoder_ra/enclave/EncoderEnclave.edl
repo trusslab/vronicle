@@ -35,6 +35,9 @@ enclave {
 include "common.h"
     
 from "sgx_tsgxssl.edl" import *;
+include "ra.h"
+include "ra-attester.h"
+include "sgx_report.h"
 
     /* 
      * uprint - invokes OCALL to display string buffer inside the enclave.

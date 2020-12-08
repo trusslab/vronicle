@@ -696,7 +696,7 @@ int t_verify_cert(void* cert, size_t size_of_cert, size_t client_id)
  	    crt = d2i_X509(NULL, &p, size_of_cert);
  	    assert(crt != NULL);
  	    pubkeys[client_id] = X509_get_pubkey(crt);
-		if(!pubkey[client_id]){
+		if(!pubkeys[client_id]){
 			ret = 1;
 			printf("Failed to retreive public key\n");
 			break;

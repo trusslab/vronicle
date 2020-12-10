@@ -1,0 +1,1 @@
+./EncoderApp -fps10 -is_rgb ../../../../video_data/processed_raw/processed_raw_ output_test_a.h264 ../../../../video_data/processed_raw_sign/processed_raw_sign_ output_test_a.sig ../../../../filter_blur/sgx/video_data/filter_cert.der encoder_cert.der ../../../../video_data/processed_raw_md/meta output_test_a_md

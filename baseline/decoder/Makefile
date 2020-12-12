@@ -5,7 +5,7 @@ DECODER_SRC_PATH := $(DECODER_DIR)/src
 DECODER_LIB_NAME := h264bsd
 DECODER_LIB_PATH := $(DECODER_DIR)/lib
 
-TCP_MODULE_DIR := tcp_module
+TCP_MODULE_DIR := ../tcp_module
 
 Cpp_Files := $(wildcard *.cpp) $(wildcard $(TCP_MODULE_DIR)/*.cpp)
 Cpp_Objects := $(Cpp_Files:.cpp=.o)

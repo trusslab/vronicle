@@ -78,8 +78,8 @@
 #include <ctime>
 #include <cerrno>
 #include <cstring>
-#include "tcp_module/TCPServer.h"
-#include "tcp_module/TCPClient.h"
+#include "../tcp_module/TCPServer.h"
+#include "../tcp_module/TCPClient.h"
 
 // For TCP module
 TCPServer tcp_server;   // For direct use

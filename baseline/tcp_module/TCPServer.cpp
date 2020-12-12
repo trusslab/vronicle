@@ -1,135 +1,12 @@
 #include "TCPServer.h" 
 # define MAXTIMESTRYTORECEIVE 5
 
-char TCPServer::msg[MAXPACKETSIZE];
-
-int TCPServer::num_client;
-int TCPServer::last_client_num;
-int TCPServer::last_closed;
-bool TCPServer::isonline;
-vector<descript_socket*> TCPServer::Message;
-vector<descript_socket*> TCPServer::newsockfd;
 std::mutex TCPServer::mt;
 
 void sigpipe_handler(int signum){
-	printf("There is a SIGPIPE error happened...exiting......(%d)\n", signum);
+	printf("[Encoder:TCPServer]: There is a SIGPIPE error happened...exiting......(%d)\n", signum);
 	// tcp.closed();
 	exit(0);
-}
-
-void* TCPServer::Task(void *arg)
-{
-	int n;
-	struct descript_socket *desc = (struct descript_socket*) arg;
-	pthread_detach(pthread_self());
-
-	// char* msg_container;
-
-	int times_remaining_same = 0;	// Check MAXTIMESTRYTORECEIVE for maximum
-	
-	// std::signal(SIGPIPE, sigpipe_handler);
-
-        cerr << "open client[ id:"<< desc->id <<" ip:"<< desc->ip <<" socket:"<< desc->socket<<" send:"<< desc->enable_message_runtime <<" ]" << endl;
-	// Below is another attempt to reduce the chance of BROKENPIPE (potentially failed??)
-	int rounds_left_for_retrying = 3;
-
-	int current_mode = 0;	// 0 is receiving file name; 1 is receiving file size; 2 is receiving file
-	int invalid_current_mode_detected = 0;
-	long remaining_to_target_file_size = 0;
-
-	while(1)
-	{
-		// printf("Going to call recv...\n");
-		// n = recv(desc->socket, msg, SIZEOFPACKAGE, MSG_WAITALL);
-		// n = recv(desc->socket, msg, SIZEOFPACKAGE, 0);
-		switch(current_mode){
-			case 0:
-				n = recv(desc->socket, msg, SIZEOFPACKAGEFORNAME, MSG_WAITALL);
-				current_mode = 1;
-				break;
-			case 1:
-				n = recv(desc->socket, msg, SIZEOFPACKAGEFORSIZE, MSG_WAITALL);
-				current_mode = 2;
-				memcpy(&remaining_to_target_file_size, msg, 8);
-				break;
-			case 2:
-				// printf("Going to receive file...\n");
-				if(remaining_to_target_file_size > SIZEOFPACKAGE){
-					n = recv(desc->socket, msg, SIZEOFPACKAGE, MSG_WAITALL);
-				} else {
-					n = recv(desc->socket, msg, remaining_to_target_file_size, MSG_WAITALL);
-				}
-				// n = recv(desc->socket, msg, SIZEOFPACKAGE, 0);
-				// printf("Going to receive file(finished..\n)...\n");
-				remaining_to_target_file_size -= n;
-				if(remaining_to_target_file_size <= 0){
-					current_mode = 0;
-				}
-				break;
-			default:
-				printf("Invalid current_mode in TCPServer::Task -> %d, exiting...\n", current_mode);
-				invalid_current_mode_detected = 1;
-				isonline = false;
-				cerr << "close client[ id:"<< desc->id <<" ip:"<< desc->ip <<" socket:"<< desc->socket<<" ]" << endl;
-				last_closed = desc->id;
-				close(desc->socket);
-
-				int id = desc->id;
-				auto new_end = std::remove_if(newsockfd.begin(), newsockfd.end(),
-													[id](descript_socket *device)
-														{ return device->id == id; });
-				newsockfd.erase(new_end, newsockfd.end());
-
-				if(num_client>0) num_client--;
-				break;
-		}
-		if(invalid_current_mode_detected){
-			break;
-		}
-		// printf("Potential packet size is: %d\n", n);
-		if(n != -1) 
-		{
-			if(n==0)
-			{
-				if(--rounds_left_for_retrying <= 0){
-					isonline = false;
-					cerr << "close client[ id:"<< desc->id <<" ip:"<< desc->ip <<" socket:"<< desc->socket<<" ]" << endl;
-					last_closed = desc->id;
-					close(desc->socket);
-
-					int id = desc->id;
-					auto new_end = std::remove_if(newsockfd.begin(), newsockfd.end(),
-														[id](descript_socket *device)
-															{ return device->id == id; });
-					newsockfd.erase(new_end, newsockfd.end());
-
-					if(num_client>0) num_client--;
-					break;
-				}
-			} else {
-				desc->message = msg;
-				desc->size_of_packet = n;
-				std::lock_guard<std::mutex> guard(mt);
-				Message.push_back( desc );
-			}
-		} else {
-			printf("Okay..., now we received a -1...\n");
-		}
-		// printf("Going to call usleep...\n");
-		// usleep(20000);
-		// printf("After usleep...\n");
-        }
-	if(desc != NULL){
-		// if(desc->message){
-		// 	free(desc->message);
-		// 	desc->message = NULL;
-		// }
-		free(desc);
-	}
-	cerr << "exit thread: " << this_thread::get_id() << endl;
-	pthread_exit(NULL);
-	
-	return 0;
 }
 
 char* TCPServer::receive_exact(int size)
@@ -140,7 +17,22 @@ char* TCPServer::receive_exact(int size)
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_exact)" << endl;
+		return nullptr;
+  	}
+
+  	return buffer;
+}
+
+char* TCPServer::receive_exact_with_id(int size, int id)
+{
+	char* buffer = (char*) malloc(size);
+	memset(&buffer[0], 0, sizeof(buffer));
+
+  	string reply;
+	if( recv(newsockfd[id]->socket , buffer , size, MSG_WAITALL) < 0)
+  	{
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_exact_with_id)" << endl;
 		return nullptr;
   	}
 
@@ -152,10 +44,30 @@ string TCPServer::receive_name()
   	char buffer[SIZEOFPACKAGEFORNAME + 1];
 	memset(&buffer[0], 0, sizeof(buffer));
 
+	// printf("Trying to receive from last_client_num: %d\n", last_client_num);
+
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_name)" << endl;
+		return nullptr;
+  	}
+	buffer[SIZEOFPACKAGEFORNAME]='\0';
+  	reply = buffer;
+  	return reply;
+}
+
+string TCPServer::receive_name_with_id(int id)
+{
+  	char buffer[SIZEOFPACKAGEFORNAME + 1];
+	memset(&buffer[0], 0, sizeof(buffer));
+
+	// printf("[Encoder:TCPServer]: Trying to receive from id: %d, where last_client_num is: %d\n", id, last_client_num);
+
+  	string reply;
+	if( recv(newsockfd[id]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
+  	{
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_name_with_id)" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -171,7 +83,24 @@ long TCPServer::receive_size_of_data()
 
 	if( recv(newsockfd[last_client_num]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "receive failed!" << endl;
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_size_of_data)" << endl;
+		return -1;
+  	}
+	
+	memcpy(&size_of_data, buffer, 8);
+
+  	return size_of_data;
+}
+
+long TCPServer::receive_size_of_data_with_id(int id)
+{
+  	char buffer[8];
+	memset(&buffer[0], 0, sizeof(buffer));
+	long size_of_data = 0;
+
+	if( recv(newsockfd[id]->socket , buffer , 8, MSG_WAITALL) < 0)
+  	{
+	    	cout << "[Encoder:TCPServer]: receive failed!(receive_size_of_data_with_id)" << endl;
 		return -1;
   	}
 	
@@ -190,7 +119,7 @@ int TCPServer::setup(int port, vector<int> opts)
 
 	for(unsigned int i = 0; i < opts.size(); i++) {
 		if( (setsockopt(sockfd, SOL_SOCKET, opts.size(), (char *)&opt, sizeof(opt))) < 0 ) {
-			cerr << "Errore setsockopt" << endl; 
+			cerr << "[Encoder:TCPServer]: Errore setsockopt" << endl; 
       			return -1;
 	      	}
 	}
@@ -200,12 +129,12 @@ int TCPServer::setup(int port, vector<int> opts)
 	serverAddress.sin_port        = htons(port);
 
 	if((::bind(sockfd,(struct sockaddr *)&serverAddress, sizeof(serverAddress))) < 0){
-		cerr << "Errore bind" << endl;
+		cerr << "[Encoder:TCPServer]: Errore bind" << endl;
 		return -1;
 	}
 	
  	if(listen(sockfd,5) < 0){
-		cerr << "Errore listen" << endl;
+		cerr << "[Encoder:TCPServer]: Errore listen" << endl;
 		return -1;
 	}
 	num_client = 0;
@@ -213,7 +142,7 @@ int TCPServer::setup(int port, vector<int> opts)
 	return 0;
 }
 
-void TCPServer::accepted()
+int TCPServer::accepted()
 {
 	socklen_t sosize    = sizeof(clientAddress);
 	descript_socket *so = new descript_socket;
@@ -222,11 +151,12 @@ void TCPServer::accepted()
 	last_client_num = num_client;
 	so->ip              = inet_ntoa(clientAddress.sin_addr);
 	newsockfd.push_back( so );
-	cerr << "accept client[ id:" << newsockfd[num_client]->id << 
-	                      " ip:" << newsockfd[num_client]->ip << 
-		              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
+	// cerr << "[Encoder:TCPServer]: accept client[ id:" << newsockfd[num_client]->id << 
+	//                       " ip:" << newsockfd[num_client]->ip << 
+	// 	              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
 	isonline=true;
 	num_client++;
+	return so->id;
 }
 
 vector<descript_socket*> TCPServer::getMessage()
@@ -240,10 +170,15 @@ void TCPServer::Send(string msg, int id)
 	send(newsockfd[id]->socket,msg.c_str(),msg.length(),0);
 }
 
-void TCPServer::Send(char* msg, int msg_len, int id)
+void TCPServer::Send(void* data, int data_size, int id)
 {
-	send(newsockfd[id]->socket,msg,msg_len,0);
+	send(newsockfd[id]->socket,data,data_size,0);
 }
+
+// void TCPServer::send_viewer_msg(string msg)
+// {
+// 	send(newsockfd[last_client_num]->socket,msg,msg_len,0);
+// }
 
 void TCPServer::send_to_last_connected_client(void* data, int data_size)
 {
@@ -289,7 +224,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	// printf("TCPServer is going to be closed...\n");
+	// printf("[Encoder:TCPServer]: TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

@@ -979,14 +979,14 @@ int main(int argc, char *argv[], char **env)
     // num_of_pair_of_output += (argc - 4) / 2;
 
     // Open file to store evaluation results
-    mkdir("../../../evaluation/eval_result", 0777);
-    eval_file.open("../../../evaluation/eval_result/eval_decoder.csv");
+    mkdir("../evaluation/eval_result", 0777);
+    eval_file.open("../evaluation/eval_result/eval_decoder.csv");
     if (!eval_file.is_open()) {
         printf("[decoder:TestApp]: Could not open eval file.\n");
         return 1;
     }
 
-    alt_eval_file.open("../../../evaluation/eval_result/eval_decoder_one_time.csv");
+    alt_eval_file.open("../evaluation/eval_result/eval_decoder_one_time.csv");
     if (!alt_eval_file.is_open()) {
         printf("[decoder:TestApp]: Could not open alt_eval_file file.\n");
         return 1;

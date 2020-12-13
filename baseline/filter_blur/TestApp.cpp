@@ -647,14 +647,14 @@ int main(int argc, char *argv[], char **env)
     }
 
     // Open file to store evaluation results
-    mkdir("../../../evaluation/eval_result", 0777);
-    eval_file.open("../../../evaluation/eval_result/eval_filter_blur.csv");
+    mkdir("../evaluation/eval_result", 0777);
+    eval_file.open("../evaluation/eval_result/eval_filter_blur.csv");
     if (!eval_file.is_open()) {
         printf("Could not open eval file.\n");
         return 1;
     }
 
-    alt_eval_file.open("../../../evaluation/eval_result/eval_filter_blur_one_time.csv");
+    alt_eval_file.open("../evaluation/eval_result/eval_filter_blur_one_time.csv");
     if (!alt_eval_file.is_open()) {
         printf("Could not open alt_eval_file file.\n");
         return 1;

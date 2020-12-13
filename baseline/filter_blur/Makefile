@@ -10,16 +10,16 @@ Cpp_Flags := $(Include_Paths)
 Cpp_Link_Flags := -lpthread
 
 .PHONY: all
-all: filter_blur
+all: filter
 
 %.o: %.c
 	$(CC) $(Cpp_Flags) -c $< -o $@
 	@echo "CC  <=  $<"
 
-filter_blur: $(Cpp_Objects)
+filter: $(Cpp_Objects)
 	$(CXX) $^ -o $@ $(Cpp_Link_Flags)
 	@echo "LINK =>  $@"
 
 .PHONY: clean
 clean:
-	@rm -f filter_blur $(Cpp_Objects)
+	@rm -f filter $(Cpp_Objects)

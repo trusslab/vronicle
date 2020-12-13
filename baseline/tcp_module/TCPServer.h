@@ -30,12 +30,13 @@ class TCPServer
 	int setup(int port, vector<int> opts = vector<int>());
 	vector<descript_socket*> getMessage();
 	int accepted();
+	string get_client_ip(int client_id);
 	void Send(string msg, int id);
 	void Send(void* data, int data_size, int id);
 	void send_to_last_connected_client(void* data, int data_size);
 	void detach(int id);
 	void clean(int id);
-        bool is_online();
+    bool is_online();
 	string get_ip_addr(int id);
 	int get_last_closed_sockets();
 	void closed();

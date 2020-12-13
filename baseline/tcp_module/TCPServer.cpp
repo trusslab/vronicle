@@ -17,7 +17,7 @@ char* TCPServer::receive_exact(int size)
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!(receive_exact)" << endl;
+	    	cout << "[TCPServer]: receive failed!(receive_exact)" << endl;
 		return nullptr;
   	}
 
@@ -32,7 +32,7 @@ char* TCPServer::receive_exact_with_id(int size, int id)
   	string reply;
 	if( recv(newsockfd[id]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!(receive_exact_with_id)" << endl;
+	    	cout << "[TCPServer]: receive failed!(receive_exact_with_id)" << endl;
 		return nullptr;
   	}
 
@@ -49,7 +49,7 @@ string TCPServer::receive_name()
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!(receive_name)" << endl;
+	    	cout << "[TCPServer]: receive failed!(receive_name)" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -62,12 +62,12 @@ string TCPServer::receive_name_with_id(int id)
   	char buffer[SIZEOFPACKAGEFORNAME + 1];
 	memset(&buffer[0], 0, sizeof(buffer));
 
-	// printf("[Encoder:TCPServer]: Trying to receive from id: %d, where last_client_num is: %d\n", id, last_client_num);
+	// printf("[TCPServer]: Trying to receive from id: %d, where last_client_num is: %d\n", id, last_client_num);
 
   	string reply;
 	if( recv(newsockfd[id]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!(receive_name_with_id)" << endl;
+	    	cout << "[TCPServer]: receive failed!(receive_name_with_id)" << endl;
 		return nullptr;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
@@ -83,7 +83,7 @@ long TCPServer::receive_size_of_data()
 
 	if( recv(newsockfd[last_client_num]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!(receive_size_of_data)" << endl;
+	    	cout << "[TCPServer]: receive failed!(receive_size_of_data)" << endl;
 		return -1;
   	}
 	
@@ -100,7 +100,7 @@ long TCPServer::receive_size_of_data_with_id(int id)
 
 	if( recv(newsockfd[id]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Encoder:TCPServer]: receive failed!(receive_size_of_data_with_id)" << endl;
+	    	cout << "[TCPServer]: receive failed!(receive_size_of_data_with_id)" << endl;
 		return -1;
   	}
 	
@@ -119,7 +119,7 @@ int TCPServer::setup(int port, vector<int> opts)
 
 	for(unsigned int i = 0; i < opts.size(); i++) {
 		if( (setsockopt(sockfd, SOL_SOCKET, opts.size(), (char *)&opt, sizeof(opt))) < 0 ) {
-			cerr << "[Encoder:TCPServer]: Errore setsockopt" << endl; 
+			cerr << "[TCPServer]: Errore setsockopt" << endl; 
       			return -1;
 	      	}
 	}
@@ -129,12 +129,12 @@ int TCPServer::setup(int port, vector<int> opts)
 	serverAddress.sin_port        = htons(port);
 
 	if((::bind(sockfd,(struct sockaddr *)&serverAddress, sizeof(serverAddress))) < 0){
-		cerr << "[Encoder:TCPServer]: Errore bind" << endl;
+		cerr << "[TCPServer]: Errore bind" << endl;
 		return -1;
 	}
 	
  	if(listen(sockfd,5) < 0){
-		cerr << "[Encoder:TCPServer]: Errore listen" << endl;
+		cerr << "[TCPServer]: Errore listen" << endl;
 		return -1;
 	}
 	num_client = 0;
@@ -151,12 +151,17 @@ int TCPServer::accepted()
 	last_client_num = num_client;
 	so->ip              = inet_ntoa(clientAddress.sin_addr);
 	newsockfd.push_back( so );
-	// cerr << "[Encoder:TCPServer]: accept client[ id:" << newsockfd[num_client]->id << 
+	// cerr << "[TCPServer]: accept client[ id:" << newsockfd[num_client]->id << 
 	//                       " ip:" << newsockfd[num_client]->ip << 
 	// 	              " handle:" << newsockfd[num_client]->socket << " ]" << endl;
 	isonline=true;
 	num_client++;
 	return so->id;
+}
+
+string TCPServer::get_client_ip(int client_id)
+{
+	return newsockfd[client_id]->ip;
 }
 
 vector<descript_socket*> TCPServer::getMessage()
@@ -224,7 +229,7 @@ void TCPServer::detach(int id)
 
 void TCPServer::closed() 
 {
-	// printf("[Encoder:TCPServer]: TCPServer is going to be closed...\n");
+	// printf("[TCPServer]: TCPServer is going to be closed...\n");
 	close(sockfd);
 }
 

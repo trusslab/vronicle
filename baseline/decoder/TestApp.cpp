@@ -47,7 +47,7 @@
 // #include <pthread.h>
 
 # define MAX_PATH FILENAME_MAX
-# define TARGET_NUM_TIMES_RECEIVED 4
+# define TARGET_NUM_TIMES_RECEIVED 2
 # define TARGET_NUM_FILES_RECEIVED 1
 // #define SIZEOFPACKAGE 40000
 
@@ -103,7 +103,6 @@ u8* contentBuffer = NULL;
 long md_json_len = 0;
 char* md_json = NULL;
 
-int is_source_video_verified = -3;
 int is_decoding_finished = 0;
 
 // For Decoding use
@@ -204,7 +203,7 @@ char* read_file_as_str(const char* file_name, long* str_len){
 void createContentBuffer(char* contentPath, u8** pContentBuffer, size_t* pContentSize) {
     struct stat sb;
     if (stat(contentPath, &sb) == -1) {
-      perror("[decoder:TestApp]: stat failed");
+      perror("[decoder]: stat failed");
       exit(1);
     }
 
@@ -215,7 +214,7 @@ void createContentBuffer(char* contentPath, u8** pContentBuffer, size_t* pConten
 void loadContent(char* contentPath, u8* contentBuffer, long contentSize) {
     FILE *input = fopen(contentPath, "r");
     if (input == NULL) {
-      perror("[decoder:TestApp]: open failed");
+      perror("[decoder]: open failed");
       exit(1);
     }
 
@@ -228,7 +227,7 @@ void loadContent(char* contentPath, u8* contentBuffer, long contentSize) {
 }
 
 void close_app(int signum) {
-	printf("[decoder:TestApp]: There is a SIGINT error happened...exiting......(%d)\n", signum);
+	printf("[decoder]: There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
     tcp_client_rec.exit();
     for(int i = 0; i < num_of_pair_of_output; ++i){
@@ -258,7 +257,7 @@ void * received(void * m)
 	{
         if(current_mode == 0){
             string file_name = tcp_server.receive_name();
-            // printf("[decoder:TestApp]: Got new file_name: %s\n", file_name.c_str());
+            // printf("[decoder]: Got new file_name: %s\n", file_name.c_str());
             if(file_name == "vid"){
                 current_file_indicator = 0;
                 current_writing_size = &contentSize;
@@ -266,7 +265,7 @@ void * received(void * m)
                 current_file_indicator = 1;
                 current_writing_size = &md_json_len;
             } else {
-                printf("[decoder:TestApp]: The file_name is not valid: %s\n", file_name.c_str());
+                printf("[decoder]: The file_name is not valid: %s\n", file_name.c_str());
                 free(reply_msg);
                 return 0;
             }
@@ -287,7 +286,7 @@ void * received(void * m)
                     current_writing_location = md_json;
                     break;
                 default:
-                    printf("[decoder:TestApp]: No file indicator is set, aborted...\n");
+                    printf("[decoder]: No file indicator is set, aborted...\n");
                     free(reply_msg);
                     return 0;
             }
@@ -400,11 +399,11 @@ void send_message(char* message, int msg_size, int sending_target_id){
 int check_and_change_to_main_scheduler(){
     // Return 0 on success, otherwise return 1
 
-    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, going to receive...\n");
+    // printf("[decoder]: In check_and_change_to_main_scheduler, going to receive...\n");
     string scheduler_mode = tcp_client_rec.receive_name();
-    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, received: {%s}\n", scheduler_mode.c_str());
+    // printf("[decoder]: In check_and_change_to_main_scheduler, received: {%s}\n", scheduler_mode.c_str());
     int mode_of_scheduler = 0;  // 0 means main; 1 means helper
-    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, is it main: {%d}\n", scheduler_mode == "main");
+    // printf("[decoder]: In check_and_change_to_main_scheduler, is it main: {%d}\n", scheduler_mode == "main");
     if(scheduler_mode == "main"){
         mode_of_scheduler = 0;
     } else if (scheduler_mode == "helper"){
@@ -413,12 +412,12 @@ int check_and_change_to_main_scheduler(){
         return 1;
     }
 
-    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, going to reply...mode_of_scheduler = [%d]\n", mode_of_scheduler);
+    // printf("[decoder]: In check_and_change_to_main_scheduler, going to reply...mode_of_scheduler = [%d]\n", mode_of_scheduler);
     char* reply_to_scheduler = (char*)malloc(REPLYMSGSIZE);
     memset(reply_to_scheduler, 0, REPLYMSGSIZE);
     memcpy(reply_to_scheduler, "ready", 5);
     tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
-    // printf("[decoder:TestApp]: In check_and_change_to_main_scheduler, reply finished...\n");
+    // printf("[decoder]: In check_and_change_to_main_scheduler, reply finished...\n");
 
     // Change the scheduler connected accordingly
     if(mode_of_scheduler == 1){
@@ -437,7 +436,7 @@ int check_and_change_to_main_scheduler(){
         bool connection_result = tcp_client_rec.setup(ip_addr.c_str(), atoi(port.c_str()));
 
         if(!connection_result){
-            printf("[decoder:TestApp]: Connection cannot be established with main scheduler...\n");
+            printf("[decoder]: Connection cannot be established with main scheduler...\n");
             return 1;
         }
     }
@@ -458,7 +457,7 @@ int set_num_of_pair_of_output(){
     tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
 
     if(new_num < 1){
-        printf("[decoder:TestApp]: num_of_pair_of_output with main scheduler invalid: [%ld]...\n", new_num);
+        printf("[decoder]: num_of_pair_of_output with main scheduler invalid: [%ld]...\n", new_num);
         return 1;
     }
 
@@ -475,7 +474,7 @@ int setup_tcp_clients_auto(){
 
     for(int i = 0; i < num_of_pair_of_output; ++i){
         tcp_clients[i] = new TCPClient();
-        // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
+        // printf("[decoder]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
 
         ip_addr = tcp_client_rec.receive_name();
         memset(reply_to_scheduler, 0, REPLYMSGSIZE);
@@ -486,7 +485,7 @@ int setup_tcp_clients_auto(){
         memcpy(reply_to_scheduler, "ready", 5);
         tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
 
-        // printf("[decoder:TestApp]: In setup_tcp_clients_auto, going to connect to next filter_enclave with ip: {%s} and port: {%s}\n", ip_addr.c_str(), port.c_str());
+        // printf("[decoder]: In setup_tcp_clients_auto, going to connect to next filter_enclave with ip: {%s} and port: {%s}\n", ip_addr.c_str(), port.c_str());
 
         bool result_of_connection_setup = tcp_clients[i]->setup(ip_addr.c_str(), atoi(port.c_str()));
         if(!result_of_connection_setup){
@@ -502,10 +501,6 @@ int prepare_decoder(
 	void* input_content_buffer, long size_of_input_content_buffer, 
 	void* md_json, long md_json_len) {
 	// Return 1 on success, return 0 on fail, return -1 on error, return -2 on already verified
-
-	if(is_source_video_verified != -3){
-		return -2;
-	}
 
 	// Prepare Decoder
 	status = h264bsdInit(&storage, HANTRO_FALSE);
@@ -536,12 +531,7 @@ int decode_single_frame(
 	// Return 0 on success; return -1 on finish all decoding; otherwise fail...
 
 	if(is_decoding_finished){
-		printf("[decoder:TestEnclave]: decoding is already finished...\n");
-		return 1;
-	}
-
-	if(is_source_video_verified != 1){
-		printf("[decoder:TestEnclave]: please init the decoder first...\n");
+		printf("[decoder]: decoding is already finished...\n");
 		return 1;
 	}
 
@@ -557,10 +547,11 @@ int decode_single_frame(
 	int res = -1;
 	char* output_json_n = NULL;
 	u8* pic_rgb = NULL;
+    const char* dummy_mrenclave = "11111111111111111111111111111111111111111111";
 
 	while (len > 0 && !is_single_frame_successfully_decoded) {
 		u32 result = h264bsdDecode(&storage, byteStrm, len, 0, &readBytes);
-		// printf("[decoder:TestEnclave]: readBytes: [%d], frame_size: [%d]\n", readBytes, frame_size_in_rgb);
+		// printf("[decoder]: readBytes: [%d], frame_size: [%d]\n", readBytes, frame_size_in_rgb);
 		len -= readBytes;
 		byteStrm += readBytes;
 
@@ -587,10 +578,11 @@ int decode_single_frame(
 				tmp_total_digests = tmp->total_digests;
 				tmp->total_digests = tmp_total_digests + 1;
 				tmp->digests = (char**)malloc(sizeof(char*) * 1);
-				tmp->digests[0] = (char*)malloc(32);
-				memset(tmp->digests[0], 0, 32);
+				tmp->digests[0] = (char*)malloc(45);
+				memset(tmp->digests[0], 0, 45);
+				memcpy(tmp->digests[0], dummy_mrenclave, 45);
 				output_json_n = metadata_2_json(tmp);
-				// printf("[decode:TestEnclave]: We now have output_json_n[%d]: {%s}\n", strlen(output_json_n), output_json_n);
+				// printf("[decode:TestEnclave]: We now have output_json_n[%ld]: {%s}\n", strlen(output_json_n), output_json_n);
 
 				// Check size of md_json
 				real_size_of_output_md_json = strlen(output_json_n);
@@ -610,7 +602,7 @@ int decode_single_frame(
 
 				break;
 			case H264BSD_HDRS_RDY:
-				// printf("[decoder:TestEnclave]: in H264BSD_HDRS_RDY ...\n");
+				// printf("[decoder]: in H264BSD_HDRS_RDY ...\n");
 				// Obtain frame parameters
 				h264bsdCroppingParams(&storage, &croppingFlag, &leftOffset, &width, &topOffset, &height);
 				if (!croppingFlag) {
@@ -621,7 +613,7 @@ int decode_single_frame(
 				if(!frame_size_in_rgb){
 					frame_size_in_rgb = width * height * 3;
 					if(size_of_decoded_frame != frame_size_in_rgb){
-						printf("[decoder:TestEnclave]: Incorrect size...size_of_decoded_frame: [%ld]; frame_size_in_rgb: [%ld]...\n", size_of_decoded_frame, frame_size_in_rgb);
+						printf("[decoder]: Incorrect size...size_of_decoded_frame: [%ld]; frame_size_in_rgb: [%ld]...\n", size_of_decoded_frame, frame_size_in_rgb);
 						return 1;
 					}
 					InitConvt(width, height);
@@ -651,7 +643,7 @@ void do_decoding(
     int argc,
     char** argv)
 {
-    // printf("[decoder:TestApp]: incoming port: %s, outgoing address: %s, outgoing port: %s\n", argv[1], argv[2], argv[3]);
+    // printf("[decoder]: incoming port: %s, outgoing address: %s, outgoing port: %s\n", argv[1], argv[2], argv[3]);
 
     // Register signal handlers
     std::signal(SIGINT, close_app);
@@ -670,11 +662,11 @@ void do_decoding(
     msg_buf_for_rec = (char*) malloc(size_of_msg_buf_for_rec);
 
     // Prepare tcp client
-    // printf("[decoder:TestApp]: Setting up tcp client...\n");
+    // printf("[decoder]: Setting up tcp client...\n");
     bool connection_result = tcp_client_rec.setup("127.0.0.1", atoi(argv[1]));
 
     if(!connection_result){
-        printf("[decoder:TestApp]: Connection cannot be established...\n");
+        printf("[decoder]: Connection cannot be established...\n");
         return;
     }
 
@@ -685,12 +677,12 @@ void do_decoding(
     // printf("check_and_change_to_main_scheduler finished...\n");
 
     time_t my_time = time(NULL); 
-    printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
+    // printf("[decoder]: Receiving started at: %s", ctime(&my_time));
     
     memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
     memcpy(msg_buf_for_rec, "ready", 5);
     tcp_client_rec.Send(msg_buf_for_rec, REPLYMSGSIZE);
-    // printf("[decoder:TestApp]: reply is sent...\n");
+    // printf("[decoder]: reply is sent...\n");
 
     start = high_resolution_clock::now();
 
@@ -700,17 +692,17 @@ void do_decoding(
 
     // Start receiving other data
     while(num_of_times_received != TARGET_NUM_TIMES_RECEIVED){
-        // printf("[decoder:TestApp]: Start receiving data...\n");
+        // printf("[decoder]: Start receiving data...\n");
         string name_of_current_file = tcp_client_rec.receive_name();
-        // printf("[decoder:TestApp]: Got new data: {%s}\n", name_of_current_file.c_str());
+        // printf("[decoder]: Got new data: {%s}\n", name_of_current_file.c_str());
         void* current_writting_location;
         long current_writting_location_size;
-        // printf("[decoder:TestApp]: Got new file name: %s\n", name_of_current_file.c_str());
+        // printf("[decoder]: Got new file name: %s\n", name_of_current_file.c_str());
         memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
         memcpy(msg_buf_for_rec, "ready", 5);
-        // printf("[decoder:TestApp]: Going to send reply message...\n");
+        // printf("[decoder]: Going to send reply message...\n");
         tcp_client_rec.Send(msg_buf_for_rec, size_of_msg_buf_for_rec);
-        // printf("[decoder:TestApp]: Reply to scheduler is sent...\n");
+        // printf("[decoder]: Reply to scheduler is sent...\n");
         if (name_of_current_file == "vid"){
 
             contentSize = tcp_client_rec.receive_size_of_data();
@@ -720,17 +712,17 @@ void do_decoding(
             current_writting_location = contentBuffer;
 
         } else if (name_of_current_file == "meta"){
-            // printf("[decoder:TestApp]: Going to receive size of data...\n");
+            // printf("[decoder]: Going to receive size of data...\n");
             md_json_len = tcp_client_rec.receive_size_of_data();
             
-            // printf("[decoder:TestApp]: size of data received(%ld)...\n", md_json_len);
+            // printf("[decoder]: size of data received(%ld)...\n", md_json_len);
             
             md_json = (char*) malloc(md_json_len);
             current_writting_location_size = md_json_len;
             current_writting_location = md_json;
 
         } else {
-            printf("[decoder:TestApp]: Received invalid file name: [%s]\n", name_of_current_file.c_str());
+            printf("[decoder]: Received invalid file name: [%s]\n", name_of_current_file.c_str());
             return;
         }
 
@@ -738,7 +730,7 @@ void do_decoding(
         memcpy(msg_buf_for_rec, "ready", 5);
         tcp_client_rec.Send(msg_buf_for_rec, size_of_msg_buf_for_rec);
 
-        // printf("[decoder:TestApp]: Going to try receive data for size: %ld\n", current_writting_location_size);
+        // printf("[decoder]: Going to try receive data for size: %ld\n", current_writting_location_size);
         try_receive_something(current_writting_location, current_writting_location_size);
         ++num_of_times_received;
     }
@@ -754,14 +746,14 @@ void do_decoding(
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
-        printf("[decoder:TestApp]: Failed to parse metadata\n");
+        printf("[decoder]: Failed to parse metadata\n");
         return;
     }
 
     // Set up parameters for the case where output is multi
     int max_frames = 999; // Assume there are at most 999 frames
     int max_frame_digits = num_digits(max_frames);
-    size_t md_size = md_json_len + 16 + 46 + 1;
+    size_t md_size = md_json_len + 16 + 46;
 
     // Parameters to be acquired from enclave
     // u32* frame_width = (u32*)malloc(sizeof(u32)); 
@@ -772,13 +764,13 @@ void do_decoding(
     size_t total_size_of_raw_rgb_buffer = frame_size * md->total_frames;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
     if (!output_rgb_buffer) {
-        printf("[decoder:TestApp]: No memory left (RGB)\n");
+        printf("[decoder]: No memory left (RGB)\n");
         return;
     }
     size_t total_size_of_md_buffer = md_size * md->total_frames;
     u8* output_md_buffer = (u8*)malloc(total_size_of_md_buffer + 1);
     if (!output_md_buffer) {
-        printf("[decoder:TestApp]: No memory left (MD)\n");
+        printf("[decoder]: No memory left (MD)\n");
         return;
     }
 
@@ -800,11 +792,11 @@ void do_decoding(
     auto start_s = high_resolution_clock::now();
 
     if (res != 1) {
-        printf("[decoder:TestApp]: Failed to prepare decoding video with error code: [%d]\n", res);
+        printf("[decoder]: Failed to prepare decoding video with error code: [%d]\n", res);
         close_app(0);
     }
     else {
-        // printf("[decoder:TestApp]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+        // printf("[decoder]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
         //     *frame_width, *frame_height, *num_of_frames);
 
         // Clean signle frame info each time before getting something new...
@@ -820,12 +812,12 @@ void do_decoding(
 
         // Prepare all tcp clients
         if(set_num_of_pair_of_output() != 0){
-            printf("[decoder:TestApp]: Failed to do set_num_of_pair_of_output\n");
+            printf("[decoder]: Failed to do set_num_of_pair_of_output\n");
             return;
         }
-        // printf("[decoder:TestApp]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
+        // printf("[decoder]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
         if(setup_tcp_clients_auto() != 0){
-            printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");
+            printf("[decoder]: Failed to do setup_tcp_clients_auto\n");
             return;
         }
 
@@ -840,7 +832,7 @@ void do_decoding(
         // Start sending frames 
         for(int i = 0; i < num_of_frames; ++i){
 
-            // printf("[decoder:TestApp]: Sending frame: %d\n", i);
+            // printf("[decoder]: Sending frame: %d\n", i);
 
             // Clean signle frame info each time before getting something new...
             memset(single_frame_buf, 0, frame_size);
@@ -850,10 +842,10 @@ void do_decoding(
                                       single_frame_md_json, md_size);
 
             if(res == -1 && i + 1 < num_of_frames){
-                printf("[decoder:TestApp]: Finished decoding video on incorrect frame: [%d], where total frame is: [%d]...\n", i, num_of_frames);
+                printf("[decoder]: Finished decoding video on incorrect frame: [%d], where total frame is: [%d]...\n", i, num_of_frames);
                 close_app(0);
             } else if(res != 0 && res != -1){
-                printf("[decoder:TestApp]: Failed to decode video on frame: [%d]\n", i);
+                printf("[decoder]: Failed to decode video on frame: [%d]\n", i);
                 close_app(0);
             }
 
@@ -929,7 +921,7 @@ void do_decoding(
     alt_eval_file << duration.count();
 
     // Free everything
-    // printf("[decoder:TestApp]: Going to call free at the end of decoder...\n");
+    // printf("[decoder]: Going to call free at the end of decoder...\n");
     // if(frame_width)
     //     free(frame_width);
     // if(frame_height)
@@ -970,9 +962,9 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 2){
-        printf("[decoder:TestApp]: argc: %d\n", argc);
+        printf("[decoder]: argc: %d\n", argc);
         // printf("%s, %s, %s, %s...\n", argv[0], argv[1], argv[2], argv[3]);
-        printf("[decoder:TestApp]: Usage: ./TestApp [incoming_port] \n");
+        printf("[decoder]: Usage: ./TestApp [incoming_port] \n");
         return 1;
     }
 
@@ -982,13 +974,13 @@ int main(int argc, char *argv[], char **env)
     mkdir("../evaluation/eval_result", 0777);
     eval_file.open("../evaluation/eval_result/eval_decoder.csv");
     if (!eval_file.is_open()) {
-        printf("[decoder:TestApp]: Could not open eval file.\n");
+        printf("[decoder]: Could not open eval file.\n");
         return 1;
     }
 
     alt_eval_file.open("../evaluation/eval_result/eval_decoder_one_time.csv");
     if (!alt_eval_file.is_open()) {
-        printf("[decoder:TestApp]: Could not open alt_eval_file file.\n");
+        printf("[decoder]: Could not open alt_eval_file file.\n");
         return 1;
     }
 

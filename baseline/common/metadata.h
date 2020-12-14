@@ -119,8 +119,44 @@ char* metadata_2_json(metadata *md)
     return json;
 }
 
+char* metadata_2_json_without_frame_id(metadata *md)
+{
+    const char* tmp = "{";
+    char* json = (char*)malloc(strlen(tmp) + 1);
+    memset(json, 0, strlen(tmp) + 1);
+    memcpy(json, tmp, strlen(tmp));
+    extend_json_w_fmt(&json, "\"video_id\": \"%s\", ",   md->video_id, 0);
+    extend_json_w_fmt(&json, "\"timestamp\": %li, ",     &md->timestamp, 1);
+    extend_json_w_fmt(&json, "\"width\": %i, ",          &md->width, 1);
+    extend_json_w_fmt(&json, "\"height\": %i, ",         &md->height, 1);
+    extend_json_w_fmt(&json, "\"segment_id\": %i, ",     &md->segment_id, 1);
+    extend_json_w_fmt(&json, "\"total_segments\": %i, ", &md->total_segments, 1);
+    extend_json_w_fmt(&json, "\"frame_rate\": %i, ",     &md->frame_rate, 1);
+    extend_json_w_fmt(&json, "\"total_frames\": %i, ",   &md->total_frames, 1);
+    extend_json_w_fmt(&json, "\"total_filters\": %i, ",  &md->total_filters, 1);
+    extend_json_wo_fmt(&json, "\"filters\": [");
+    for (int i = 0; i < md->total_filters; i++) {
+        if (i == 0)
+            extend_json_w_fmt(&json, "\"%s\"", md->filters[i], 0);
+        else
+            extend_json_w_fmt(&json, ", \"%s\"", md->filters[i], 0);
+    }
+    extend_json_w_fmt(&json, "], \"total_digests\": %i, ",  &md->total_digests, 1);
+    extend_json_wo_fmt(&json, "\"digests\": [");
+    for (int i = 0; i < md->total_digests; i++) {
+        if (i == 0)
+            extend_json_w_fmt(&json, "\"%s\"", md->digests[i], 0);
+        else
+            extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
+    }
+    extend_json_wo_fmt(&json, "]}\0");
+    return json;
+}
+
 metadata* json_2_metadata(char* json, size_t json_len)
 {
+    if (json == NULL || json_len == 0)
+        return NULL;
     metadata* md = (metadata*)malloc(sizeof(metadata));
     jsmn_parser p;
     jsmntok_t t[128];

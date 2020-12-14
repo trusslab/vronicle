@@ -4,7 +4,7 @@
 std::mutex TCPServer::mt;
 
 void sigpipe_handler(int signum){
-	printf("[Encoder:TCPServer]: There is a SIGPIPE error happened...exiting......(%d)\n", signum);
+	printf("[TCPServer]: There is a SIGPIPE error happened...exiting......(%d)\n", signum);
 	// tcp.closed();
 	exit(0);
 }

@@ -45,7 +45,7 @@
 // #include <pthread.h>
 
 # define MAX_PATH FILENAME_MAX
-# define TARGET_NUM_FILES_RECEIVED 3
+# define TARGET_NUM_FILES_RECEIVED 2
 
 #include "EncoderApp.h"
 
@@ -217,7 +217,7 @@ void log_request_arrive(uint32_t *ntp_time)
 	} else {
 		t = time(NULL);
 	}
-	printf("A request comes at: %s", ctime(&t));
+	printf("[encoder]: A request comes at: %s", ctime(&t));
 }
 
 
@@ -272,15 +272,15 @@ static void psnr_add(unsigned char *p0, unsigned char *p1, int w, int h, int byt
 static void psnr_print(rd_t rd)
 {
     int i;
-    printf("%5.0f kbps@30fps  ", rd.kpbs_30fps);
+    printf("[encoder]: %5.0f kbps@30fps  ", rd.kpbs_30fps);
     for (i = 0; i < 3; i++)
     {
-        //printf("  %.2f db ", rd.psnr[i]);
-        printf(" %s=%.2f db ", i ? (i == 1 ? "UPSNR" : "VPSNR") : "YPSNR", rd.psnr[i]);
+        //printf("[encoder]:   %.2f db ", rd.psnr[i]);
+        printf("[encoder]:  %s=%.2f db ", i ? (i == 1 ? "UPSNR" : "VPSNR") : "YPSNR", rd.psnr[i]);
     }
-    printf("  %6.2f db/rate ", rd.psnr_to_kbps_ratio);
-    printf("  %6.3f db/lgrate ", rd.psnr_to_logkbps_ratio);
-    printf("  \n");
+    printf("[encoder]:   %6.2f db/rate ", rd.psnr_to_kbps_ratio);
+    printf("[encoder]:   %6.3f db/lgrate ", rd.psnr_to_logkbps_ratio);
+    printf("[encoder]:   \n");
 }
 
 static int str_equal(const char *pattern, char **p)
@@ -361,7 +361,7 @@ static int read_cmdline_options(int argc, char *argv[])
                 total_num_of_incoming_sources = atoi(p);
             } else
             {
-                printf("ERROR: Unknown option %s\n", p - 1);
+                printf("[encoder]: ERROR: Unknown option %s\n", p - 1);
                 return 0;
             }
         } else if (!incoming_port && !cl->gen)
@@ -372,14 +372,14 @@ static int read_cmdline_options(int argc, char *argv[])
             port_for_viewer = atoi(p);
         } else
         {
-            printf("ERROR: Unknown option %s\n", p);
+            printf("[encoder]: ERROR: Unknown option %s\n", p);
             return 0;
         }
     }
     if (!incoming_port && !cl->gen)
     {
-        printf("Usage:\n"
-               "    EncoderApp [options] <incoming_port> <port_for_viewer>\n"
+        printf("[encoder]: Usage:\n"
+               "    encoder [options] <incoming_port> <port_for_viewer>\n"
                "Frame size can be: WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif\n"
                "    4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA\n"
                "Options:\n"
@@ -500,7 +500,7 @@ char* read_file_as_str(const char* file_name, long* str_len){
 
     fread(str_to_return, 1, *str_len - 1, file);
 
-    // printf("When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
+    // printf("[encoder]: When reading {%s}, the str_len is: %d, the very last char is: %c\n", file_name, *str_len, str_to_return[*str_len - 2]);
 
     str_to_return[*str_len - 1] = '\0';
 
@@ -515,7 +515,7 @@ void wait_wrapper(int s)
 }
 
 void close_app(int signum) {
-	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
+	printf("[encoder]: There is a SIGINT error happened...exiting......(%d)\n", signum);
     tcp_server.closed();
     tcp_server_for_viewer.closed();
 	exit(0);
@@ -549,9 +549,9 @@ void * received(void * m)
     if(total_num_of_incoming_sources > 1){
         int is_correct_frame_detected = 0;
         for(int i = 0; i < total_num_of_incoming_sources; ++i){
-            // printf("[EncoderApp]: Trying to see if we are receiving correct frame with incoming source: (%d)...\n", current_communicating_incoming_source);
+            // printf("[encoder]: Trying to see if we are receiving correct frame with incoming source: (%d)...\n", current_communicating_incoming_source);
             string rec_frame_id = tcp_server.receive_name_with_id(current_communicating_incoming_source);
-            // printf("[EncoderApp]: Got rec_frame_id: (%s), where the correct one should be (%d)...\n", rec_frame_id.c_str(), current_receiving_frame_num);
+            // printf("[encoder]: Got rec_frame_id: (%s), where the correct one should be (%d)...\n", rec_frame_id.c_str(), current_receiving_frame_num);
             if(current_receiving_frame_num != atoi(rec_frame_id.c_str())){
                 memset(reply_msg, 0, size_of_reply);
                 memcpy(reply_msg, "wrong", 5);
@@ -571,26 +571,22 @@ void * received(void * m)
         }
     }
 
-    // printf("[EncoderApp]: Successfully pass frame_id verification, going to start receiving real data...\n");
+    // printf("[encoder]: Successfully pass frame_id verification, going to start receiving real data...\n");
 
 	while(num_of_files_received < TARGET_NUM_FILES_RECEIVED)
 	{
-        // printf("[EncoderApp]: current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+        // printf("[encoder]: current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
         if(current_mode == 0){
             string file_name = tcp_server.receive_name_with_id(current_communicating_incoming_source);
-            // printf("[EncoderApp]: Got new file_name: %s\n", file_name.c_str());
+            // printf("[encoder]: Got new file_name: %s\n", file_name.c_str());
             if(file_name == "frame"){
                 current_file_indicator = 0;
                 current_writing_size = &raw_frame_buf_len_i;
             } else if (file_name == "meta"){
                 current_file_indicator = 1;
                 current_writing_size = &md_json_len_i;
-            } else if (file_name == "no_more_frame"){
-                printf("no_more_frame received...finished processing...\n");
-                free(reply_msg);
-                return result_to_return;
             } else {
-                printf("The file_name is not valid: %s\n", file_name.c_str());
+                printf("[encoder]: The file_name is not valid: %s\n", file_name.c_str());
                 free(reply_msg);
                 return result_to_return;
             }
@@ -598,7 +594,7 @@ void * received(void * m)
         } else if (current_mode == 1){
             *current_writing_size = tcp_server.receive_size_of_data_with_id(current_communicating_incoming_source);
             remaining_file_size = *current_writing_size;
-            // printf("[EncoderApp]: File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
+            // printf("[encoder]: File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
             // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
             switch(current_file_indicator){
                 case 0:
@@ -660,7 +656,7 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
     char* temp_buffer = (char*)buffer;
     int is_finished = 0;
 
-    printf("Going to start sending buffer...\n");
+    // printf("[encoder]: Going to start sending buffer...\n");
 
 	while(1)
 	{
@@ -673,9 +669,9 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
             remaining_size_of_buffer = 0;
             is_finished = 1;
         }
-        // printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
+        // printf("[encoder]: (inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
 		string rec = tcp_server_for_viewer.receive_name();
-        // printf("(inside)Going to wait for receive(finished)...\n");
+        // printf("[encoder]: (inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
 			// cout << "send_buffer received: " << rec << endl;
@@ -698,7 +694,7 @@ void cache_incoming_frame_info(){
     raw_frame_buf_len = raw_frame_buf_len_i;
     raw_frame_buf = (char*) malloc((raw_frame_buf_len + 1) * sizeof(char));
     memcpy(raw_frame_buf, raw_frame_buf_i, raw_frame_buf_len);
-    free(raw_frame_buf_i);
+    free(raw_frame_buf_i); // this is causing segmentation fault in encoder
 
     if(current_communicating_incoming_source == 0){
         current_encoding_frame_client_id = total_num_of_incoming_sources - 1;
@@ -742,7 +738,7 @@ int encoder_init(metadata* md, size_t frame_size)
         int temp_frame_size = g_w * g_h * 2;
         temp_buf_in = (uint8_t*)malloc(temp_frame_size * sizeof(uint8_t));
         memset(temp_buf_in, 0, temp_frame_size);
-        // printf("yuyv detected\n");
+        // printf("[encoder]: yuyv detected\n");
     }
 
     // If rgb frames are used, allocate space for both the src and temp space for converting chroma format
@@ -753,7 +749,7 @@ int encoder_init(metadata* md, size_t frame_size)
 
     if (!buf_in || !buf_save)
     {
-        printf("ERROR: not enough memory\n");
+        printf("[encoder]: ERROR: not enough memory\n");
         return 1;
     }
     enc = NULL;
@@ -767,7 +763,7 @@ int encoder_init(metadata* md, size_t frame_size)
     error = H264E_sizeof(&create_param, &sizeof_persist, &sizeof_scratch);
     if (error)
     {
-        printf("H264E_sizeof error = %d\n", error);
+        printf("[encoder]: H264E_sizeof error = %d\n", error);
         return 1;
     }
     enc     = (H264E_persist_t *)malloc(sizeof_persist);
@@ -777,7 +773,7 @@ int encoder_init(metadata* md, size_t frame_size)
     error = H264E_init(enc, &create_param);
     if (error)
     {
-        printf("H264E_init error = %d\n", error);
+        printf("[encoder]: H264E_init error = %d\n", error);
         return 1;
     }
     return 0;
@@ -848,7 +844,7 @@ int encode_frame(uint8_t* frame, size_t frame_size,
         yuv.yuv[1] = buf_in + g_w*g_h;
         yuv.yuv[2] = buf_in + g_w*g_h*5/4;
     } else if (cl->is_rgb) {
-        // printf("Processing rgb frame with frame size: %d...\n", frame_size);
+        // printf("[encoder]: Processing rgb frame with frame size: %d...\n", frame_size);
         rgb_packed_to_yuv420_prog_planar(frame, buf_in, g_w, g_h);
         yuv.yuv[0] = buf_in; yuv.stride[0] = g_w;
         yuv.yuv[1] = buf_in + g_w*g_h; yuv.stride[1] = g_w/2;
@@ -871,7 +867,7 @@ int encode_frame(uint8_t* frame, size_t frame_size,
 
     if (cl->kbps)
     {
-        printf("kbps is set manually to %i\n", cl->kbps);
+        printf("[encoder]: kbps is set manually to %i\n", cl->kbps);
         run_param.desired_frame_bytes = cl->kbps*1000/8/30;    // Modified for framerates
         run_param.qp_min = 10;
         run_param.qp_max = 50;
@@ -914,7 +910,7 @@ int encode_frame(uint8_t* frame, size_t frame_size,
     res = H264E_encode(enc, scratch, &run_param, &yuv, &coded_data, &sizeof_coded_data);
     if (res)
     {
-        printf("t_encode_frame: ERROR during encoding\n");
+        printf("[encoder]: encode_frame: ERROR during encoding\n");
         return res;
     }
 
@@ -933,7 +929,7 @@ int encode_frame(uint8_t* frame, size_t frame_size,
     }
     else
     {
-        printf("t_encode_frame: ERROR no memory available\n");
+        printf("[encoder]: encode_frame: ERROR no memory available\n");
         res = -1;
     }
 
@@ -955,9 +951,9 @@ int main(int argc, char *argv[], char **env)
 
     // Check if incoming_port and port_for_viewer are set correctly
     if(incoming_port <= 0 || port_for_viewer <= 0){
-        printf("[EncoderApp]: Incoming port: %d or Port for viewer %d is invalid\n", incoming_port, port_for_viewer);
+        printf("[encoder]: Incoming port: %d or Port for viewer %d is invalid\n", incoming_port, port_for_viewer);
     }
-    printf("[EncoderApp]: Incoming port: %d; Port for viewer %d\n", incoming_port, port_for_viewer);
+    // printf("[encoder]: Incoming port: %d; Port for viewer %d\n", incoming_port, port_for_viewer);
 
     // Open file to store evaluation results
     mkdir("../evaluation/eval_result", 0777);
@@ -981,28 +977,17 @@ int main(int argc, char *argv[], char **env)
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
 
     if( tcp_server.setup(incoming_port,opts) != 0) {
-        cerr << "[EncoderApp]: Errore apertura socket" << endl;
+        cerr << "[encoder]: Errore apertura socket" << endl;
     }
 
     // Receive and verify all ias certs
     for(int i = 0; i < total_num_of_incoming_sources; ++i){
-        // printf("[EncoderApp]: Going to wait for a new client to connect...with i: (%d)\n", i);
+        // printf("[encoder]: Going to wait for a new client to connect...with i: (%d)\n", i);
         int id_for_recv = tcp_server.accepted();
-        // cerr << "[EncoderApp]: Accepted with id: " << id_for_recv << " for i: " << i << endl;
+        // cerr << "[encoder]: Accepted with id: " << id_for_recv << " for i: " << i << endl;
         // Manually set current_receiving_frame_num to -1 as currently we only want to receive all ias certs from all filter bundles
-        current_receiving_frame_num = -1;
-        if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("[EncoderApp]: pthread for receiving created failed...quiting...\n");
-            return 1;
-        }
-        void* result_of_rec;
-        // printf("[EncoderApp]: Going to call pthread_join for receiving ias cert...\n");
-        pthread_join(msg, &result_of_rec);
-        // printf("[EncoderApp]: ias cert received...\n");
-        // printf("[EncoderApp]: ias cert received successfully for id: %d, with result: %d...\n", id_for_recv, *((int*)result_of_rec));
-        free(result_of_rec);
+        current_receiving_frame_num = 0;
     }
-    // printf("ias certificate verified successfully, going to start receving and processing frames...\n");
     
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
@@ -1025,12 +1010,12 @@ int main(int argc, char *argv[], char **env)
         // printf("num_of_times_received: %d\n", num_of_times_received);
         pthread_join(msg, &result_of_rec);
         if(*((int*)result_of_rec) != 0){
-            printf("[EncoderApp]: No correct first frame is received...\n");
+            printf("[encoder]: No correct first frame is received...\n");
             return 1;
         }
         free(result_of_rec);
     } else {
-        printf("pthread created failed...\n");
+        printf("[Encoder]: pthread created failed...\n");
     }
 
     // Cache the very first frame
@@ -1046,11 +1031,11 @@ int main(int argc, char *argv[], char **env)
     start = high_resolution_clock::now();
 
     // Initialize variables in host
-    // printf("Before parsing metadata, we have it(%d): [%s]\n", md_json_len, md_json);
+    // printf("[encoder]: Before parsing metadata, we have it(%ld): [%s]\n", md_json_len, md_json);
     // Parse metadata
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
-    // printf("md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
+    // printf("[encoder]: md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
         printf("Failed to parse metadata\n");
@@ -1071,13 +1056,14 @@ int main(int argc, char *argv[], char **env)
         frame_size = g_w * g_h * 3/2;
     }
     int total_frames = md->total_frames;
-    potential_out_md_json_len = md_json_len + 48 - 17;  // - 17 because of loss of frame_id; TO-DO: make this flexible (Get size dynamically)
-    // printf("[EncoderApp]: potential_out_md_json_len: %d\n", potential_out_md_json_len);
+    md_json_len = md_json_len + 48 - 17;  // - 17 because of loss of frame_id; TO-DO: make this flexible (Get size dynamically)
+    // printf("[encoder]: total_frames: %d\n", total_frames);
+    // printf("[encoder]: potential_out_md_json_len: %d\n", potential_out_md_json_len);
 
     // Try continue receiving next frame
     if(total_frames > 1 && pthread_create(&msg, NULL, received, (void *)0) != 0)
     {
-        printf("pthread created failed for continuing receiving next frame after first frame...\n");
+        printf("[Encoder]: pthread created failed for continuing receiving next frame after first frame...\n");
         return 1;
     }
 
@@ -1095,40 +1081,38 @@ int main(int argc, char *argv[], char **env)
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
-
-    // Clean up
-    free_metadata(md);
     
-    // printf("[EncoderApp]: Going to encode frame 0\n");
+    // printf("[encoder]: Going to encode frame 0\n");
     
     start = high_resolution_clock::now();
 
     // Instead, we encode the very first frame now
     res = encode_frame(frame, frame_size,
                        md, current_encoding_frame_client_id);
+    free_metadata(md);
     
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
 
-    // printf("[EncoderApp]: Going to encode remaining frames...\n");
+    // printf("[encoder]: Going to encode remaining frames...\n");
 
     // Encode frames
     for (i = 1; i < total_frames; i++)
     {
-        // printf("[EncoderApp]: Going to receive and encode frame %d\n", i);
+        // printf("[encoder]: Going to receive and encode frame %d\n", i);
 
         start = high_resolution_clock::now();
 
         // Make sure we already successfully receive the frame
         ++num_of_times_received;
-        // printf("[EncoderApp]: num_of_times_received: %d\n", num_of_times_received);
+        // printf("[encoder]: num_of_times_received: %d\n", num_of_times_received);
         void *result_of_rec;
         pthread_join(msg, &result_of_rec);
-        // printf("[EncoderApp]: the frame is truly received...\n");
+        // printf("[encoder]: the frame is truly received...\n");
 
         if(*((int*)result_of_rec) != 0){
-            printf("[EncoderApp]: No correct first frame is received...\n");
+            printf("[encoder]: No correct first frame is received...\n");
             return 1;
         }
         free(result_of_rec);
@@ -1171,13 +1155,19 @@ int main(int argc, char *argv[], char **env)
         
         start = high_resolution_clock::now();
 
-        // printf("[EncoderApp]: Going to encode frame with client_id: (%d)...\n", current_encoding_frame_client_id);
+        // printf("[encoder]: Going to encode frame with client_id: (%d)...\n", current_encoding_frame_client_id);
 
         // Encode frame in enclave
+        metadata* md = json_2_metadata(md_json, md_json_len);
+        if (!md) {
+            printf("[encoder]: Failed to parse metadata\n");
+            return 1;
+        }
         res = encode_frame(frame, frame_size,
                            md, current_encoding_frame_client_id);
+        free_metadata(md);
 
-        // printf("[EncoderApp]: A frame has been successfully encoded...\n");
+        // printf("[encoder]: A frame has been successfully encoded...\n");
         
         stop = high_resolution_clock::now();
         duration = duration_cast<microseconds>(stop - start);
@@ -1189,21 +1179,21 @@ int main(int argc, char *argv[], char **env)
 
     tcp_server.closed();
 
-    // printf("Encoding completed...going to try sending frames\n");
+    // printf("[encoder]: Encoding completed...going to try sending frames\n");
 
     // declaring argument of time() 
     time_t my_time = time(NULL); 
   
     // ctime() used to give the present time 
-    printf("Encoding completed at: %s", ctime(&my_time));
+    printf("[encoder]: Encoding completed at: %s", ctime(&my_time));
 
     if( tcp_server_for_viewer.setup(port_for_viewer,opts) == 0) {
-        printf("Ready for viewer to connect...\n");
+        printf("[encoder]: Ready for viewer to connect...\n");
         tcp_server_for_viewer.accepted();
-        cerr << "Accepted viewer" << endl;
+        cerr << "[encoder]: Accepted viewer" << endl;
     }
     else
-        cerr << "Errore apertura socket" << endl;
+        cerr << "[encoder]: Errore apertura socket" << endl;
 
     // Init msg_buf
     string msg_reply_from_viewer;
@@ -1234,30 +1224,39 @@ int main(int argc, char *argv[], char **env)
     // Send metadata
     if (cl->stats)
     {
-        printf ("[EncoderApp]: out_metadata: %s\n", md_json);
+        printf ("[encoder]: out_metadata: %s\n", md_json);
     }
 
-    // printf("[EncoderApp]: Going to send metadata(%d): [%s]\n", potential_out_md_json_len, out_md_json);
+    // printf("[encoder]: Going to send metadata(%d): [%s]\n", potential_out_md_json_len, out_md_json);
 
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "meta", 4);
     tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
     msg_reply_from_viewer = tcp_server_for_viewer.receive_name();
     if(msg_reply_from_viewer != "ready"){
-        printf("[EncoderApp]: No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
+        printf("[encoder]: No ready received from viewer but: %s\n", msg_reply_from_viewer.c_str());
         return 1;
     }
 
-    // printf("[EncoderApp]: Going to send metadata(%d): [%s]\n", potential_out_md_json_len, out_md_json);
-    send_buffer_to_viewer(md_json, md_json_len);
+    // printf("[encoder]: Going to send metadata(%d): [%s]\n", potential_out_md_json_len, out_md_json);
+    const char* dummy_mrenclave = "11111111111111111111111111111111111111111111";
+    int tmp_total_digests = md->total_digests;
+	md->total_digests = tmp_total_digests + 1;
+	md->digests = (char**)realloc(md->digests, sizeof(char*) * md->total_digests);
+	md->digests[tmp_total_digests] = (char*)malloc(45);
+	memset(md->digests[tmp_total_digests], 0, 45);
+	memcpy(md->digests[tmp_total_digests], dummy_mrenclave, 45);
+	char* output_json = metadata_2_json_without_frame_id(md);
+    send_buffer_to_viewer(output_json, md_json_len);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << endl;
 
-    printf("[EncoderApp]: All files sent successfully...going to quit...\n");
+    printf("[encoder]: All files sent successfully...going to quit...\n");
 
     free(md_json);
+    free(output_json);
 
     if (cl->psnr)
         psnr_print(psnr_get());

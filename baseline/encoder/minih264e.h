@@ -19,9 +19,6 @@ extern "C" {
 #   define H264E_MAX_THREADS 4
 #endif
 
-/*!Set time base in Hz */
-#define TIME_SCALE_IN_HZ 	27000000
-
 /**
 *   API return error codes
 */
@@ -354,26 +351,26 @@ void H264E_set_vbv_state(
 #define MAX_LONG_TERM_FRAMES 8 // Max long-term frames count
 #endif
 
-// #if !defined(MINIH264_ONLY_SIMD) && (defined(_M_X64) || defined(_M_ARM64) || defined(__x86_64__) || defined(__aarch64__))
-// /* x64 always have SSE2, arm64 always have neon, no need for generic code */
-// #define MINIH264_ONLY_SIMD
-// #endif /* SIMD checks... */
+#if !defined(MINIH264_ONLY_SIMD) && (defined(_M_X64) || defined(_M_ARM64) || defined(__x86_64__) || defined(__aarch64__))
+/* x64 always have SSE2, arm64 always have neon, no need for generic code */
+#define MINIH264_ONLY_SIMD
+#endif /* SIMD checks... */
 
-// #if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))) || ((defined(__i386__) || defined(__x86_64__)) && defined(__SSE2__))
-// #define H264E_ENABLE_SSE2 1
-// #if defined(_MSC_VER)
-// #include <intrin.h>
-// #else
-// #include <emmintrin.h>
-// #endif
-// #elif defined(__ARM_NEON) || defined(__aarch64__)
-// #define H264E_ENABLE_NEON 1
-// #include <arm_neon.h>
-// #else
-// #ifdef MINIH264_ONLY_SIMD
-// #error MINIH264_ONLY_SIMD used, but SSE/NEON not enabled
-// #endif
-// #endif
+#if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))) || ((defined(__i386__) || defined(__x86_64__)) && defined(__SSE2__))
+#define H264E_ENABLE_SSE2 1
+#if defined(_MSC_VER)
+#include <intrin.h>
+#else
+#include <emmintrin.h>
+#endif
+#elif defined(__ARM_NEON) || defined(__aarch64__)
+#define H264E_ENABLE_NEON 1
+#include <arm_neon.h>
+#else
+#ifdef MINIH264_ONLY_SIMD
+#error MINIH264_ONLY_SIMD used, but SSE/NEON not enabled
+#endif
+#endif
 
 #ifndef MINIH264_ONLY_SIMD
 #define H264E_ENABLE_PLAIN_C 1
@@ -381,7 +378,7 @@ void H264E_set_vbv_state(
 
 #define H264E_CONFIGS_COUNT ((H264E_ENABLE_SSE2) + (H264E_ENABLE_PLAIN_C) + (H264E_ENABLE_NEON))
 
-#if defined(__ARMCC_VERSION)
+#if defined(__ARMCC_VERSION) || defined(_WIN32) || defined(__EMSCRIPTEN__)
 #define __BYTE_ORDER 0
 #define __BIG_ENDIAN 1
 #elif defined(__linux__) || defined(__CYGWIN__)
@@ -392,9 +389,6 @@ void H264E_set_vbv_state(
 #define __BIG_ENDIAN BIG_ENDIAN
 #elif defined(__OpenBSD__) || defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
 #include <sys/endian.h>
-#elif defined(_WIN32)
-#define __BYTE_ORDER 0
-#define __BIG_ENDIAN 1
 #else
 #error platform not supported
 #endif
@@ -1240,7 +1234,7 @@ static void h264e_bs_put_sgolomb_sse2(bs_t *bs, int val)
 
 static void h264e_bs_init_bits_sse2(bs_t *bs, void *data)
 {
-    bs->origin = data;
+    bs->origin = (bs_item_t *)data;
     bs->buf = bs->origin;
     bs->shift = BS_BITS;
     bs->cache = 0;
@@ -7252,13 +7246,7 @@ static void h264e_transform_add(pix_t *out, int out_stride, const pix_t *pred, q
 
 static void h264e_bs_put_bits(bs_t *bs, unsigned n, unsigned val)
 {
-    // For some reason the assert(!(val >> n)) won't pass
-    // in the SGX enclave without the following 
-    // if statement AND content when n == 32
-    if (n == 32)
-        n = 32;
     assert(!(val >> n));
-
     bs->shift -= n;
     assert((unsigned)n <= 32);
     if (bs->shift < 0)
@@ -7341,7 +7329,7 @@ static void h264e_bs_put_sgolomb(bs_t *bs, int val)
 
 static void h264e_bs_init_bits(bs_t *bs, void *data)
 {
-    bs->origin = (bs_item_t*)data;
+    bs->origin = data;
     bs->buf = bs->origin;
     bs->shift = BS_BITS;
     bs->cache = 0;
@@ -8808,7 +8796,6 @@ static void nal_start(h264e_enc_t *enc, int nal_hdr)
     d += STARTCODE_4BYTES + (-(int)enc->out_pos & 3);   // 4-bytes align for bitbuffer
     assert(IS_ALIGNED(d, 4));
     h264e_bs_init_bits(enc->bs, d);
-    // printf("nal_start is called with nal_hdr: %d\n", nal_hdr);
     U(8, nal_hdr);
 }
 
@@ -8861,7 +8848,7 @@ static void nal_end(h264e_enc_t *enc)
 #define default_base_mode_flag 0
 #define log2_max_frame_num_minus4 1
 
-static void encode_sps(h264e_enc_t *enc, int profile_idc, int target_fps)
+static void encode_sps(h264e_enc_t *enc, int profile_idc)
 {
     struct limit_t
     {
@@ -8898,15 +8885,10 @@ static void encode_sps(h264e_enc_t *enc, int profile_idc, int target_fps)
         plim++;
     }
 
-    // printf("The profile we are using is: %d\n", profile_idc);
-
     nal_start(enc, 0x67 | (profile_idc == SCALABLE_BASELINE)*8);
-    // printf("encode_sps: profile_idc: %d\n", profile_idc);
-    U(8, profile_idc / 2);  // profile, 66 = baseline
-    // printf("encode_sps: plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4): %d\n", plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4));
-    U(8, (plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4)) / 2);     // no constrains
-    // printf("encode_sps: plim->level: %d\n", plim->level);
-    U(8, (plim->level) / 2);
+    U(8, profile_idc);  // profile, 66 = baseline
+    U(8, plim->constrains & ((profile_idc!= SCALABLE_BASELINE)*4));     // no constrains
+    U(8, plim->level);
     //U(5, 0x1B);       // sps_id|log2_max_frame_num_minus4|pic_order_cnt_type
     //UE(0);  // sps_id 1
     UE(enc->param.sps_id);
@@ -8923,7 +8905,6 @@ static void encode_sps(h264e_enc_t *enc, int profile_idc, int target_fps)
 #endif
     UE(log2_max_frame_num_minus4);  // log2_max_frame_num_minus4  1 UE(0);  // log2_max_frame_num_minus4  1
     UE(2);  // pic_order_cnt_type         011
-    // printf("1 + enc->param.max_long_term_reference_frames is: %d\n", 1 + enc->param.max_long_term_reference_frames);
     UE(1 + enc->param.max_long_term_reference_frames);  // num_ref_frames
     U1(0);                                      // gaps_in_frame_num_value_allowed_flag);
     UE(((enc->param.width + 15) >> 4) - 1);     // pic_width_in_mbs_minus1
@@ -8939,23 +8920,7 @@ static void encode_sps(h264e_enc_t *enc, int profile_idc, int target_fps)
         UE(0);                                          // frame_crop_top_offset
         UE((enc->frame.h - enc->param.height) >> 1);    // frame_crop_bottom_offset
     }
-
-    // VUI
-    U1(1);      // vui_parameters_present_flag
-    U1(0);      // aspect_ratio_info_present_flag
-    U1(0);      // overscan_info_present_flag
-    U1(0);      // video_signal_type_present_flag
-    U1(0);      // chroma_loc_info_present_flag
-    U1(1);      // timing_info_present_flag
-    unsigned int nnum_units_in_tick = TIME_SCALE_IN_HZ / (2 * target_fps);      // For determining fps of video
-    U(32, nnum_units_in_tick);      // num_units_in_tick
-    U(32, TIME_SCALE_IN_HZ);        // time_scale
-    U1(1);      // fixed_frame_rate_flag
-    U1(0);      // nal_hrd_parameters_present_flag
-    U1(0);      // vcl_hrd_parameters_present_flag
-    U1(0);      // pic_struct_present_flag
-    U1(0);      // bitstream_restriction_flag
-    // END OF VUI
+    U1(0);      // vui_parameters_present_flag
 
 #if H264E_SVC_API
     if(profile_idc == SCALABLE_BASELINE)
@@ -9044,7 +9009,6 @@ static void encode_slice_header(h264e_enc_t *enc, int frame_type, int long_term_
             {
                 //reserved_one_bit = 1    idr_flag                    priority_id
                 U(8, (1 << 7) | ((frame_type == H264E_FRAME_TYPE_KEY) << 6) | 0);
-                // printf("(if (enc->param.num_layers > 1))Not expected to be called!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                 U1(1);   //no_inter_layer_pred_flag
                 U(3, 0); //dependency_id
                 U(4, quality_id); //quality_id
@@ -9078,7 +9042,6 @@ static void encode_slice_header(h264e_enc_t *enc, int frame_type, int long_term_
         {
             //reserved_one_bit = 1    idr_flag                    priority_id
             U(8, (1 << 7) | ((frame_type == H264E_FRAME_TYPE_KEY) << 6) | 0);
-            // printf("(nal_start(enc, (20 | (long_term_idx_update >= 0 ? 0x60 : 0)));  //RBSP_SCALABLE_EXT = 20)Not expected to be called!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
             U1(!enc->param.inter_layer_pred_flag); //no_inter_layer_pred_flag
             U(3, dependency_id); //dependency_id
             U(4, quality_id);    //quality_id
@@ -10964,7 +10927,6 @@ static void rc_frame_end(h264e_enc_t *enc, int intra_flag, int skip_flag, int is
                 nal_start(enc, 12); // filler_data_rbsp
                 do
                 {
-                    // printf("Putting stuffing.................\n");
                     U(8, 0xFF);
                     enc->rc.vbv_bits += 8;
                 } while (enc->rc.vbv_bits < 0);
@@ -11637,16 +11599,16 @@ int H264E_encode(H264E_persist_t *enc, H264E_scratch_t *scratch, const H264E_run
 
             enc_base->out = enc->out;
             enc_base->out_pos = 0;
-            encode_sps(enc_base, 66, opt->target_fps);
+            encode_sps(enc_base, 66);
             encode_pps(enc_base, 0);
 
             enc->out_pos += enc_base->out_pos;
-            encode_sps(enc, 83, opt->target_fps);
+            encode_sps(enc, 83);
             encode_pps(enc, 1);
         } else
 #endif
         {
-            encode_sps(enc, 66, opt->target_fps);
+            encode_sps(enc, 66);
             encode_pps(enc, 0);
         }
     } else

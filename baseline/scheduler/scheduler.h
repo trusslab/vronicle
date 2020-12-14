@@ -11,7 +11,7 @@
 #include <fcntl.h>
 
 # define MAX_PATH FILENAME_MAX
-# define TARGET_NUM_TIMES_RECEIVED 4
+# define TARGET_NUM_TIMES_RECEIVED 2
 # define TARGET_NUM_FILES_RECEIVED 1
 
 #include <string.h>

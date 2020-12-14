@@ -47,7 +47,7 @@
 // #include <pthread.h>
 
 # define MAX_PATH FILENAME_MAX
-# define TARGET_NUM_FILES_RECEIVED 3
+# define TARGET_NUM_FILES_RECEIVED 2
 
 #include "TestApp.h"
 
@@ -156,7 +156,7 @@ void log_request_arrive(uint32_t *ntp_time)
 	} else {
 		t = time(NULL);
 	}
-	printf("A request comes at: %s", ctime(&t));
+	printf("[filter_blur]: A request comes at: %s", ctime(&t));
 }
 
 void log_ntp_event(char *msg)
@@ -165,10 +165,19 @@ void log_ntp_event(char *msg)
 }
 
 void close_app(int signum) {
-	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
+	printf("[filter_blur]: There is a SIGINT error happened...exiting......(%d)\n", signum);
 	tcp_server.closed();
 	tcp_client.exit();
 	exit(0);
+}
+
+int get_filter_idx(metadata* md, const char* filter_name)
+{
+	for (int i = 0; i < md->total_filters; i++) {
+		if (strcmp(md->filters[i], filter_name) == 0)
+			return i;
+	}
+	return -1;
 }
 
 void * received(void * m)
@@ -194,10 +203,10 @@ void * received(void * m)
 
 	while(num_of_files_received < TARGET_NUM_FILES_RECEIVED)
 	{
-        // printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+        // printf("[filter_blur]: current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
         if(current_mode == 0){
             string file_name = tcp_server.receive_name();
-            printf("Got new file_name: %s\n", file_name.c_str());
+            // printf("[filter_blur]: Got new file_name: %s\n", file_name.c_str());
             if(file_name == "frame"){
                 current_file_indicator = 0;
                 current_writing_size = &raw_frame_buf_len_i;
@@ -205,12 +214,12 @@ void * received(void * m)
                 current_file_indicator = 1;
                 current_writing_size = &md_json_len_i;
             } else if (file_name == "no_more_frame"){
-                // printf("no_more_frame received...finished processing...\n");
+                // printf("[filter_blur]: no_more_frame received...finished processing...\n");
                 free(reply_msg);
                 is_finished_receiving = 1;
                 return 0;
             } else {
-                // printf("The file_name is not valid: %s\n", file_name);
+                // printf("[filter_blur]: The file_name is not valid: %s\n", file_name);
                 free(reply_msg);
                 return 0;
             }
@@ -218,8 +227,8 @@ void * received(void * m)
         } else if (current_mode == 1){
             *current_writing_size = tcp_server.receive_size_of_data();
             remaining_file_size = *current_writing_size;
-            // printf("File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
-            // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
+            // printf("[filter_blur]: File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
+            // printf("[filter_blur]: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
             switch(current_file_indicator){
                 case 0:
                     raw_frame_buf_i = (char*) malloc((*current_writing_size + 1) * sizeof(char));
@@ -230,26 +239,26 @@ void * received(void * m)
                     current_writing_location = md_json_i;
                     break;
                 default:
-                    printf("No file indicator is set, aborted...\n");
+                    printf("[filter_blur]: No file indicator is set, aborted...\n");
                     free(reply_msg);
                     return 0;
             }
             current_mode = 2;
         } else {
             if(remaining_file_size > SIZEOFPACKAGE_HIGH){
-                // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
+                // printf("[filter_blur]: !!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
                 temp_buf = tcp_server.receive_exact(SIZEOFPACKAGE_HIGH);
                 memcpy(current_writing_location, temp_buf, SIZEOFPACKAGE_HIGH);
                 current_writing_location += SIZEOFPACKAGE_HIGH;
                 remaining_file_size -= SIZEOFPACKAGE_HIGH;
             } else {
-                // printf("!!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
+                // printf("[filter_blur]: !!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
                 temp_buf = tcp_server.receive_exact(remaining_file_size);
                 memcpy(current_writing_location, temp_buf, remaining_file_size);
                 remaining_file_size = 0;
                 current_mode = 0;
                 ++num_of_files_received;
-                // printf("num_of_files_received: %d\n", num_of_files_received);
+                // printf("[filter_blur]: num_of_files_received: %d\n", num_of_files_received);
             }
         }
         memset(reply_msg, 0, size_of_reply);
@@ -265,11 +274,11 @@ int send_buffer(void* buffer, long buffer_lenth){
     // Return 0 on success, return 1 on failure
 
 	// Send size of buffer
-	// printf("Sending buffer size: %d\n", buffer_lenth);
+	// printf("[filter_blur]: Sending buffer size: %d\n", buffer_lenth);
 	tcp_client.Send(&buffer_lenth, sizeof(long));
-    // printf("Going to wait for receive...\n");
+    // printf("[filter_blur]: Going to wait for receive...\n");
 	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
-    // printf("Going to wait for receive(finished)...\n");
+    // printf("[filter_blur]: Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
 		// cout << rec << endl;
@@ -290,9 +299,9 @@ int send_buffer(void* buffer, long buffer_lenth){
 		    tcp_client.Send(temp_buffer, remaining_size_of_buffer);
             is_finished = 1;
         }
-        // printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
+        // printf("[filter_blur]: (inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
 		string rec = tcp_client.receive_exact(REPLYMSGSIZE);
-        // printf("(inside)Going to wait for receive(finished)...\n");
+        // printf("[filter_blur]: (inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
 			// cout << "send_buffer received: " << rec << endl;
@@ -307,9 +316,9 @@ int send_buffer(void* buffer, long buffer_lenth){
 
 void send_message(char* message, int msg_size){
 	tcp_client.Send(message, msg_size);
-    // printf("(send_message)Going to wait for receive...\n");
+    // printf("[filter_blur]: (send_message)Going to wait for receive...\n");
 	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
-    // printf("(send_message)Going to wait for receive(finished)...\n");
+    // printf("[filter_blur]: (send_message)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
 		// cout << "send_message received: " << rec << endl;
@@ -330,7 +339,7 @@ void* send_frame_info_to_next_enclave(void* m){
 
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "meta", 4);
-    // printf("Sending metadata(%d): [%s]\n", out_md_json_len, out_md_json);
+    // printf("[filter_blur]: Sending metadata(%ld): [%s]\n", out_md_json_len, out_md_json);
     send_message(msg_buf, size_of_msg_buf);
     send_buffer(out_md_json, out_md_json_len);
 
@@ -352,6 +361,7 @@ int verification_reply(
     // Return 0 for finish successfully for a single frame; 1 for failure
 	// fflush(stdout);
     int ret = 1;
+    const char* filter_name = "blur";
     char* raw_file_sig_path  = argv[2];
     char* raw_file_path      = argv[3];
     char* raw_md_path        = argv[4];
@@ -364,10 +374,10 @@ int verification_reply(
     // Parse metadata
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
-    // printf("md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
+    // printf("[filter_blur]: md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
-        printf("Failed to parse metadata\n");
+        printf("[filter_blur]: Failed to parse metadata\n");
         return 1;
     }
 
@@ -375,10 +385,10 @@ int verification_reply(
     frame_size_p = md->width * md->height * 3 * sizeof(unsigned char);
 
     // Parse Raw Image
-    // printf("Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size_p * sizeof(char), raw_frame_buf_len);
+    // printf("[filter_blur]: Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size_p * sizeof(char), raw_frame_buf_len);
     pixel* image_pixels = (pixel*)malloc(frame_size_p * sizeof(char));
     if (!image_pixels) {
-        printf("No memory left(image_pixels)\n");
+        printf("[filter_blur]: No memory left(image_pixels)\n");
         return 1;
     }
 
@@ -386,14 +396,14 @@ int verification_reply(
     // unsigned char* vid_frame = decode_signature(raw_frame_buf, raw_frame_buf_len, &vid_frame_length);
 
     memcpy(image_pixels, raw_frame_buf, raw_frame_buf_len);
-    // printf("Very first set of image pixel: %d, %d, %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
+    // printf("[filter_blur]: Very first set of image pixel: %d, %d, %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
     // int last_pixel_position = md->height * md->width - 1;
-    // printf("Very last set of image pixel: %d, %d, %d\n", image_pixels[last_pixel_position].r, image_pixels[last_pixel_position].g, image_pixels[last_pixel_position].b);
+    // printf("[filter_blur]: Very last set of image pixel: %d, %d, %d\n", image_pixels[last_pixel_position].r, image_pixels[last_pixel_position].g, image_pixels[last_pixel_position].b);
 
     // Prepare processed Image
     processed_pixels_p = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
     if (!processed_pixels_p) {
-        printf("No memory left(processed_pixels_p)\n");
+        printf("[filter_blur]: No memory left(processed_pixels_p)\n");
         return 1;
     }
 
@@ -402,9 +412,19 @@ int verification_reply(
     out_md_json_p = (char*)malloc(out_md_json_len_p);
     memset(out_md_json_p, 0, out_md_json_len_p);
     if (!out_md_json_p) {
-        printf("No memory left(out_md_json_p)\n");
+        printf("[filter_blur]: No memory left(out_md_json_p)\n");
         return 1;
     }
+	// Generate metadata
+    const char* dummy_mrenclave = "11111111111111111111111111111111111111111111";
+	int tmp_total_digests = md->total_digests;
+	md->total_digests = tmp_total_digests + 1;
+	int filter_idx = get_filter_idx(md, filter_name);
+	md->digests = (char**)realloc(md->digests, sizeof(char*) * (/*decoder*/1 + /*filter*/filter_idx + 1));
+	md->digests[filter_idx + 1] = (char*)malloc(45);
+	memset(md->digests[filter_idx + 1], 0, 45);
+	memcpy(md->digests[filter_idx + 1], dummy_mrenclave, 45);
+	out_md_json_p = metadata_2_json(md);
 
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(end - start);
@@ -419,12 +439,6 @@ int verification_reply(
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
-
-    if (ret != 0) {
-        printf("Runtime result verification failed: %d\n", ret);
-        return 1;
-    }
-
     
     start = high_resolution_clock::now();
 
@@ -458,12 +472,12 @@ int verification_reply(
 
     // Placeholder for sending frame info
     if(pthread_create(&sender_msg, NULL, send_frame_info_to_next_enclave, (void *)0) != 0){
-        printf("pthread for sending created failed...quiting...\n");
+        printf("[filter_blur]: pthread for sending created failed...quiting...\n");
         return 1;
     }
 
     // Free Everything (for video_provenance project)
-    // printf("Going to free everything in verification_reply...\n");
+    // printf("[filter_blur]: Going to free everything in verification_reply...\n");
     start = high_resolution_clock::now();
 
     if(raw_frame_buf){
@@ -519,20 +533,6 @@ void request_process_loop(char** argv)
     if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
         tcp_server.accepted();
         // cerr << "Accepted" << endl;
-
-        start = high_resolution_clock::now();
-
-        if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("pthread for receiving created failed...quiting...\n");
-            return;
-        }
-        pthread_join(msg, NULL);
-
-        stop = high_resolution_clock::now();
-        duration = duration_cast<microseconds>(stop - start);
-        alt_eval_file << duration.count() << ", ";
-
-        // printf("ias cert received successfully...\n");
     }
     else
         cerr << "Errore apertura socket" << endl;
@@ -544,7 +544,7 @@ void request_process_loop(char** argv)
     msg_buf = (char*) malloc(size_of_msg_buf);
 
     // Prepare tcp client
-    // printf("Setting up tcp client...\n");
+    // printf("[filter_blur]: Setting up tcp client...\n");
     tcp_client.setup(argv[2], atoi(argv[3]));
 
     stop = high_resolution_clock::now();
@@ -552,13 +552,13 @@ void request_process_loop(char** argv)
     alt_eval_file << duration.count() << ", ";
 
     // if( tcp_server.setup(atoi(argv[1]),opts) != 0){
-    //     printf("Second time of setting up tcp server failed...\n");
+    //     printf("[filter_blur]: Second time of setting up tcp server failed...\n");
     // }
     
     auto start_of_processing = high_resolution_clock::now();
 
     if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-        printf("pthread for receiving created failed...quiting...\n");
+        printf("[filter_blur]: pthread for receiving created failed...quiting...\n");
         return;
     }
 
@@ -570,9 +570,9 @@ void request_process_loop(char** argv)
         start = high_resolution_clock::now();
         
         pthread_join(msg, NULL);
-        // printf("Now on frame: %d, with is_finished_receiving: %d\n", num_of_times_received, is_finished_receiving);
+        // printf("[filter_blur]: Now on frame: %d, with is_finished_receiving: %d\n", num_of_times_received, is_finished_receiving);
         if(is_finished_receiving || raw_frame_buf_i == NULL || md_json_i == NULL){
-            // printf("No more frame to be processed...\n");
+            // printf("[filter_blur]: No more frame to be processed...\n");
             // If we have already processed some frames, we need to join the sender thread to make sure the last frame info is sent correctly
             if(num_of_times_received > 0){
                 pthread_join(sender_msg, NULL);
@@ -585,7 +585,7 @@ void request_process_loop(char** argv)
         eval_file << duration.count() << ", ";
         
         ++num_of_times_received;
-        // printf("Now on frame: %d\n", num_of_times_received);
+        // printf("[filter_blur]: Now on frame: %d\n", num_of_times_received);
         
         start = high_resolution_clock::now();
 
@@ -609,19 +609,19 @@ void request_process_loop(char** argv)
         eval_file << duration.count() << ", ";
 
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("pthread for receiving created failed...quiting...\n");
+            printf("[filter_blur]: pthread for receiving created failed...quiting...\n");
             return;
         }
-        // printf("Going to process frame %d\n", num_of_times_received);
+        // printf("[filter_blur]: Going to process frame %d\n", num_of_times_received);
         // Note that all info about processed frame is sent in verification_reply
-        // printf("Going to process and send frame: %d\n", num_of_times_received - 1);
+        // printf("[filter_blur]: Going to process and send frame: %d\n", num_of_times_received - 1);
         int process_status = verification_reply(&src_addr , src_addrlen, buf, recv_time, argv);
         if(process_status != 0){
-            printf("frame process error...exiting...\n");
+            printf("[filter_blur]: frame process error...exiting...\n");
             break;
         }
         // md_json = NULL;
-        // printf("frame %d processed successfully\n", num_of_times_received);
+        // printf("[filter_blur]: frame %d processed successfully\n", num_of_times_received);
     }
 
     stop = high_resolution_clock::now();
@@ -642,7 +642,7 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 4){
-        printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
+        printf("[filter_blur]: Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
         return 1;
     }
 
@@ -650,13 +650,13 @@ int main(int argc, char *argv[], char **env)
     mkdir("../evaluation/eval_result", 0777);
     eval_file.open("../evaluation/eval_result/eval_filter_blur.csv");
     if (!eval_file.is_open()) {
-        printf("Could not open eval file.\n");
+        printf("[filter_blur]: Could not open eval file.\n");
         return 1;
     }
 
     alt_eval_file.open("../evaluation/eval_result/eval_filter_blur_one_time.csv");
     if (!alt_eval_file.is_open()) {
-        printf("Could not open alt_eval_file file.\n");
+        printf("[filter_blur]: Could not open alt_eval_file file.\n");
         return 1;
     }
 
@@ -664,6 +664,8 @@ int main(int argc, char *argv[], char **env)
 	int s;
 	signal(SIGCHLD,wait_wrapper);
 	request_process_loop(argv);
+
+    printf("[filter_blur] finish filter\n");
 
     // Close eval file
     eval_file.close();

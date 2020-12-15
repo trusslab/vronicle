@@ -19,9 +19,9 @@ Cpp_Link_Flags := -lpthread -L$(DECODER_LIB_PATH) -l$(DECODER_LIB_NAME)
 .PHONY: all
 all: decoder
 
-%.o: %.c
-	$(CC) $(Cpp_Flags) -c $< -o $@
-	@echo "CC  <=  $<"
+%.o: %.cpp
+	$(CXX) $(Cpp_Flags) -c $< -o $@
+	@echo "CXX  <=  $<"
 
 decoder: $(Cpp_Objects)
 	$(CXX) $^ -o $@ $(Cpp_Link_Flags)

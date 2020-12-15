@@ -12,9 +12,9 @@ Cpp_Link_Flags := -lpthread
 .PHONY: all
 all: encoder
 
-%.o: %.c
-	$(CC) $(Cpp_Flags) -c $< -o $@
-	@echo "CC  <=  $<"
+%.o: %.cpp
+	$(CXX) $(Cpp_Flags) -c $< -o $@
+	@echo "CXX  <=  $<"
 
 encoder: $(Cpp_Objects)
 	$(CXX) $^ -o $@ $(Cpp_Link_Flags)

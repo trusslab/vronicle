@@ -346,7 +346,21 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	// auto_white_balance((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
 	sharpen((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 7);
 	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
 	blur((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 7);
+
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	auto_white_balance((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	denoise_simple((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	change_brightness((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 1.5);
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	gray_frame((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
 
 	// Generate metadata
 	int tmp_total_digests = tmp->total_digests;

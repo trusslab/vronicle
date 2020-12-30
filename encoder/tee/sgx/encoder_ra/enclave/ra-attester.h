@@ -21,6 +21,7 @@ struct ecdsa_ra_tls_options {
     char subscription_key[32];
 };
 
+// TO-DO: undefine this in DCAP
 void create_key_and_x509
 (
     uint8_t* der_key,

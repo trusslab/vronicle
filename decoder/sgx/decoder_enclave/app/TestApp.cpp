@@ -978,7 +978,7 @@ void do_decoding(
     input_vendor_pub_path += tcp_client_rec.receive_name();
 
     time_t my_time = time(NULL); 
-    printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
+    // printf("[decoder:TestApp]: Receiving started at: %s", ctime(&my_time));
     
     // printf("[decoder:TestApp]: Receive vendor pub name and final path is: %s...\n", input_vendor_pub_path.c_str());
     memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
@@ -1170,6 +1170,7 @@ void do_decoding(
             printf("[decoder:TestApp]: Failed to do set_num_of_pair_of_output\n");
             return;
         }
+        fprintf(stderr, "[Evaluation]: Decoder is going to connect to next filter(s) at: %ld\n", high_resolution_clock::now());
         // printf("[decoder:TestApp]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
         if(setup_tcp_clients_auto() != 0){
             printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");

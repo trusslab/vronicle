@@ -1026,8 +1026,6 @@ int send_buffer_to_viewer(void* buffer, long buffer_lenth){
     void* temp_buffer = buffer;
     int is_finished = 0;
 
-    printf("Going to start sending buffer...\n");
-
 	while(1)
 	{
         if(remaining_size_of_buffer > SIZEOFPACKAGE){
@@ -1097,7 +1095,12 @@ int main(int argc, char *argv[], char **env)
     if(incoming_port <= 0 || port_for_viewer <= 0){
         printf("[EncoderApp]: Incoming port: %d or Port for viewer %d is invalid\n", incoming_port, port_for_viewer);
     }
-    printf("[EncoderApp]: Incoming port: %d; Port for viewer %d\n", incoming_port, port_for_viewer);
+    // printf("[EncoderApp]: Incoming port: %d; Port for viewer %d\n", incoming_port, port_for_viewer);
+
+    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
+    if( tcp_server.setup(incoming_port,opts) != 0) {
+        cerr << "[EncoderApp]: Errore apertura socket" << endl;
+    }
 
     // Open file to store evaluation results
     mkdir("../../../../evaluation/eval_result", 0777);
@@ -1143,12 +1146,6 @@ int main(int argc, char *argv[], char **env)
     pthread_t msg;
 
     start = high_resolution_clock::now();
-    
-    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
-
-    if( tcp_server.setup(incoming_port,opts) != 0) {
-        cerr << "[EncoderApp]: Errore apertura socket" << endl;
-    }
 
     // Receive and verify all ias certs
     for(int i = 0; i < total_num_of_incoming_sources; ++i){
@@ -1447,12 +1444,14 @@ int main(int argc, char *argv[], char **env)
     time_t my_time = time(NULL); 
   
     // ctime() used to give the present time 
-    printf("Encoding completed at: %s", ctime(&my_time));
+    // printf("Encoding completed at: %s", ctime(&my_time));
+    fprintf(stderr, "[Evaluation]: Processing ended at: %ld\n", high_resolution_clock::now());
 
     if( tcp_server_for_viewer.setup(port_for_viewer,opts) == 0) {
         printf("Ready for viewer to connect...\n");
         tcp_server_for_viewer.accepted();
-        cerr << "Accepted viewer" << endl;
+        // cerr << "Accepted viewer" << endl;
+        fprintf(stderr, "[Evaluation]: Sending started at: %ld\n", high_resolution_clock::now());
     }
     else
         cerr << "Errore apertura socket" << endl;
@@ -1468,7 +1467,6 @@ int main(int argc, char *argv[], char **env)
     memcpy(msg_buf, "cert", 4);
     // printf("Going to send msg_buf(%d): [%s]\n", size_of_msg_buf, msg_buf);
     tcp_server_for_viewer.send_to_last_connected_client(msg_buf, size_of_msg_buf);
-    printf("Send completed...\n");
     msg_reply_from_viewer = tcp_server_for_viewer.receive_name();
     // printf("Received reply: [%s]\n", msg_reply_from_viewer.c_str());
     if(msg_reply_from_viewer != "ready"){
@@ -1587,6 +1585,7 @@ int main(int argc, char *argv[], char **env)
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << endl;
 
+    fprintf(stderr, "[Evaluation]: Sending ended at: %ld\n", high_resolution_clock::now());
     printf("[EncoderApp]: All files sent successfully...going to quit...\n");
 
     free(out_md_json);

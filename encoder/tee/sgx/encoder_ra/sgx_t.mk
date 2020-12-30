@@ -180,6 +180,10 @@ $(ENCLAVE_DIR)/ra_tls_options.c: $(ENCLAVE_DIR)/ra_tls_options.c.sh
 	bash $^ > $@
 	@echo "GEN  =>  $@"
 
+$(ENCLAVE_DIR)/ra_tls_options.o: $(ENCLAVE_DIR)/ra_tls_options.c
+	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
+	@echo "CC   <=  $<"
+
 $(ENCLAVE_DIR)/%.o: $(ENCLAVE_DIR)/%.cpp
 	$(VCXX) $(EncoderEnclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
@@ -193,9 +197,9 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	@echo "CC  <=  $<"
 
 ifeq ($(ENABLE_DCAP), 0)
-EncoderEnclave.so: $(ENCLAVE_DIR)/EncoderEnclave_t.o $(EncoderEnclave_Cpp_Objects) $(EncoderEnclave_C_Objects)
+EncoderEnclave.so: $(ENCLAVE_DIR)/EncoderEnclave_t.o $(EncoderEnclave_Cpp_Objects) $(EncoderEnclave_C_Objects) $(ENCLAVE_DIR)/ra_tls_options.o
 else
-EncoderEnclave.so: $(ENCLAVE_DIR)/EncoderEnclave_dcap_t.o $(EncoderEnclave_Cpp_Objects) $(EncoderEnclave_C_Objects)
+EncoderEnclave.so: $(ENCLAVE_DIR)/EncoderEnclave_dcap_t.o $(EncoderEnclave_Cpp_Objects) $(EncoderEnclave_C_Objects) $(ENCLAVE_DIR)/ra_tls_options.o
 endif
 	$(VCXX) $^ -o $@ $(EncoderEnclave_Link_Flags)
 	@echo "LINK =>  $@"

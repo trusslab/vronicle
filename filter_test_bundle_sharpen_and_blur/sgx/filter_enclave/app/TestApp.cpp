@@ -1191,6 +1191,8 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
+    fprintf(stderr, "[Evaluation]: Filter blur enclave started initialization at: %ld\n", high_resolution_clock::now());
+
     if(argc < 5){
         printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port] [is_multi_bundles_enabled]\n");
         return 1;
@@ -1200,13 +1202,13 @@ int main(int argc, char *argv[], char **env)
     
     // First set up incoming server
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
-    if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
+    if(!tcp_server.setup(atoi(argv[1]),opts) == 0) {
         // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: tcp_server setup completed with port: (%s)...\n", argv[1]);
-        tcp_server.accepted();
+        cerr << "Errore apertura socket" << endl;
+        exit(1);
         // cerr << "[filter_test_bundle_sharpen_and_blur:TestApp]: Accepted" << endl;
     }
-    else
-        cerr << "Errore apertura socket" << endl;
+        
 
     // Open file to store evaluation results
     mkdir("../../../evaluation/eval_result", 0777);
@@ -1238,6 +1240,11 @@ int main(int argc, char *argv[], char **env)
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", ";
+
+    fprintf(stderr, "[Evaluation]: Filter blur enclave finished initialization at: %ld\n", high_resolution_clock::now());
+    
+    // Accept client
+    tcp_server.accepted();
 
 	/* create the server waiting for the verification request from the client */
 	int s;

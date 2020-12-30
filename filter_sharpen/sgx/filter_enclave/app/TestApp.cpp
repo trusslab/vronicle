@@ -77,14 +77,6 @@
 
 #include "metadata.h"
 
-#ifdef ENABLE_DCAP
-#define SGX_AESM_ADDR "SGX_AESM_ADDR"
-#include "sgx_dcap_ql_wrapper.h"
-#include "sgx_quote_3.h"
-#include "sgx_report.h"
-#include "sgx_pce.h"
-#endif
-
 // For TCP module
 #include <ctime>
 #include <cerrno>
@@ -104,9 +96,13 @@ int size_of_msg_buf = 100;
 char* msg_buf;
 pthread_t sender_msg;
 
+// For Multi Filter_Bundle
+int is_multi_bundles_enabled = -1;
+int current_frame_id = -1;
+
 // For incoming data
-long size_of_cert = 0;
-char *cert = NULL;
+long size_of_ias_cert = 0;
+char *ias_cert = NULL;
 long md_json_len_i = 0;
 char* md_json_i = NULL;
 long raw_signature_length_i = 0;
@@ -125,7 +121,7 @@ char* raw_frame_buf = NULL;
 
 // For outgoing data
 unsigned char *der_cert;
-size_t size_of_der_cert;
+size_t size_of_cert;
 
 // For processing data
 int frame_size_p;
@@ -328,51 +324,6 @@ int initialize_enclave(void)
             printf("Warning: Invalid launch token read from \"%s\".\n", token_path);
         }
     }
-
-#ifdef ENABLE_DCAP
-    /* Step 1.5: set enclave load policy to persistent if in-proc mode */
-    quote3_error_t qe3_ret = SGX_QL_SUCCESS;
-    bool is_out_of_proc = false;
-    char *out_of_proc = getenv(SGX_AESM_ADDR);
-    if(out_of_proc)
-        is_out_of_proc = true;
-    if(!is_out_of_proc)
-    {
-        // Following functions are valid in Linux in-proc mode only.
-        printf("sgx_qe_set_enclave_load_policy is valid in in-proc mode only and it is optional: the default enclave load policy is persistent: \n");
-        printf("set the enclave load policy as persistent:");
-        qe3_ret = sgx_qe_set_enclave_load_policy(SGX_QL_PERSISTENT);
-        if(SGX_QL_SUCCESS != qe3_ret) {
-            printf("Error in set enclave load policy: 0x%04x\n", qe3_ret);
-            if (fp != NULL) fclose(fp);
-            return -1;
-        }
-        printf("succeed!\n");
-
-        // Try to load PCE and QE3 from Ubuntu-like OS system path
-        if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_pce.signed.so") ||
-                SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib/x86_64-linux-gnu/libsgx_qe3.signed.so")) {
-
-            // Try to load PCE and QE3 from RHEL-like OS system path
-            if (SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_PCE_PATH, "/usr/lib64/libsgx_pce.signed.so") ||
-                SGX_QL_SUCCESS != sgx_ql_set_path(SGX_QL_QE3_PATH, "/usr/lib64/libsgx_qe3.signed.so")) {
-                printf("Error in set PCE/QE3 directory.\n");
-                if (fp != NULL) fclose(fp);
-                return -1;
-            }
-        }
-
-        qe3_ret = sgx_ql_set_path(SGX_QL_QPL_PATH, "/usr/lib/x86_64-linux-gnu/libdcap_quoteprov.so.1");
-        if (SGX_QL_SUCCESS != qe3_ret) {
-            qe3_ret = sgx_ql_set_path(SGX_QL_QPL_PATH, "/usr/lib64/libdcap_quoteprov.so.1");
-            if(SGX_QL_SUCCESS != qe3_ret) {
-                printf("Error in set QPL directory.\n");
-                if (fp != NULL) fclose(fp);
-                return -1;
-            }
-        }
-    }
-#endif
 
     /* Step 2: call sgx_create_enclave to initialize an enclave instance */
     /* Debug Support: set 2nd parameter to 1 */
@@ -657,7 +608,7 @@ void * received(void * m)
         // printf("current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
         if(current_mode == 0){
             string file_name = tcp_server.receive_name();
-            printf("Got new file_name: %s\n", file_name.c_str());
+            // printf("Got new file_name: %s\n", file_name.c_str());
             if(file_name == "frame"){
                 current_file_indicator = 0;
                 current_writing_size = &raw_frame_buf_len_i;
@@ -669,7 +620,7 @@ void * received(void * m)
                 current_writing_size = &raw_signature_length_i;
             } else if (file_name == "cert"){
                 current_file_indicator = 3;
-                current_writing_size = &size_of_cert;
+                current_writing_size = &size_of_ias_cert;
                 // Let's cheat the logic as we only need to receive cert once
                 num_of_files_received = TARGET_NUM_FILES_RECEIVED - 1;
             } else if (file_name == "no_more_frame"){
@@ -702,8 +653,8 @@ void * received(void * m)
                     current_writing_location = raw_signature_i;
                     break;
                 case 3:
-                    cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
-                    current_writing_location = cert;
+                    ias_cert = (char*) malloc((*current_writing_size + 1) * sizeof(char));
+                    current_writing_location = ias_cert;
                     break;
                 default:
                     printf("No file indicator is set, aborted...\n");
@@ -782,19 +733,40 @@ int send_buffer(void* buffer, long buffer_lenth){
 }
 
 void send_message(char* message, int msg_size){
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: send_message: message: (%s), msg_size: (%d)\n", message, msg_size);
 	tcp_client.Send(message, msg_size);
-    // printf("(send_message)Going to wait for receive...\n");
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_message)Going to wait for receive...\n");
 	string rec = tcp_client.receive_exact(REPLYMSGSIZE);
-    // printf("(send_message)Going to wait for receive(finished)...\n");
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_message)Got rec: (%s)...\n", rec.c_str());
 	if( rec != "" )
 	{
 		// cout << "send_message received: " << rec << endl;
 	}
 }
 
-void* send_frame_info_to_next_enclave(void* m){
-    // Send processed frame
+void send_frame_id(int frame_id){
+    string frame_id_str = std::to_string(frame_id);
+    string rec = "wrong";
+    while(rec == "wrong"){
+        tcp_client.Send(frame_id_str);
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)Going to wait for receive...\n");
+        rec = tcp_client.receive_exact(REPLYMSGSIZE);
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)received: (%s)...\n", rec.c_str());
+    }
+    // printf("(send_frame_id)Going to wait for receive(finished)...\n");
+	if( rec != "" )
+	{
+		// cout << "send_frame_id received: " << rec << endl;
+	}
+}
 
+void* send_frame_info_to_next_enclave(void* m){
+
+    if(is_multi_bundles_enabled){
+        send_frame_id(current_frame_id);
+    }
+
+    // Send processed frame
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "frame", 5);
     send_message(msg_buf, size_of_msg_buf);
@@ -842,10 +814,6 @@ int verification_reply(
     // Return 0 for finish successfully for a single frame; 1 for failure
 	// fflush(stdout);
     int ret = 1;
-    char* raw_file_sig_path  = argv[2];
-    char* raw_file_path      = argv[3];
-    char* raw_md_path        = argv[4];
-    char* output_md_path     = argv[5];
 
     int path_len = 200;
     
@@ -971,6 +939,8 @@ int verification_reply(
     duration = duration_cast<microseconds>(end - start);
     eval_file << duration.count() << ", "; 
 
+    current_frame_id = md->frame_id;
+
     // Placeholder for sending frame info
     if(pthread_create(&sender_msg, NULL, send_frame_info_to_next_enclave, (void *)0) != 0){
         printf("pthread for sending created failed...quiting...\n");
@@ -1038,33 +1008,35 @@ void request_process_loop(char** argv)
 
     pthread_t msg;
     // Receive ias cert
-    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
-    if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
-        tcp_server.accepted();
-        // cerr << "Accepted" << endl;
+    // if( tcp_server.setup(atoi(argv[1]),opts) == 0) {
+    //     printf("[filter_test_bundle_sharpen_and_blur:TestApp]: tcp_server setup completed...\n");
+    //     tcp_server.accepted();
+    //     cerr << "[filter_test_bundle_sharpen_and_blur:TestApp]: Accepted" << endl;
 
-        start = high_resolution_clock::now();
+        
+    // }
+    // else
+    //     cerr << "Errore apertura socket" << endl;
 
-        if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("pthread for receiving created failed...quiting...\n");
-            return;
-        }
-        pthread_join(msg, NULL);
+    start = high_resolution_clock::now();
 
-        stop = high_resolution_clock::now();
-        duration = duration_cast<microseconds>(stop - start);
-        alt_eval_file << duration.count() << ", ";
-
-        // printf("ias cert received successfully...\n");
+    if(pthread_create(&msg, NULL, received, (void *)0) != 0){
+        printf("[filter_test_bundle_sharpen_and_blur:TestApp]: pthread for receiving created failed...quiting...\n");
+        return;
     }
-    else
-        cerr << "Errore apertura socket" << endl;
+    pthread_join(msg, NULL);
+
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
+    alt_eval_file << duration.count() << ", ";
+
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: ias cert received successfully...\n");
 
     start = high_resolution_clock::now();
 
     // Verify certificate in enclave
     int ret;
-    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, cert, (size_t)size_of_cert);
+    sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1072,10 +1044,10 @@ void request_process_loop(char** argv)
 
     if (status_of_verification != SGX_SUCCESS) {
         cout << "Failed to read IAS certificate file" << endl;
-        free(cert);
+        free(ias_cert);
         return;
     }
-    free(cert);
+    free(ias_cert);
 
 
     // printf("ias certificate verified successfully, going to start receving and processing frames...\n");
@@ -1091,11 +1063,20 @@ void request_process_loop(char** argv)
     tcp_client.setup(argv[2], atoi(argv[3]));
 
     // printf("Going to first send der_cert through tcp client...\n");
+
     // Send certificate
+    if(is_multi_bundles_enabled){
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: multi_bundles_enabled detected, before sending cert, going to first send current_frame_id, which is: (%d)\n", current_frame_id);
+        send_frame_id(current_frame_id);
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Pass frame_id verification for sending cert...\n");
+    }
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert file name...\n");
     send_message(msg_buf, size_of_msg_buf);
-    send_buffer(der_cert, size_of_der_cert);
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert data...\n");
+    send_buffer(der_cert, size_of_cert);
+    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: cert is sent for filter(%s)...\n", argv[1]);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1210,10 +1191,24 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    if(argc < 4){
-        printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
+    fprintf(stderr, "[Evaluation]: Filter blur enclave started initialization at: %ld\n", high_resolution_clock::now());
+
+    if(argc < 5){
+        printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port] [is_multi_bundles_enabled]\n");
         return 1;
     }
+    
+    is_multi_bundles_enabled = atoi(argv[4]);
+    
+    // First set up incoming server
+    vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
+    if(!tcp_server.setup(atoi(argv[1]),opts) == 0) {
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: tcp_server setup completed with port: (%s)...\n", argv[1]);
+        cerr << "Errore apertura socket" << endl;
+        exit(1);
+        // cerr << "[filter_test_bundle_sharpen_and_blur:TestApp]: Accepted" << endl;
+    }
+        
 
     // Open file to store evaluation results
     mkdir("../../../evaluation/eval_result", 0777);
@@ -1236,15 +1231,20 @@ int main(int argc, char *argv[], char **env)
     auto duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", "; 
 
-    size_of_der_cert = 4 * 4096;
-    der_cert = (unsigned char *)malloc(size_of_der_cert);
+    size_of_cert = 4 * 4096;
+    der_cert = (unsigned char *)malloc(size_of_cert);
 
     start = high_resolution_clock::now();
 
-    t_create_key_and_x509(global_eid, der_cert, size_of_der_cert, &size_of_der_cert, sizeof(size_t));
+    t_create_key_and_x509(global_eid, der_cert, size_of_cert, &size_of_cert, sizeof(size_t));
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", ";
+
+    fprintf(stderr, "[Evaluation]: Filter blur enclave finished initialization at: %ld\n", high_resolution_clock::now());
+    
+    // Accept client
+    tcp_server.accepted();
 
 	/* create the server waiting for the verification request from the client */
 	int s;

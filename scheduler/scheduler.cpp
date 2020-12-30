@@ -827,7 +827,8 @@ int main(int argc, char *argv[], char **env)
             time_t my_time = time(NULL); 
 
             // ctime() used to give the present time 
-            printf("Receiving started at: %s", ctime(&my_time));
+            // printf("Receiving started at: %s", ctime(&my_time));
+            fprintf(stderr, "[Evaluation]: Receiving started at: %ld\n", high_resolution_clock::now());
             
             start = high_resolution_clock::now();
 
@@ -1015,6 +1016,7 @@ int main(int argc, char *argv[], char **env)
             eval_file << (duration.count() - 3000) << ", ";
 
             // printf("Going to manage worklow...\n");
+            fprintf(stderr, "[Evaluation]: Scheduler finished processing metadata at: %ld\n", high_resolution_clock::now());
 
             // Manage workflows
             pthread_mutex_lock(&workflow_access_lock);
@@ -1045,6 +1047,7 @@ int main(int argc, char *argv[], char **env)
             
             // Join the receiver thread
             pthread_join(msg, NULL);
+            fprintf(stderr, "[Evaluation]: Receiving ended at: %ld\n", high_resolution_clock::now());
             
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);

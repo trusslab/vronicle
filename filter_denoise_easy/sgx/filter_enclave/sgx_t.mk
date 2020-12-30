@@ -179,6 +179,10 @@ $(ENCLAVE_DIR)/ra_tls_options.c: $(ENCLAVE_DIR)/ra_tls_options.c.sh
 	bash $^ > $@
 	@echo "GEN  =>  $@"
 
+$(ENCLAVE_DIR)/ra_tls_options.o: $(ENCLAVE_DIR)/ra_tls_options.c
+	$(VCC) $(TestEnclave_C_Flags) -c $< -o $@
+	@echo "CC   <=  $<"
+
 $(ENCLAVE_DIR)/%.o: $(ENCLAVE_DIR)/%.cpp
 	$(VCXX) $(TestEnclave_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
@@ -192,7 +196,7 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	@echo "CC  <=  $<"
 
 ifeq ($(ENABLE_DCAP), 0)
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(ENCLAVE_DIR)/ra_tls_options.o
 else
 TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_dcap_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
 endif

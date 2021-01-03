@@ -315,6 +315,8 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 					   void* out_md_json, size_t size_of_out_md_json,
 					   void* out_img_sig, size_t size_of_out_img_sig)
 {
+	// size_of_md_json += 6;
+
 	int ret = 1;
 	char* filter_name = "blur";
 	if (!img_pixels) {
@@ -335,6 +337,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	// printf("Going to call verify signature with size_of_img_pixels: %d, size_of_md_json: %d, size_of_img_sig: %d\n", size_of_img_pixels, size_of_md_json, size_of_img_sig);
 	// printf("Here is the md_json(%d): [%s]\n", size_of_md_json, md_json);
 	// print_public_key(pubkey);
+	// printf("[filter_blur:TestEnclave]: size_of_img_pixels: [%d], size_of_md_json: [%d], size_of_img_sig: [%d], md_json: {%s}\n", size_of_img_pixels, size_of_md_json, size_of_img_sig, md_json);
 	ret = verify_hash(buf, size_of_img_pixels + size_of_md_json, (unsigned char*)img_sig, size_of_img_sig, pubkey);
 	free(buf);
 	if (ret != 1) {

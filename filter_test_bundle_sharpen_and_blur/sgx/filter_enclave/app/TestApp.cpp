@@ -1191,7 +1191,7 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    fprintf(stderr, "[Evaluation]: Filter blur enclave started initialization at: %ld\n", high_resolution_clock::now());
+    // fprintf(stderr, "[Evaluation]: Filter blur enclave started initialization at: %ld\n", high_resolution_clock::now());
 
     if(argc < 5){
         printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port] [is_multi_bundles_enabled]\n");
@@ -1241,7 +1241,7 @@ int main(int argc, char *argv[], char **env)
     duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", ";
 
-    fprintf(stderr, "[Evaluation]: Filter blur enclave finished initialization at: %ld\n", high_resolution_clock::now());
+    // fprintf(stderr, "[Evaluation]: Filter blur enclave finished initialization at: %ld\n", high_resolution_clock::now());
     
     // Accept client
     tcp_server.accepted();

@@ -893,6 +893,7 @@ int verification_reply(
         processed_pixels_p,
         out_md_json_p, out_md_json_len_p, 
         processed_img_signature_p, size_of_processed_img_signature_p);
+    // printf("[filter_blur:TestApp]: finished calling of t_sgxver_call_apis...\n");
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
@@ -1034,9 +1035,13 @@ void request_process_loop(char** argv)
 
     start = high_resolution_clock::now();
 
+    fprintf(stderr, "[Evaluation]: Filter blur enclave started certificate verification at: %ld\n", high_resolution_clock::now());
+
     // Verify certificate in enclave
     int ret;
     sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
+    
+    fprintf(stderr, "[Evaluation]: Filter blur enclave ended certificate verification at: %ld\n", high_resolution_clock::now());
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);

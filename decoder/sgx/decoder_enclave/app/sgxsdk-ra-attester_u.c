@@ -64,6 +64,7 @@ void ocall_ecdsa_get_qe_target_info
 )
 {
     quote3_error_t status = sgx_qe_get_target_info(qe_target_info);
+    printf("%02x\n", status);
     assert(status == SGX_QL_SUCCESS);
 }
 

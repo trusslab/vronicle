@@ -148,7 +148,7 @@ int encoder_outgoing_port_marker = 41231;   // Reason we have this seperately is
 // For filter-bundle test only
 // int is_filter_bundle_detected = 0;   // Replaced by pre_workflow
 int self_server_port_marker_extra = 20112;
-int num_of_filter_in_bundle = 6;
+int num_of_filter_in_bundle = 2;
 
 // For mode that current scheduler is running at
 int current_scheduler_mode = 0; // 0 is main, 1 is scheduler_helper

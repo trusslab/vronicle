@@ -1170,7 +1170,7 @@ void do_decoding(
             printf("[decoder:TestApp]: Failed to do set_num_of_pair_of_output\n");
             return;
         }
-        fprintf(stderr, "[Evaluation]: Decoder is going to connect to next filter(s) at: %ld\n", high_resolution_clock::now());
+        // fprintf(stderr, "[Evaluation]: Decoder is going to connect to next filter(s) at: %ld\n", high_resolution_clock::now());
         // printf("[decoder:TestApp]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
         if(setup_tcp_clients_auto() != 0){
             printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");
@@ -1274,6 +1274,7 @@ void do_decoding(
 
             send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
             // send_buffer(temp_output_md_buffer, md_size, current_sending_target_id);
+            // printf("[decoder:TestApp]: Going to send md_json(%d): {%s}\n", md_size, single_frame_md_json);
             send_buffer(single_frame_md_json, md_size, current_sending_target_id);
 
             end = high_resolution_clock::now();

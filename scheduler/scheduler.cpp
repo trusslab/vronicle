@@ -367,6 +367,26 @@ void* start_encoder_server(void* args){
     return 0;
 }
 
+void* start_all_in_one_server(void* args){
+
+    encoder_args* e_args = (encoder_args*) args;
+
+    // pthread_detach(pthread_self());
+
+    string cmd_for_starting_encoder = "cd ../all_in_one/sgx/filter_enclave; ./TestApp ";
+    cmd_for_starting_encoder += std::to_string(e_args->incoming_port);
+    cmd_for_starting_encoder += " ";
+    cmd_for_starting_encoder += std::to_string(e_args->outgoing_port);
+    cmd_for_starting_encoder += "  -fps10 -is_rgb";
+
+    printf("Cmd for starting all_in_one: %s\n", cmd_for_starting_encoder.c_str());
+    system(cmd_for_starting_encoder.c_str());
+
+    free(args);
+
+    return 0;
+}
+
 void join_everything_inside_workflow(workflow* workflow){
     if(workflow->decoder)
         pthread_join(*(workflow->decoder), NULL);
@@ -901,9 +921,11 @@ int main(int argc, char *argv[], char **env)
                 pthread_mutex_unlock(&port_access_lock);
                 f_args->is_filter_bundle_detected = new_p_workflow->is_filter_bundle_detected;
                 pt_filters[i] = (pthread_t*) malloc(sizeof(pthread_t));
-                if(pthread_create(pt_filters[i], NULL, start_filter_server, f_args) != 0){
-                    printf("pthread for start_filter_server created failed...quiting...\n");
-                    return 1;
+                if(first_filter_name != "all_in_one"){
+                    if(pthread_create(pt_filters[i], NULL, start_filter_server, f_args) != 0){
+                        printf("pthread for start_filter_server created failed...quiting...\n");
+                        return 1;
+                    }
                 }
             }
 
@@ -917,9 +939,12 @@ int main(int argc, char *argv[], char **env)
             e_args->outgoing_port = encoder_outgoing_port_marker++;
             e_args->is_filter_bundle_detected = new_p_workflow->is_filter_bundle_detected;
             pthread_t* pt_encoder = (pthread_t*) malloc(sizeof(pthread_t));
-            if(pthread_create(pt_encoder, NULL, start_encoder_server, e_args) != 0){
-                printf("pthread for start_encoder_server created failed...quiting...\n");
-                return 1;
+
+            if(first_filter_name != "all_in_one"){
+                if(pthread_create(pt_encoder, NULL, start_encoder_server, e_args) != 0){
+                    printf("pthread for start_encoder_server created failed...quiting...\n");
+                    return 1;
+                }
             }
 
             // Reason we put starting decoder server at the end is that: in case of filter-bundle, we need to first start all filter-bundle enclaves...
@@ -952,61 +977,78 @@ int main(int argc, char *argv[], char **env)
             int is_using_decoder_remotely = 0;
             int helper_scheduler_id = -1;
 
-            // Check if we need to start new decoder enclave or we can use one in pool
-            pthread_mutex_lock(&decoder_pool_access_lock);
-            if(num_of_free_decoder > 0){
-                --num_of_free_decoder;
-                pt_decoder = decoder_pool[num_of_free_decoder]->decoder;
-                decoder_id = decoder_pool[num_of_free_decoder]->decoder_id;
-                is_using_decoder_in_pool = 1;
-                decoder_pool.pop_back();
-            }
-            pthread_mutex_unlock(&decoder_pool_access_lock);
-
-            if(is_remote_scheduler_prefered){
-                pthread_mutex_lock(&helper_scheduler_pool_access_lock);
-                for(int i = 0; i < helper_scheduler_pool.size(); ++i){
-                    pthread_mutex_lock(&(helper_scheduler_pool[i]->individual_access_lock));
-                    // TO-DO: Make the following depend on capacity of helper scheulder
-                    if(helper_scheduler_pool[i]->current_num_of_work < 4){
-                        ++(helper_scheduler_pool[i]->current_num_of_work);
-                        helper_scheduler_id = helper_scheduler_pool[i]->id_in_current_connection;
-                        is_using_decoder_remotely = 1;
-                        break;
-                    }
-                    pthread_mutex_unlock(&(helper_scheduler_pool[i]->individual_access_lock));
+            if(first_filter_name != "all_in_one"){
+                // Check if we need to start new decoder enclave or we can use one in pool
+                pthread_mutex_lock(&decoder_pool_access_lock);
+                if(num_of_free_decoder > 0){
+                    --num_of_free_decoder;
+                    pt_decoder = decoder_pool[num_of_free_decoder]->decoder;
+                    decoder_id = decoder_pool[num_of_free_decoder]->decoder_id;
+                    is_using_decoder_in_pool = 1;
+                    decoder_pool.pop_back();
                 }
-                pthread_mutex_unlock(&helper_scheduler_pool_access_lock);
+                pthread_mutex_unlock(&decoder_pool_access_lock);
 
-                if(is_using_decoder_remotely){
-                    free(d_args->outgoing_ip_addr);
-                    d_args->outgoing_ip_addr = (char*)malloc(size_of_typical_ip_addr + 1);
-                    memset(d_args->outgoing_ip_addr, 0, size_of_typical_ip_addr + 1);
-                    memcpy(d_args->outgoing_ip_addr, local_remote_ip_addr, size_of_typical_ip_addr);
-
-                    char *msg_to_remote_helper_scheduler = (char*)malloc(SIZEOFPACKAGEFORNAME);
-                    memset(msg_to_remote_helper_scheduler, 0, SIZEOFPACKAGEFORNAME);
-                    memcpy(msg_to_remote_helper_scheduler, "decoder", 7);
-                    tcp_server_for_scheduler_helper.Send(msg_to_remote_helper_scheduler, SIZEOFPACKAGEFORNAME, helper_scheduler_id);
-                    string reply = tcp_server_for_scheduler_helper.receive_name_with_id(helper_scheduler_id);
-                    if(reply != "ready"){
-                        printf("Communication with remote server failed with reply: {%s}\n", reply);
-                        close_app(1);
+                if(is_remote_scheduler_prefered){
+                    pthread_mutex_lock(&helper_scheduler_pool_access_lock);
+                    for(int i = 0; i < helper_scheduler_pool.size(); ++i){
+                        pthread_mutex_lock(&(helper_scheduler_pool[i]->individual_access_lock));
+                        // TO-DO: Make the following depend on capacity of helper scheulder
+                        if(helper_scheduler_pool[i]->current_num_of_work < 4){
+                            ++(helper_scheduler_pool[i]->current_num_of_work);
+                            helper_scheduler_id = helper_scheduler_pool[i]->id_in_current_connection;
+                            is_using_decoder_remotely = 1;
+                            break;
+                        }
+                        pthread_mutex_unlock(&(helper_scheduler_pool[i]->individual_access_lock));
                     }
-                    memset(msg_to_remote_helper_scheduler, 0, SIZEOFPACKAGEFORNAME);
-                    memcpy(msg_to_remote_helper_scheduler, scheduler_port_for_decoder_str.c_str(), sizeof(scheduler_port_for_decoder_str.c_str()));
-                    tcp_server_for_scheduler_helper.Send(msg_to_remote_helper_scheduler, SIZEOFPACKAGEFORNAME, helper_scheduler_id);
+                    pthread_mutex_unlock(&helper_scheduler_pool_access_lock);
 
-                    free(msg_to_remote_helper_scheduler);
+                    if(is_using_decoder_remotely){
+                        free(d_args->outgoing_ip_addr);
+                        d_args->outgoing_ip_addr = (char*)malloc(size_of_typical_ip_addr + 1);
+                        memset(d_args->outgoing_ip_addr, 0, size_of_typical_ip_addr + 1);
+                        memcpy(d_args->outgoing_ip_addr, local_remote_ip_addr, size_of_typical_ip_addr);
+
+                        char *msg_to_remote_helper_scheduler = (char*)malloc(SIZEOFPACKAGEFORNAME);
+                        memset(msg_to_remote_helper_scheduler, 0, SIZEOFPACKAGEFORNAME);
+                        memcpy(msg_to_remote_helper_scheduler, "decoder", 7);
+                        tcp_server_for_scheduler_helper.Send(msg_to_remote_helper_scheduler, SIZEOFPACKAGEFORNAME, helper_scheduler_id);
+                        string reply = tcp_server_for_scheduler_helper.receive_name_with_id(helper_scheduler_id);
+                        if(reply != "ready"){
+                            printf("[scheduler]: Communication with remote server failed with reply: {%s}\n", reply);
+                            close_app(1);
+                        }
+                        memset(msg_to_remote_helper_scheduler, 0, SIZEOFPACKAGEFORNAME);
+                        memcpy(msg_to_remote_helper_scheduler, scheduler_port_for_decoder_str.c_str(), sizeof(scheduler_port_for_decoder_str.c_str()));
+                        tcp_server_for_scheduler_helper.Send(msg_to_remote_helper_scheduler, SIZEOFPACKAGEFORNAME, helper_scheduler_id);
+
+                        free(msg_to_remote_helper_scheduler);
+                    }
                 }
-            }
 
-            if(!is_using_decoder_in_pool && !is_using_decoder_remotely){
+                if(!is_using_decoder_in_pool && !is_using_decoder_remotely){
+                    pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
+                    // printf("Going to get into start_decoder_server...\n");
+                    printf("[scheduler]: There is no decoder left in the pool and there is no prefered remote helper scheduler, going to create one...\n");
+                    if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
+                        printf("[scheduler]: pthread for start_decoder_server created failed...quiting...\n");
+                        return 1;
+                    }
+                }
+            } else {
+                // Note that there is a known bug that call of all_in_one will break the order to different port numbers...
+                // Also, for evaluation purpose, we are manually setting the output port to 41231
                 pt_decoder = (pthread_t*) malloc(sizeof(pthread_t));
-                // printf("Going to get into start_decoder_server...\n");
-                printf("There is no decoder left in the pool and there is no prefered remote helper scheduler, going to create one...\n");
-                if(pthread_create(pt_decoder, NULL, start_decoder_server, d_args) != 0){
-                    printf("pthread for start_decoder_server created failed...quiting...\n");
+                encoder_args* all_in_one_args = (encoder_args*) malloc(sizeof(encoder_args));    // Using heap to prevent running out of stack memory when scaling up(To-Do: Consider also moving following char array to heap)
+                pthread_mutex_lock(&port_access_lock);
+                // printf("[scheduler]: Setting all_in_one's incoming port to: [%d]\n", scheduler_port_for_decoder);
+                all_in_one_args->incoming_port = scheduler_port_for_decoder;
+                pthread_mutex_unlock(&port_access_lock);
+                all_in_one_args->outgoing_port = 41231;
+                all_in_one_args->is_filter_bundle_detected = new_p_workflow->is_filter_bundle_detected;
+                if(pthread_create(pt_decoder, NULL, start_all_in_one_server, all_in_one_args) != 0){
+                    printf("[scheduler]: pthread for start_all_in_one_server created failed...quiting...\n");
                     return 1;
                 }
             }
@@ -1034,8 +1076,9 @@ int main(int argc, char *argv[], char **env)
 
             // Reset counter for evaluation
             start = high_resolution_clock::now();
-
-            if(!is_using_decoder_in_pool){
+            
+            if(!is_using_decoder_in_pool || first_filter_name == "all_in_one"){
+                // printf("[scheduler]: Going to accept a new decoder...\n");
                 decoder_id = tcp_server_for_decoder.accepted();
             }
 
@@ -1165,8 +1208,11 @@ int main(int argc, char *argv[], char **env)
         free_all_helper_scheduler_info();
     }
 
+    // printf("[scheduler]: Going to try join all workflows...\n");
+
     // Try join all workflows and free them
     try_join_all_workflows();
+    // printf("[scheduler]: Going to try free all workflows...\n");
     free_all_workflows();
 
     // Free mutexes

@@ -35,6 +35,10 @@ export SPID=98992B8D5C5267B72A2C92678A7439F5
 export EPID_SUBSCRIPTION_KEY=ecb6baf92cbb4f57a338e8f29739cf00
 # Pre export complete
 
+# Pre export by Myles (01-02-2021)
+export ECDSA_SUBSCRIPTION_KEY=d303983bb4de4bb4883a11e0f5085395
+# Pre export complete
+
 include ../buildenv.mk
 
 all:

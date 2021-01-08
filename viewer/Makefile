@@ -1,3 +1,4 @@
+ENABLE_DCAP ?= 0
 INCLUDE_PATHS = -I. -I/opt/intel/sgxsdk/include/ -I/home/myles/Downloads/sgxsdk/include/
 CXX = g++
 COMMON_FLAGS = -g3 -D__STDC_CONSTANT_MACROS \
@@ -5,6 +6,9 @@ COMMON_FLAGS = -g3 -D__STDC_CONSTANT_MACROS \
 		       -Wdisabled-optimization -Wmissing-declarations \
 		       -Wshadow -Wno-unused -Winline \
 		       $(INCLUDE_PATHS)
+ifeq ($(ENABLE_DCAP), 1)
+        COMMON_CFLAGS += -DENABLE_DCAP
+endif
 CXX_FLAGS := $(COMMON_FLAGS) -std=c++14 -Woverloaded-virtual -Wctor-dtor-privacy
 CC_FLAGS  := $(COMMON_FLAGS) -std=c11 -Wno-implicit-function-declaration
 LDLIBS = -lcrypto

@@ -17,13 +17,14 @@
 # define MAXPACKETSIZE 500960
 # define SIZEOFPACKAGEFORNAME 100	// This is for target packet size of receiving frame name
 # define SIZEOFPACKAGEFORSIZE 8	// This is for target packet size of receiving frame size
-# define SIZEOFPACKAGE 40000	// This is for target packet size of receiving frame
+# define SIZEOFPACKAGE 500000	// This is for target packet size of receiving frame
 # define REPLYMSGSIZE 100
 
 // Server specific define
 # define MAX_CLIENT 1000
 
 // Client specific define
+# define MAXTIMEOFTRYCONNECT 10
 # define SIZEOFPACKAGE_LOW 10000	// This is for target packet size of sending frame in low network quality
 # define SIZEOFPACKAGE_HIGH 500000	// This is for target packet size of receiving frame
 

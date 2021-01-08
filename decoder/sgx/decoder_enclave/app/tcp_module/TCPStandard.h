@@ -24,6 +24,7 @@
 # define MAX_CLIENT 1000
 
 // Client specific define
+# define MAXTIMEOFTRYCONNECT 10
 # define SIZEOFPACKAGE_LOW 10000	// This is for target packet size of sending frame in low network quality
 # define SIZEOFPACKAGE_HIGH 500000	// This is for target packet size of receiving frame
 

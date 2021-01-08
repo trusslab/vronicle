@@ -198,6 +198,36 @@ char* hash_of_file;  /* temp test */
 ofstream eval_file;
 ofstream alt_eval_file;
 
+// For multi thread usage
+int current_encoding_frame_num = 0;
+pthread_mutex_t current_encoding_frame_num_lock;
+#define MAX_NUM_OF_THREADS_FOR_PROCESSING 6
+int current_num_of_threads_proc = 0;
+pthread_mutex_t current_num_of_threads_proc_lock;
+pthread_t last_proc_thread;
+
+typedef struct frame_4_proc {
+    // Common frame info
+    int total_frames;
+    int frame_id;
+
+    // Original frame info
+    u8* original_frame_buf;
+    int original_frame_size;
+    u8* original_frame_md_json;
+    int original_md_size;
+    u8* original_frame_sig;
+    int original_sig_size;
+
+    // Processed frame info
+    u8* processed_frame_buf;
+    int processed_frame_size;
+    char* processed_frame_md_json;
+    int processed_md_size;
+    unsigned char* processed_frame_sig;
+    int processed_sig_size;
+} frame_4_proc;
+
 /* Error code returned by sgx_create_enclave */
 static sgx_errlist_t sgx_errlist[] = {
     {
@@ -1250,6 +1280,88 @@ int setup_tcp_clients_auto(){
     return 0;
 }
 
+void free_frame_4_proc(frame_4_proc* f_to_delete){
+    free(f_to_delete->original_frame_buf);
+    free(f_to_delete->original_frame_md_json);
+    free(f_to_delete->original_frame_sig);
+    free(f_to_delete->processed_frame_buf);
+    free(f_to_delete->processed_frame_md_json);
+    free(f_to_delete->processed_frame_sig);
+    free(f_to_delete);
+}
+
+void* apply_filter_and_encode(void* m){
+
+    frame_4_proc* processing_frame_info = (frame_4_proc*) m;
+
+    if(processing_frame_info->frame_id + 1 != processing_frame_info->total_frames){
+        pthread_detach(pthread_self());
+    }
+
+    int ret = 0;
+    sgx_status_t status = t_sgxver_call_apis(
+            global_eid, &ret,
+            processing_frame_info->original_frame_buf, processing_frame_info->original_frame_size,
+            processing_frame_info->original_frame_md_json, processing_frame_info->original_md_size, 
+            processing_frame_info->original_frame_sig, processing_frame_info->original_sig_size, 
+            processing_frame_info->processed_frame_buf,
+            processing_frame_info->processed_frame_md_json, processing_frame_info->processed_md_size, 
+            processing_frame_info->processed_frame_sig, processing_frame_info->processed_sig_size);
+    // printf("[all_in_one:TestApp]: t_sgxver_call_apis is finished...\n");
+
+    if (status != SGX_SUCCESS) {
+        printf("[all_in_one:TestApp]: Call to t_sgxver_call_apis has failed.\n");
+        close_app(0);
+    }
+
+    if (ret != 0) {
+        printf("[all_in_one:TestApp]: Runtime result verification failed: %d\n", ret);
+        close_app(0);
+    }
+
+    if(processing_frame_info->frame_id == 0){
+        // Initialize variables in Enclave
+        // printf("[all_in_one:TestApp]: Going to init encoder...\n");
+        status = t_encoder_init(global_eid, &ret,
+                                cl, sizeof(cmdline),
+                                processing_frame_info->processed_frame_sig, processing_frame_info->processed_sig_size,
+                                processing_frame_info->processed_frame_buf, processing_frame_info->processed_frame_size,
+                                processing_frame_info->processed_frame_md_json, processing_frame_info->processed_md_size);
+        if (ret || status != SGX_SUCCESS) {
+            printf("[all_in_one:TestApp]: t_encoder_init failed\n");
+            close_app(0);
+        }
+    }
+
+    pthread_mutex_lock(&current_num_of_threads_proc_lock);
+    --current_num_of_threads_proc;
+    pthread_mutex_unlock(&current_num_of_threads_proc_lock);
+
+    int is_frame_encoded = 0;
+
+    while(!is_frame_encoded){
+        pthread_mutex_lock(&current_encoding_frame_num_lock);
+        if(processing_frame_info->frame_id == current_encoding_frame_num){
+            // printf("[all_in_one:TestApp]: Going to encode a frame...\n");
+            status = t_encode_frame(global_eid, &ret, 
+                                    processing_frame_info->processed_frame_sig, processing_frame_info->processed_sig_size,
+                                    processing_frame_info->processed_frame_buf, processing_frame_info->processed_frame_size,
+                                    processing_frame_info->processed_frame_md_json, processing_frame_info->processed_md_size);
+            is_frame_encoded = 1;
+            ++current_encoding_frame_num;
+        }
+        pthread_mutex_unlock(&current_encoding_frame_num_lock);
+    }
+    
+    if (ret || status != SGX_SUCCESS)
+    {
+        printf("[all_in_one:TestApp]: ERROR: encoding frame failed\n");
+        close_app(0);
+    }
+
+    free_frame_4_proc(processing_frame_info);
+}
+
 void do_decoding(
     int argc,
     char** argv)
@@ -1388,7 +1500,7 @@ void do_decoding(
     start = high_resolution_clock::now();
 
     // Parse metadata
-    // printf("md_json(%ld): %s\n", md_json_len, md_json);
+    // printf("[all_in_one:TestApp]: md_json(%ld): %s\n", md_json_len, md_json);
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     metadata* md = json_2_metadata(md_json, md_json_len);
@@ -1407,6 +1519,8 @@ void do_decoding(
     size_t sig_size = 384; // TODO: Remove hardcoded sig size
     size_t md_size = md_json_len + 16 + 46 + 1;
 
+    // printf("[all_in_one:TestApp]: md_size is set to: (%d)\n", md_size);
+
     // Parameters to be acquired from enclave
     // u32* frame_width = (u32*)malloc(sizeof(u32)); 
     // u32* frame_height = (u32*)malloc(sizeof(u32));
@@ -1416,19 +1530,19 @@ void do_decoding(
     size_t total_size_of_raw_rgb_buffer = frame_size * md->total_frames;
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
     if (!output_rgb_buffer) {
-        printf("[decoder:TestApp]: No memory left (RGB)\n");
+        printf("[all_in_one:TestApp]: No memory left (RGB)\n");
         return;
     }
     size_t total_size_of_sig_buffer = sig_size * md->total_frames;
     u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
     if (!output_sig_buffer) {
-        printf("[decoder:TestApp]: No memory left (SIG)\n");
+        printf("[all_in_one:TestApp]: No memory left (SIG)\n");
         return;
     }
     size_t total_size_of_md_buffer = md_size * md->total_frames;
     u8* output_md_buffer = (u8*)malloc(total_size_of_md_buffer + 1);
     if (!output_md_buffer) {
-        printf("[decoder:TestApp]: No memory left (MD)\n");
+        printf("[all_in_one:TestApp]: No memory left (MD)\n");
         return;
     }
 
@@ -1445,7 +1559,7 @@ void do_decoding(
                                                   vendor_pub, vendor_pub_len,
                                                   camera_cert, camera_cert_len,
                                                   vid_sig, vid_sig_length);
-    // printf("[decoder: TestApp]: t_sgxver_prepare_decoder: [%d]\n", ret);
+    // printf("[all_in_one: TestApp]: t_sgxver_prepare_decoder: [%d]\n", ret);
 
     // status = t_sgxver_decode_content(global_eid, &ret,
     //                                               contentBuffer, contentSize, 
@@ -1462,6 +1576,9 @@ void do_decoding(
 
     auto start_s = high_resolution_clock::now();
 
+    pthread_mutex_init(&current_encoding_frame_num_lock, NULL);
+    pthread_mutex_init(&current_num_of_threads_proc_lock, NULL);
+
     if (ret != 1) {
         printf("[decoder:TestApp]: Failed to prepare decoding video with error code: [%d]\n", ret);
         close_app(0);
@@ -1470,29 +1587,29 @@ void do_decoding(
         // printf("[decoder:TestApp]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
         //     *frame_width, *frame_height, *num_of_frames);
 
-        // Clean signle frame info each time before getting something new...
-
-        // Init for single frame info
-        u8* single_frame_buf = (u8*)malloc(frame_size);
-        u8* single_frame_md_json = (u8*)malloc(md_size);
-        u8* single_frame_sig = (u8*)malloc(sig_size);
-
-        // Init for processed frame info
-        frame_size_p = frame_size;
-        processed_pixels_p = (u8*)malloc(frame_size_p);
-        if (!processed_pixels_p) {
-            printf("No memory left(processed_pixels_p)\n");
-            close_app(0);
-        }
-        size_of_processed_img_signature_p = 384;
-        processed_img_signature_p = (unsigned char*)malloc(size_of_processed_img_signature_p);
-        if (!processed_img_signature_p) {
-            printf("No memory left\n");
-            close_app(0);
-        }
-
         // Start processing frames 
         for(int i = 0; i < num_of_frames; ++i){
+
+            // Clean signle frame info each time before getting something new...
+
+            // Init for single frame info
+            u8* single_frame_buf = (u8*)malloc(frame_size);
+            u8* single_frame_md_json = (u8*)malloc(md_size);
+            u8* single_frame_sig = (u8*)malloc(sig_size);
+
+            // Init for processed frame info
+            frame_size_p = frame_size;
+            processed_pixels_p = (u8*)malloc(frame_size_p);
+            if (!processed_pixels_p) {
+                printf("No memory left(processed_pixels_p)\n");
+                close_app(0);
+            }
+            size_of_processed_img_signature_p = 384;
+            processed_img_signature_p = (unsigned char*)malloc(size_of_processed_img_signature_p);
+            if (!processed_img_signature_p) {
+                printf("No memory left\n");
+                close_app(0);
+            }
 
             // printf("[all_in_one:TestApp]: Processing frame: %d\n", i);
 
@@ -1500,6 +1617,8 @@ void do_decoding(
             memset(single_frame_buf, 0, frame_size);
             memset(single_frame_md_json, 0, md_size);
             memset(single_frame_sig, 0, sig_size);
+            
+            // printf("[all_in_one:TestApp]: (before)single_frame_md_json(%d): {%s}\n", md_size, (char*)single_frame_md_json);
 
             // printf("[all_in_one:TestApp]: Going to decode a frame...\n");
             sgx_status_t status = t_sgxver_decode_single_frame(global_eid, &ret,
@@ -1516,7 +1635,8 @@ void do_decoding(
                 close_app(0);
             }
 
-            md_size = strlen((char*)single_frame_md_json);
+            // md_size = strlen((char*)single_frame_md_json);
+            // printf("[all_in_one:TestApp]: single_frame_md_json(%d): {%s}\n", md_size, (char*)single_frame_md_json);
 
             out_md_json_len_p = md_size + 48;
             out_md_json_p = (char*)malloc(out_md_json_len_p);
@@ -1531,63 +1651,102 @@ void do_decoding(
             memset(out_md_json_p, 0, out_md_json_len_p);
             memset(processed_img_signature_p, 0, size_of_processed_img_signature_p);
 
-            // printf("[all_in_one:TestApp]: Going to apply filter(s) to a frame...\n");
-            status = t_sgxver_call_apis(
-                global_eid, &ret,
-                single_frame_buf, frame_size,
-                single_frame_md_json, md_size, 
-                single_frame_sig, sig_size, 
-                processed_pixels_p,
-                out_md_json_p, out_md_json_len_p, 
-                processed_img_signature_p, size_of_processed_img_signature_p);
-            // printf("[all_in_one:TestApp]: t_sgxver_call_apis is finished...\n");
+            frame_4_proc* f_proc_info = (frame_4_proc*) malloc(sizeof(frame_4_proc));
+            f_proc_info->frame_id = i;
+            f_proc_info->total_frames = md->total_frames;
+            f_proc_info->original_frame_buf = single_frame_buf;
+            f_proc_info->original_frame_md_json = single_frame_md_json;
+            f_proc_info->original_frame_sig = single_frame_sig;
+            f_proc_info->original_frame_size = frame_size;
+            f_proc_info->original_md_size = md_size;
+            f_proc_info->original_sig_size = sig_size;
+            f_proc_info->processed_frame_buf = processed_pixels_p;
+            f_proc_info->processed_frame_md_json = out_md_json_p;
+            f_proc_info->processed_frame_sig = processed_img_signature_p;
+            f_proc_info->processed_frame_size = frame_size_p;
+            f_proc_info->processed_md_size = out_md_json_len_p;
+            f_proc_info->processed_sig_size = size_of_processed_img_signature_p;
 
-            if (status != SGX_SUCCESS) {
-                printf("[all_in_one:TestApp]: Call to t_sgxver_call_apis has failed.\n");
-                close_app(0);
-            }
-
-            if (ret != 0) {
-                printf("[all_in_one:TestApp]: Runtime result verification failed: %d\n", ret);
-                close_app(0);
-            }
-
-            if(i == 0){
-                // Initialize variables in Enclave
-                // printf("[all_in_one:TestApp]: Going to init encoder...\n");
-                status = t_encoder_init(global_eid, &ret,
-                                        cl, sizeof(cmdline),
-                                        processed_img_signature_p, size_of_processed_img_signature_p,
-                                        processed_pixels_p, frame_size_p,
-                                        out_md_json_p, out_md_json_len_p);
-                if (ret || status != SGX_SUCCESS) {
-                    printf("[all_in_one:TestApp]: t_encoder_init failed\n");
-                    close_app(0);
+            int is_frame_started_proc = 0;
+            while(!is_frame_started_proc){
+                pthread_mutex_lock(&current_num_of_threads_proc_lock);
+                if(current_num_of_threads_proc < MAX_NUM_OF_THREADS_FOR_PROCESSING){
+                    if(pthread_create(&last_proc_thread, NULL, apply_filter_and_encode, f_proc_info) != 0){
+                        printf("[all_in_one:TestApp]: pthread for apply_filter_and_encode created failed...quiting...\n");
+                        close_app(0);
+                    }
+                    ++current_num_of_threads_proc;
+                    is_frame_started_proc = 1;
                 }
+                pthread_mutex_unlock(&current_num_of_threads_proc_lock);
+                // if(!is_frame_started_proc){
+                //     usleep(100);
+                // }
             }
 
-            // printf("[all_in_one:TestApp]: Going to encode a frame...\n");
-            status = t_encode_frame(global_eid, &ret, 
-                                processed_img_signature_p, size_of_processed_img_signature_p,
-                                processed_pixels_p, frame_size_p,
-                                out_md_json_p, out_md_json_len_p);
-            if (ret || status != SGX_SUCCESS)
-            {
-                printf("[all_in_one:TestApp]: ERROR: encoding frame failed\n");
-                close_app(0);
-            }
+            // // printf("[all_in_one:TestApp]: Going to apply filter(s) to a frame...\n");
+            // status = t_sgxver_call_apis(
+            //     global_eid, &ret,
+            //     single_frame_buf, frame_size,
+            //     single_frame_md_json, md_size, 
+            //     single_frame_sig, sig_size, 
+            //     processed_pixels_p,
+            //     out_md_json_p, out_md_json_len_p, 
+            //     processed_img_signature_p, size_of_processed_img_signature_p);
+            // // printf("[all_in_one:TestApp]: t_sgxver_call_apis is finished...\n");
+
+            // if (status != SGX_SUCCESS) {
+            //     printf("[all_in_one:TestApp]: Call to t_sgxver_call_apis has failed.\n");
+            //     close_app(0);
+            // }
+
+            // if (ret != 0) {
+            //     printf("[all_in_one:TestApp]: Runtime result verification failed: %d\n", ret);
+            //     close_app(0);
+            // }
+
+            // if(i == 0){
+            //     // Initialize variables in Enclave
+            //     // printf("[all_in_one:TestApp]: Going to init encoder...\n");
+            //     status = t_encoder_init(global_eid, &ret,
+            //                             cl, sizeof(cmdline),
+            //                             processed_img_signature_p, size_of_processed_img_signature_p,
+            //                             processed_pixels_p, frame_size_p,
+            //                             out_md_json_p, out_md_json_len_p);
+            //     if (ret || status != SGX_SUCCESS) {
+            //         printf("[all_in_one:TestApp]: t_encoder_init failed\n");
+            //         close_app(0);
+            //     }
+            // }
+
+            // // printf("[all_in_one:TestApp]: Going to encode a frame...\n");
+            // status = t_encode_frame(global_eid, &ret, 
+            //                     processed_img_signature_p, size_of_processed_img_signature_p,
+            //                     processed_pixels_p, frame_size_p,
+            //                     out_md_json_p, out_md_json_len_p);
+            // if (ret || status != SGX_SUCCESS)
+            // {
+            //     printf("[all_in_one:TestApp]: ERROR: encoding frame failed\n");
+            //     close_app(0);
+            // }
 
             
-            free(out_md_json_p);
+            // free(single_frame_buf);
+            // free(single_frame_md_json);
+            // free(single_frame_sig);
+
+            // free(processed_pixels_p);
+            // free(processed_img_signature_p);
+            // free(out_md_json_p);
 
         }
-        free(single_frame_buf);
-        free(single_frame_md_json);
-        free(single_frame_sig);
-
-        free(processed_pixels_p);
-        free(processed_img_signature_p);
     }
+
+    
+    pthread_join(last_proc_thread, NULL);
+    
+    pthread_mutex_destroy(&current_encoding_frame_num_lock);
+    pthread_mutex_destroy(&current_num_of_threads_proc_lock);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start_s);

@@ -112,14 +112,14 @@ void * received(void * m)
             current_mode = 2;
         } else {
             char* data_received;
-            if(remaining_file_size > SIZEOFPACKAGE){
+            if(remaining_file_size > SIZEOFPACKAGE4REC){
                 // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
-                data_received = tcp_server.receive_exact_with_id(SIZEOFPACKAGE, p_workflow->incoming_source);
+                data_received = tcp_server.receive_exact_with_id(SIZEOFPACKAGE4REC, p_workflow->incoming_source);
                 pthread_mutex_lock(&(p_workflow->in_data->individual_access_lock));
-                memcpy(current_writing_location, data_received, SIZEOFPACKAGE);
+                memcpy(current_writing_location, data_received, SIZEOFPACKAGE4REC);
                 pthread_mutex_unlock(&(p_workflow->in_data->individual_access_lock));
-                current_writing_location += SIZEOFPACKAGE;
-                remaining_file_size -= SIZEOFPACKAGE;
+                current_writing_location += SIZEOFPACKAGE4REC;
+                remaining_file_size -= SIZEOFPACKAGE4REC;
             } else {
                 // printf("???????????????????Last write to the current file location: %d\n", current_file_indicator);
                 data_received = tcp_server.receive_exact_with_id(remaining_file_size, p_workflow->incoming_source);
@@ -1078,13 +1078,16 @@ int main(int argc, char *argv[], char **env)
             start = high_resolution_clock::now();
             
             if(!is_using_decoder_in_pool || first_filter_name == "all_in_one"){
-                // printf("[scheduler]: Going to accept a new decoder...\n");
+                printf("[scheduler]: Going to accept a new decoder...\n");
                 decoder_id = tcp_server_for_decoder.accepted();
+                printf("[scheduler]: A new decoder has been accepted...\n");
             }
 
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);
             eval_file << duration.count() << ", ";
+
+            // cout << "waittime for decoder is: " << duration.count() << endl;
 
             start = high_resolution_clock::now();
             

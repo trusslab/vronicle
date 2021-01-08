@@ -1068,14 +1068,14 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	int ret = 1;
 	char* filter_name = "all_in_one";
 	if (!img_pixels) {
-		printf("Holy sh*t, this should never happen!!!!!!!!!\n");
+		printf("[all_in_one:TestEnclave]: Holy sh*t, this should never happen!!!!!!!!!\n");
 		return ret;
 	}
 
 	// Verify signature
 	unsigned char* buf = (unsigned char*)malloc(size_of_img_pixels + size_of_md_json);
 	if (!buf) {
-		printf("No memory left\n");
+		printf("[all_in_one:TestEnclave]: No memory left\n");
 		ret = 1;
 		return ret;
 	}
@@ -1090,7 +1090,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	free(buf);
 	if (ret != 1) {
 		ret = 1;
-		printf("Failed to verify signature\n");
+		printf("[all_in_one:TestEnclave]: Failed to verify signature\n");
 		return ret;
 	}
 
@@ -1098,7 +1098,7 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	// printf("Going to call json_2_metadata\n");
 	metadata* tmp = json_2_metadata((char*)md_json, size_of_md_json);
 	if (!tmp) {
-		printf("Failed to parse metadata\n");
+		printf("[all_in_one:TestEnclave]: Failed to parse metadata\n");
 		ret = 1;
 		return ret;
 	}
@@ -1114,18 +1114,18 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	// printf("Going to call blur\n");
 	blur((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 7);
 
-	// memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
-	// memset(processed_pixels, 0, processed_pixels_size);
-	// auto_white_balance((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
-	// memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
-	// memset(processed_pixels, 0, processed_pixels_size);
-	// denoise_simple((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
-	// memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
-	// memset(processed_pixels, 0, processed_pixels_size);
-	// change_brightness((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 1.5);
-	// memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
-	// memset(processed_pixels, 0, processed_pixels_size);
-	// gray_frame((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	auto_white_balance((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	denoise_simple((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	change_brightness((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 1.5);
+	memcpy((pixel*)img_pixels, processed_pixels, processed_pixels_size);
+	memset(processed_pixels, 0, processed_pixels_size);
+	gray_frame((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height);
 
 	// printf("Going to call Generate metadata\n");
 	// Generate metadata

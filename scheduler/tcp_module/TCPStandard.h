@@ -18,6 +18,7 @@
 # define SIZEOFPACKAGEFORNAME 100	// This is for target packet size of receiving frame name
 # define SIZEOFPACKAGEFORSIZE 8	// This is for target packet size of receiving frame size
 # define SIZEOFPACKAGE 500000	// This is for target packet size of receiving frame
+# define SIZEOFPACKAGE4REC 1048576	// This is for target packet size of receiving frame
 # define REPLYMSGSIZE 100
 
 // Server specific define

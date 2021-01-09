@@ -17,6 +17,10 @@
 #include "ra.h"
 #include "ra-challenger.h"
 #include "ra-challenger_private.h"
+#ifdef ENABLE_DCAP
+#include "sgx_ql_quote.h"
+#include "sgx_dcap_quoteverify.h"
+#endif
 
 extern unsigned char ias_sign_ca_cert_der[];
 extern unsigned int ias_sign_ca_cert_der_len;
@@ -501,8 +505,9 @@ int ecdsa_verify_sgx_cert_extensions
 {
     // Init variables
     int ret = 0;
-    time_t current_time = 1605146732; // TODO: Make this a non-hardcoded time.
+    time_t current_time = 0;
     uint32_t supplemental_data_size = 0;
+    uint8_t *p_supplemental_data = 0;
     sgx_status_t sgx_ret = SGX_SUCCESS;
     quote3_error_t dcap_ret = SGX_QL_ERROR_UNEXPECTED;
     sgx_ql_qv_result_t quote_verification_result = SGX_QL_QV_RESULT_UNSPECIFIED;
@@ -517,47 +522,45 @@ int ecdsa_verify_sgx_cert_extensions
     ecdsa_attestation_evidence_t evidence = {0, };
     openssl_ecdsa_extract_x509_extensions(crt, &evidence);
 
-    // Verify all information is correct
-    /* Set nonce. */
-    memcpy(qve_report_info.nonce.rand, rand_nonce, sizeof(rand_nonce));
-
-    /* Get target info of this enclave. */
-    sgx_ret = sgx_self_target(&qve_report_info.app_enclave_target_info);
-    assert(sgx_ret == SGX_SUCCESS);
-
-    /* Prepare for DCAP quote verification */
-    ocall_ecdsa_get_supplemental_data_size(
-        &supplemental_data_size
-    );
-    uint8_t p_supplemental_data[supplemental_data_size];
-    ocall_ecdsa_verify_quote(
-        evidence.quote, evidence.quote_len,
-        &qve_report_info, &collateral_expiration_status,
-        &quote_verification_result,
-        p_supplemental_data, supplemental_data_size
-    );
-
-    /* Verify QvE quote. */
-    // Threshold of QvE ISV SVN. The ISV SVN of QvE used to verify quote must be greater or equal to this threshold
-    // e.g. You can get latest QvE ISVSVN in QvE Identity JSON file from
-    // https://api.trustedservices.intel.com/sgx/certification/v2/qve/identity
-    // Make sure you are using trusted & latest QvE ISV SVN as threshold
+    //call DCAP quote verify library to get supplemental data size
     //
-    sgx_isv_svn_t qve_isvsvn_threshold = 3; // TODO: Remove hardcoded ISVSVN threshold
-    sgx_ret = sgx_verify_report(&(qve_report_info.qe_report));
-    dcap_ret = sgx_tvl_verify_qve_report_and_identity(
-        evidence.quote, evidence.quote_len,
-        &qve_report_info,
-        current_time,
-        collateral_expiration_status,
-        quote_verification_result,
-        p_supplemental_data,
-        supplemental_data_size,
-        qve_isvsvn_threshold
-    );
-    assert(dcap_ret == SGX_QL_SUCCESS);
+    dcap_ret = sgx_qv_get_quote_supplemental_data_size(&supplemental_data_size);
+    if (dcap_ret == SGX_QL_SUCCESS && supplemental_data_size == sizeof(sgx_ql_qv_supplemental_t)) {
+        printf("\tInfo: sgx_qv_get_quote_supplemental_data_size successfully returned.\n");
+        p_supplemental_data = (uint8_t*)malloc(supplemental_data_size);
+    }
+    else {
+        printf("\tError: sgx_qv_get_quote_supplemental_data_size failed: 0x%04x\n", dcap_ret);
+        supplemental_data_size = 0;
+    }
 
-    /* Check verification result. */
+    //set current time. This is only for sample purposes, in production mode a trusted time should be used.
+    //
+    current_time = time(NULL);
+
+
+    //call DCAP quote verify library for quote verification
+    //here you can choose 'trusted' or 'untrusted' quote verification by specifying parameter '&qve_report_info'
+    //if '&qve_report_info' is NOT NULL, this API will call Intel QvE to verify quote
+    //if '&qve_report_info' is NULL, this API will call 'untrusted quote verify lib' to verify quote, this mode doesn't rely on SGX capable system, but the results can not be cryptographically authenticated
+    dcap_ret = sgx_qv_verify_quote(
+        evidence.quote, evidence.quote_len,
+        NULL,
+        current_time,
+        &collateral_expiration_status,
+        &quote_verification_result,
+        NULL,
+        supplemental_data_size,
+        p_supplemental_data);
+    if (dcap_ret == SGX_QL_SUCCESS) {
+        printf("\tInfo: App: sgx_qv_verify_quote successfully returned.\n");
+    }
+    else {
+        printf("\tError: App: sgx_qv_verify_quote failed: 0x%04x\n", dcap_ret);
+    }
+
+    //check verification result
+    //
     switch (quote_verification_result)
     {
     case SGX_QL_QV_RESULT_OK:
@@ -569,7 +572,7 @@ int ecdsa_verify_sgx_cert_extensions
     case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
     case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
     case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
-        // printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", quote_verification_result);
+        printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", quote_verification_result);
         ret = 1;
         break;
     case SGX_QL_QV_RESULT_INVALID_SIGNATURE:
@@ -597,6 +600,7 @@ void ecdsa_get_mrenclave
     int ret = 0;
     time_t current_time = 1605146732; // TODO: Make this a non-hardcoded time.
     uint32_t supplemental_data_size = 0;
+    uint8_t *p_supplemental_data = 0;
     sgx_status_t sgx_ret = SGX_SUCCESS;
     quote3_error_t dcap_ret = SGX_QL_ERROR_UNEXPECTED;
     sgx_ql_qv_result_t quote_verification_result = SGX_QL_QV_RESULT_UNSPECIFIED;
@@ -611,47 +615,45 @@ void ecdsa_get_mrenclave
     ecdsa_attestation_evidence_t evidence = {0, };
     openssl_ecdsa_extract_x509_extensions(crt, &evidence);
 
-    // Verify all information is correct
-    /* Set nonce. */
-    memcpy(qve_report_info.nonce.rand, rand_nonce, sizeof(rand_nonce));
-
-    /* Get target info of this enclave. */
-    sgx_ret = sgx_self_target(&qve_report_info.app_enclave_target_info);
-    assert(sgx_ret == SGX_SUCCESS);
-
-    /* Prepare for DCAP quote verification */
-    ocall_ecdsa_get_supplemental_data_size(
-        &supplemental_data_size
-    );
-    uint8_t p_supplemental_data[supplemental_data_size];
-    ocall_ecdsa_verify_quote(
-        evidence.quote, evidence.quote_len,
-        &qve_report_info, &collateral_expiration_status,
-        &quote_verification_result,
-        p_supplemental_data, supplemental_data_size
-    );
-
-    /* Verify QvE quote. */
-    // Threshold of QvE ISV SVN. The ISV SVN of QvE used to verify quote must be greater or equal to this threshold
-    // e.g. You can get latest QvE ISVSVN in QvE Identity JSON file from
-    // https://api.trustedservices.intel.com/sgx/certification/v2/qve/identity
-    // Make sure you are using trusted & latest QvE ISV SVN as threshold
+    //call DCAP quote verify library to get supplemental data size
     //
-    sgx_isv_svn_t qve_isvsvn_threshold = 3; // TODO: Remove hardcoded ISVSVN threshold
-    sgx_ret = sgx_verify_report(&(qve_report_info.qe_report));
-    dcap_ret = sgx_tvl_verify_qve_report_and_identity(
-        evidence.quote, evidence.quote_len,
-        &qve_report_info,
-        current_time,
-        collateral_expiration_status,
-        quote_verification_result,
-        p_supplemental_data,
-        supplemental_data_size,
-        qve_isvsvn_threshold
-    );
-    assert(dcap_ret == SGX_QL_SUCCESS);
+    dcap_ret = sgx_qv_get_quote_supplemental_data_size(&supplemental_data_size);
+    if (dcap_ret == SGX_QL_SUCCESS && supplemental_data_size == sizeof(sgx_ql_qv_supplemental_t)) {
+        printf("\tInfo: sgx_qv_get_quote_supplemental_data_size successfully returned.\n");
+        p_supplemental_data = (uint8_t*)malloc(supplemental_data_size);
+    }
+    else {
+        printf("\tError: sgx_qv_get_quote_supplemental_data_size failed: 0x%04x\n", dcap_ret);
+        supplemental_data_size = 0;
+    }
 
-    /* Check verification result. */
+    //set current time. This is only for sample purposes, in production mode a trusted time should be used.
+    //
+    current_time = time(NULL);
+
+
+    //call DCAP quote verify library for quote verification
+    //here you can choose 'trusted' or 'untrusted' quote verification by specifying parameter '&qve_report_info'
+    //if '&qve_report_info' is NOT NULL, this API will call Intel QvE to verify quote
+    //if '&qve_report_info' is NULL, this API will call 'untrusted quote verify lib' to verify quote, this mode doesn't rely on SGX capable system, but the results can not be cryptographically authenticated
+    dcap_ret = sgx_qv_verify_quote(
+        evidence.quote, evidence.quote_len,
+        NULL,
+        current_time,
+        &collateral_expiration_status,
+        &quote_verification_result,
+        NULL,
+        supplemental_data_size,
+        p_supplemental_data);
+    if (dcap_ret == SGX_QL_SUCCESS) {
+        printf("\tInfo: App: sgx_qv_verify_quote successfully returned.\n");
+    }
+    else {
+        printf("\tError: App: sgx_qv_verify_quote failed: 0x%04x\n", dcap_ret);
+    }
+
+    //check verification result
+    //
     switch (quote_verification_result)
     {
     case SGX_QL_QV_RESULT_OK:

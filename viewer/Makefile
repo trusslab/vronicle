@@ -7,11 +7,11 @@ COMMON_FLAGS = -g3 -D__STDC_CONSTANT_MACROS \
 		       -Wshadow -Wno-unused -Winline \
 		       $(INCLUDE_PATHS)
 ifeq ($(ENABLE_DCAP), 1)
-        COMMON_CFLAGS += -DENABLE_DCAP
+        COMMON_FLAGS += -DENABLE_DCAP
 endif
 CXX_FLAGS := $(COMMON_FLAGS) -std=c++14 -Woverloaded-virtual -Wctor-dtor-privacy
 CC_FLAGS  := $(COMMON_FLAGS) -std=c11 -Wno-implicit-function-declaration
-LDLIBS = -lcrypto
+LDLIBS = -lcrypto -L/opt/intel/sgxsdk/lib64 -lsgx_dcap_quoteverify
 
 Viewer_Cpp_Files = $(wildcard *.cpp)
 Viewer_Cpp_Objects = $(Viewer_Cpp_Files:.cpp=.o)
@@ -21,7 +21,7 @@ target = sig_verify
 
 all: $(target)
 
-$(target): $(Viewer_Cpp_Objects) $(Viewer_C_Objects)
+$(target): $(Viewer_C_Objects) $(Viewer_Cpp_Objects)
 	$(CXX) -o $@ $^ $(LDLIBS)
 
 %.o: %.cpp

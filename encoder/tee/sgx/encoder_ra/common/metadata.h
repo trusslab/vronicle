@@ -27,11 +27,12 @@ typedef struct metadata {
     // Filter Info
     int total_filters;
     char** filters;
+    int* filters_parameters_registry;
+    int total_filters_parameters;
+    double* filters_parameters;
     // Custody Info
     int total_digests;
     char** digests;
-    // Frame Tag
-    int frame_id;
 } metadata;
 
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
@@ -65,13 +66,27 @@ void extend_json_wo_fmt(char** json, char* data)
     memcpy(*json + p, data, data_len - 1);
 }
 
-void extend_json_w_fmt(char** json, char* fmt, void* data, int is_int)
+void extend_json_w_fmt(char** json, char* fmt, void* data, int data_format)
 {
+    // data_format: 0: str; 1: int; 2: double
     char element[JSON_MAX_ELEM_LEN] = {0};
-    if (is_int)
-        snprintf(element, JSON_MAX_ELEM_LEN, fmt, *(int*)data);
-    else
+    switch (data_format)
+    {
+    case 0:
         snprintf(element, JSON_MAX_ELEM_LEN, fmt, data);
+        break;
+    case 1:
+        snprintf(element, JSON_MAX_ELEM_LEN, fmt, *(int*)data);
+        break;
+    case 2:
+        snprintf(element, JSON_MAX_ELEM_LEN, fmt, *(double*)data);
+    default:
+        break;
+    }
+    // if (is_int)
+    //     snprintf(element, JSON_MAX_ELEM_LEN, fmt, *(int*)data);
+    // else
+    //     snprintf(element, JSON_MAX_ELEM_LEN, fmt, data);
     size_t p = strlen(*json);
     size_t elem_len = strlen(element) + 1;
     char* tmp = NULL;
@@ -107,43 +122,25 @@ char* metadata_2_json(metadata *md)
         else
             extend_json_w_fmt(&json, ", \"%s\"", md->filters[i], 0);
     }
-    extend_json_w_fmt(&json, "], \"total_digests\": %i, ",  &md->total_digests, 1);
-    extend_json_wo_fmt(&json, "\"digests\": [");
-    for (int i = 0; i < md->total_digests; i++) {
-        if (i == 0)
-            extend_json_w_fmt(&json, "\"%s\"", md->digests[i], 0);
-        else
-            extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
-    }
-    extend_json_w_fmt(&json, "], \"frame_id\": %3i}\0",  &md->frame_id, 1);
-    return json;
-}
-
-char* metadata_2_json_without_frame_id(metadata *md)
-{
-    char* tmp = "{";
-    char* json = (char*)malloc(strlen(tmp) + 1);
-    memset(json, 0, strlen(tmp) + 1);
-    memcpy(json, tmp, strlen(tmp));
-    extend_json_w_fmt(&json, "\"video_id\": \"%s\", ",   md->video_id, 0);
-    extend_json_w_fmt(&json, "\"timestamp\": %li, ",     &md->timestamp, 1);
-    extend_json_w_fmt(&json, "\"width\": %i, ",          &md->width, 1);
-    extend_json_w_fmt(&json, "\"height\": %i, ",         &md->height, 1);
-    extend_json_w_fmt(&json, "\"segment_id\": %i, ",     &md->segment_id, 1);
-    extend_json_w_fmt(&json, "\"total_segments\": %i, ", &md->total_segments, 1);
-    extend_json_w_fmt(&json, "\"frame_rate\": %i, ",     &md->frame_rate, 1);
-    extend_json_w_fmt(&json, "\"total_frames\": %i, ",   &md->total_frames, 1);
-    extend_json_w_fmt(&json, "\"total_filters\": %i, ",  &md->total_filters, 1);
-    extend_json_wo_fmt(&json, "\"filters\": [");
+    extend_json_wo_fmt(&json, "], \"filters_parameters_registry\": [");
     for (int i = 0; i < md->total_filters; i++) {
         if (i == 0)
-            extend_json_w_fmt(&json, "\"%s\"", md->filters[i], 0);
+            extend_json_w_fmt(&json, "\"%i\"", &(md->filters_parameters_registry[i]), 1);
         else
-            extend_json_w_fmt(&json, ", \"%s\"", md->filters[i], 0);
+            extend_json_w_fmt(&json, ", \"%i\"", &(md->filters_parameters_registry[i]), 1);
+    }
+    
+    extend_json_w_fmt(&json, "], \"total_filters_parameters\": %i, ",  &md->total_filters_parameters, 1);
+    extend_json_wo_fmt(&json, "\"filters_parameters\": [");
+    for (int i = 0; i < md->total_filters_parameters; i++) {
+        if (i == 0)
+            extend_json_w_fmt(&json, "\"%f\"", &(md->filters_parameters[i]), 2);
+        else
+            extend_json_w_fmt(&json, ", \"%f\"", &(md->filters_parameters[i]), 2);
     }
     extend_json_w_fmt(&json, "], \"total_digests\": %i, ",  &md->total_digests, 1);
     extend_json_wo_fmt(&json, "\"digests\": [");
-    for (int i = 0; i < md->total_digests; i++) {
+   for (int i = 0; i < md->total_digests; i++) {
         if (i == 0)
             extend_json_w_fmt(&json, "\"%s\"", md->digests[i], 0);
         else
@@ -236,6 +233,39 @@ metadata* json_2_metadata(char* json, size_t json_len)
             }
             i += t[i+1].size + 1;
         }
+        else if (jsoneq(json, &t[i], "filters_parameters_registry") == 0)
+        {
+            md->filters_parameters_registry = (int*)malloc(sizeof(int) * md->total_filters);
+            if (t[i+1].type != JSMN_ARRAY)
+                continue;
+            char* temp_filters_parameters_registry_single;
+            for (int j = 0; j < t[i+1].size; j++) {
+                temp_filters_parameters_registry_single = get_token_data(t[i+j+2], json);
+                md->filters_parameters_registry[j] = atoi(temp_filters_parameters_registry_single);
+                free(temp_filters_parameters_registry_single);
+            }
+            i += t[i+1].size + 1;
+        }
+        else if (jsoneq(json, &t[i], "total_filters_parameters") == 0)
+        {
+            char* temp_total_filters_parameters = get_token_data(t[i+1], json);
+            md->total_filters_parameters = atoi(temp_total_filters_parameters);
+            free(temp_total_filters_parameters);
+            i++;
+        }
+        else if (jsoneq(json, &t[i], "filters_parameters_registry") == 0)
+        {
+            md->filters_parameters = (double*)malloc(sizeof(double) * md->total_filters_parameters);
+            if (t[i+1].type != JSMN_ARRAY)
+                continue;
+            char* temp_filter_parameter;
+            for (int j = 0; j < t[i+1].size; j++) {
+                temp_filter_parameter = get_token_data(t[i+j+2], json);
+                md->filters_parameters[j] = atof(temp_filter_parameter);
+                free(temp_filter_parameter);
+            }
+            i += t[i+1].size + 1;
+        }
         else if (jsoneq(json, &t[i], "total_digests") == 0)
         {
             char* temp_total_digests_char_array = get_token_data(t[i+1], json);
@@ -252,13 +282,6 @@ metadata* json_2_metadata(char* json, size_t json_len)
                 md->digests[j] = get_token_data(t[i+j+2], json);
             }
             i += t[i+1].size + 1;
-        }
-        else if (jsoneq(json, &t[i], "frame_id") == 0)
-        {
-            char* temp_frame_id_char_array = get_token_data(t[i+1], json);
-            md->frame_id = atoi(temp_frame_id_char_array);
-            free(temp_frame_id_char_array);
-            i++;
         }
         else
         {
@@ -287,12 +310,20 @@ void print_metadata(metadata* md) {
     for (int i = 0; i < md->total_filters; i++) {
         printf("    filter %i: %s\n", i, md->filters[i]);
     }
+    printf("filters_parameters_registry:\n");
+    for (int i = 0; i < md->total_filters; i++) {
+        printf("    filter %i: %i\n", i, md->filters_parameters_registry[i]);
+    }
+    printf("total_filters_parameters:  %i\n", md->total_filters_parameters);
+    printf("filters_parameters:\n");
+    for (int i = 0; i < md->total_filters_parameters; i++) {
+        printf("    filter_parameter %i: %f\n", i, md->filters_parameters[i]);
+    }
     printf("total_digests:  %i\n", md->total_digests);
     printf("digests:\n");
     for (int i = 0; i < md->total_digests; i++) {
         printf("    digest %i: %s\n", i, md->digests[i]);
     }
-    printf("frame_id:  %i\n", md->frame_id);
 }
 
 void free_metadata(metadata* md){
@@ -304,6 +335,12 @@ void free_metadata(metadata* md){
             free(md->filters[i]);
         }
         free(md->filters);
+    }
+    if(md->filters_parameters_registry){
+        free(md->filters_parameters_registry);
+    }
+    if(md->filters_parameters){
+        free(md->filters_parameters);
     }
     if(md->digests){
         for(int i = 0; i < md->total_digests; ++i){

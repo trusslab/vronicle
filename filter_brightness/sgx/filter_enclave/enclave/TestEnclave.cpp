@@ -347,18 +347,22 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 		ret = 1;
 		return ret;
 	}
+	int filter_idx = get_filter_idx(tmp, filter_name);
+	int current_filter_parameter_start_pos = 0;
+	for(int i = 0; i < filter_idx; ++i){
+		current_filter_parameter_start_pos += (int)(tmp->filters_parameters_registry[i]);
+	}
 
 	// Process image
     pixel* processed_pixels;
 	size_t processed_pixels_size = sizeof(pixel) * tmp->height * tmp->width;
     processed_pixels = (pixel*)malloc(processed_pixels_size);
 	// Let's make it 50% brighter
-	change_brightness((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, 1.5);
+	change_brightness((pixel*)img_pixels, processed_pixels, tmp->width, tmp->width * tmp->height, tmp->filters_parameters[current_filter_parameter_start_pos++]);
 
 	// Generate metadata
 	int tmp_total_digests = tmp->total_digests;
 	tmp->total_digests = tmp_total_digests + 1;
-	int filter_idx = get_filter_idx(tmp, filter_name);
 	// printf("For [%s], we get filter_idx: [%d]; btw, we have mrenclave(%d): [%s]\n", filter_name, filter_idx, mrenclave_len, mrenclave);
 	tmp->digests = (char**)realloc(tmp->digests, sizeof(char*) * (/*decoder*/1 + /*filter*/filter_idx + 1));
 	tmp->digests[filter_idx + 1] = (char*)malloc(mrenclave_len);

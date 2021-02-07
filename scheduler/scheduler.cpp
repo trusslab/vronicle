@@ -112,6 +112,7 @@ void * received(void * m)
             current_mode = 2;
         } else {
             char* data_received;
+            // printf("Receiving file, remaining_file_size: %d\n", remaining_file_size);
             if(remaining_file_size > SIZEOFPACKAGE4REC){
                 // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
                 data_received = tcp_server.receive_exact_with_id(SIZEOFPACKAGE4REC, p_workflow->incoming_source);

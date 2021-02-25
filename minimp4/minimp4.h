@@ -1105,6 +1105,7 @@ int MP4E_put_sample(MP4E_mux_t *mux, int track_num, const void *data, int data_b
 
     if (mux->enable_fragmentation)
     {
+        // printf("fragmentation is enabled...\n");
         #if MP4D_TFDT_SUPPORT
         // NOTE: assume a constant `duration` to calculate current timestamp
         uint64_t timestamp = (uint64_t)mux->fragments_count * duration;

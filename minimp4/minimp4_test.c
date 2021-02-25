@@ -152,7 +152,7 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
                 unsigned frame_bytes, timestamp, duration;
                 MP4D_file_offset_t ofs = MP4D_frame_offset(&mp4, ntrack, i, &frame_bytes, &timestamp, &duration);
                 fwrite(input_buf + ofs, 1, frame_bytes, f_audio_out);
-                // printf("ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", (unsigned)ofs, frame_bytes, timestamp, duration);
+                printf("sample_count: %d, ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", i, (unsigned)ofs, frame_bytes, timestamp, duration);
 #if ENABLE_AUDIO
                 UCHAR *frame = (UCHAR *)(input_buf + ofs);
                 UINT frame_size = frame_bytes;
@@ -338,11 +338,10 @@ int main(int argc, char **argv)
     int audio_track_id = MP4E_add_track(mux, &tr);
     MP4E_set_dsi(mux, audio_track_id, info.confBuf, info.confSize);
 #endif
-    // int counter = 0;
+    int counter = 0;
     u_int8_t *buf_h264_audio_temp = buf_h264_audio;
     while (h264_size > 0)
     {
-        // printf("Let's see the counter: %d\n", counter++);
         ssize_t nal_size = get_nal_size(buf_h264, h264_size);
         if (nal_size < 4)
         {
@@ -366,14 +365,22 @@ int main(int argc, char **argv)
         h264_size -= nal_size;
 
         // The following codes suppose to align each sample of audio with each frame...though not working...
+        // Using this command "ffprobe -select_streams v -show_streams [video_file_path]" can analyze the whole mp4 container...
+        // which prompts an error of "[aac @ 0x55e4ea176b40] TYPE_FIL: Input buffer exhausted before END element found"
+        // Also, here is another interesting tool: https://www.colincrawley.com/audio-duration-calculator/
         // Start of audio part
-        // if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, h264_audio_size / 6449, 5035 * 1024 / 6449, MP4E_SAMPLE_RANDOM_ACCESS))
-        // if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio, h264_audio_size, 5035 * 1024 * 2, MP4E_SAMPLE_RANDOM_ACCESS))
+        if (fragmentation_mode && !mux->fragments_count)
+            continue; /* make sure mp4_h26x_write_nal writes sps/pps, because in fragmentation mode first MP4E_put_sample writes moov with track information and dsi.
+                         all tracks dsi must be set (MP4E_set_dsi) before first MP4E_put_sample. */
+        // printf("Let's see the counter: %d\n", ++counter);
+        ++counter;
+        // if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, h264_audio_size / 6447, 9668132 / 6447, MP4E_SAMPLE_RANDOM_ACCESS))
+        // // if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio, h264_audio_size, 5035 * 1024 * 2, MP4E_SAMPLE_RANDOM_ACCESS))
         // {
         //     printf("error: MP4E_put_sample failed\n");
         //     exit(1);
         // }
-        // buf_h264_audio_temp += h264_audio_size / 6449;
+        // buf_h264_audio_temp += h264_audio_size / 6447;
         // End of audio part
 
 #if ENABLE_AUDIO
@@ -433,7 +440,20 @@ int main(int argc, char **argv)
     // The following audio codes is temp solution for working audio, which is to align the entire audio data with only the first frame
     // However, any relocation of frame will cause audio to stop working as no audio is aligned with other frames
     // Start of audio part
-    if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio, h264_audio_size, 5035 * 1024 * 2, MP4E_SAMPLE_RANDOM_ACCESS))
+    // This for loop is another attempt
+    // My assumption why audio doesn't work when spliting samples into different and align each of them with a frame(maybe it shouldn't be aligned with frames)
+    // is that each sample's size is different.....(check the printf output when demuxing...it shows video sample count and each sample's size...)
+    // int test_total_num_of_frames = 5034;    // This is currently aligned with sample count of audio from demuxing
+    // for (int i = 0; i < test_total_num_of_frames; ++i){
+    //     if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, h264_audio_size / test_total_num_of_frames, 1024, MP4E_SAMPLE_RANDOM_ACCESS))
+    //     {
+    //         printf("error: MP4E_put_sample failed\n");
+    //         exit(1);
+    //     }
+    //     buf_h264_audio_temp += (h264_audio_size / test_total_num_of_frames);
+    // }
+    // The codes below is the temp solution for aligning with the very first frame
+    if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, h264_audio_size, 0, MP4E_SAMPLE_RANDOM_ACCESS))
     {
         printf("error: MP4E_put_sample failed\n");
         exit(1);

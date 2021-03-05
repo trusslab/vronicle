@@ -378,6 +378,11 @@ int verification_reply(
         printf("[filter_blur]: Failed to parse metadata\n");
         return 1;
     }
+	int filter_idx = get_filter_idx(md, filter_name);
+	int current_filter_parameter_start_pos = 0;
+	for(int i = 0; i < filter_idx; ++i){
+		current_filter_parameter_start_pos += (int)(tmp->filters_parameters_registry[i]);
+	}
 
     // Set up some basic parameters
     frame_size_p = md->width * md->height * 3 * sizeof(unsigned char);
@@ -417,7 +422,6 @@ int verification_reply(
     const char* dummy_mrenclave = "11111111111111111111111111111111111111111111";
 	int tmp_total_digests = md->total_digests;
 	md->total_digests = tmp_total_digests + 1;
-	int filter_idx = get_filter_idx(md, filter_name);
 	md->digests = (char**)realloc(md->digests, sizeof(char*) * (/*decoder*/1 + /*filter*/filter_idx + 1));
 	md->digests[filter_idx + 1] = (char*)malloc(45);
 	memset(md->digests[filter_idx + 1], 0, 45);
@@ -432,7 +436,7 @@ int verification_reply(
     start = high_resolution_clock::now();
 
 	// Process image
-	blur((pixel*)image_pixels, processed_pixels_p, md->width, md->width * md->height, 7);
+	blur((pixel*)image_pixels, processed_pixels_p, md->width, md->width * md->height, (int)md->filters_parameters[current_filter_parameter_start_pos++]);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);

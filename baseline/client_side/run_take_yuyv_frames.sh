@@ -17,10 +17,11 @@
 
 # Set variables
 NUM_OF_FRAMES="60"
-VIDEO_FILE_NAME="./output/out.720p"
+VIDEO_FILE_NAME="./output/out_raw"
 ENC_VIDEO_FILE_NAME="./output/out.h264"
 MD_FILE_NAME="./output/metadata.json"
-SERVER_IP_ADDR="13.90.224.167"
+# SERVER_IP_ADDR="13.90.224.167"
+SERVER_IP_ADDR="20.39.52.2"
 SERVER_PORT="10111"
 
 # # run

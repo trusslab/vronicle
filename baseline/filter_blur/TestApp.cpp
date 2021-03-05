@@ -381,7 +381,7 @@ int verification_reply(
 	int filter_idx = get_filter_idx(md, filter_name);
 	int current_filter_parameter_start_pos = 0;
 	for(int i = 0; i < filter_idx; ++i){
-		current_filter_parameter_start_pos += (int)(tmp->filters_parameters_registry[i]);
+		current_filter_parameter_start_pos += (int)(md->filters_parameters_registry[i]);
 	}
 
     // Set up some basic parameters

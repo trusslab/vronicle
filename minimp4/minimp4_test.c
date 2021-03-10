@@ -12,7 +12,7 @@ typedef size_t ssize_t;
 #define AUDIO_RATE 12000
 #endif
 
-#define VIDEO_FPS 60
+#define VIDEO_FPS 30
 
 static uint8_t *preload(const char *path, ssize_t *data_size)
 {
@@ -84,6 +84,7 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
 
     for (ntrack = 0; ntrack < mp4.track_count; ntrack++)
     {
+        printf("Dealing with track %d now...\n", ntrack);
         MP4D_track_t *tr = mp4.track + ntrack;
         unsigned sum_duration = 0;
         i = 0;
@@ -149,10 +150,15 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
             fwrite(tr->dsi, 1, tr->dsi_bytes, f_audio_dsi_out);
             for (i = 0; i < mp4.track[ntrack].sample_count; i++)
             {
+                // printf("Dealing with audio sample_count: %d, where the total sample count is: %d\n", i, mp4.track[ntrack].sample_count);
                 unsigned frame_bytes, timestamp, duration;
                 MP4D_file_offset_t ofs = MP4D_frame_offset(&mp4, ntrack, i, &frame_bytes, &timestamp, &duration);
+                if (ofs > input_size) {
+                    printf("Abandoning audio from sample_count: %d, where the total sample_count is: %d\n", i, mp4.track[ntrack].sample_count);
+                    break;
+                }
                 fwrite(input_buf + ofs, 1, frame_bytes, f_audio_out);
-                printf("sample_count: %d, ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", i, (unsigned)ofs, frame_bytes, timestamp, duration);
+                // printf("sample_count: %d, ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", i, (unsigned)ofs, frame_bytes, timestamp, duration);
 #if ENABLE_AUDIO
                 UCHAR *frame = (UCHAR *)(input_buf + ofs);
                 UINT frame_size = frame_bytes;
@@ -178,8 +184,11 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
                 fwrite(pcm, sizeof(INT_PCM)*info->frameSize*info->numChannels, 1, fout);
 #endif
             }
+            // printf("Audio track is done...\n");
         }
     }
+
+    // printf("Going to do MP4D_close...\n");
 
     MP4D_close(&mp4);
     if (input_buf)

@@ -305,7 +305,7 @@ metadata* json_2_metadata(char* json, size_t json_len)
             free(temp_total_filters_parameters);
             i++;
         }
-        else if (jsoneq(json, &t[i], "filters_parameters_registry") == 0)
+        else if (jsoneq(json, &t[i], "filters_parameters") == 0)
         {
             md->filters_parameters = (double*)malloc(sizeof(double) * md->total_filters_parameters);
             if (t[i+1].type != JSMN_ARRAY)

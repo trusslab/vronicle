@@ -753,7 +753,7 @@ void do_decoding(
     // Set up parameters for the case where output is multi
     int max_frames = 999; // Assume there are at most 999 frames
     int max_frame_digits = num_digits(max_frames);
-    size_t md_size = md_json_len + 16 + 46;
+    size_t md_size = md_json_len + 17 + 46;
 
     // Parameters to be acquired from enclave
     // u32* frame_width = (u32*)malloc(sizeof(u32)); 

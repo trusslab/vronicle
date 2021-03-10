@@ -743,7 +743,7 @@ int main(int argc, char *argv[])
             md->filters_parameters_registry = (int*)malloc(sizeof(int) * md->total_filters);
             md->total_filters_parameters = 1;
             md->filters_parameters = (double*)malloc(sizeof(double) * md->total_filters_parameters);
-            md->filters[0] = "brightness\0";
+            md->filters[0] = "blur\0";
             md->filters_parameters_registry[0] = 1;
             md->filters_parameters[0] = 7.0;
             // md->filters[0] = "denoise_easy\0";
@@ -757,7 +757,7 @@ int main(int argc, char *argv[])
             md->total_digests = 0;
             print_metadata(md);
             char* json = NULL;
-            json = metadata_2_json(md);
+            json = metadata_2_json_without_frame_id(md);
             unsigned char* tmp;
             tmp = (unsigned char*)realloc(total_coded_data, (size_t)(total_sizeof_coded_data + strlen(json)));
             memcpy(tmp + total_sizeof_coded_data, json, strlen(json));

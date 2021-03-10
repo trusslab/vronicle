@@ -22,13 +22,13 @@ ENC_VIDEO_FILE_NAME="./output/out.h264"
 MD_FILE_NAME="./output/metadata.json"
 # SERVER_IP_ADDR="13.90.224.167"
 SERVER_IP_ADDR="20.39.52.2"
-SERVER_PORT="10111"
+SERVER_PORT="10112"
 
 # # run
 # ./video_capture/take_yuyv_frames $NUM_OF_FRAMES $VIDEO_FILE_NAME
 
 # encode
-./encoder/h264enc_x64 -is_yuyv -fps10 -numframes$NUM_OF_FRAMES $VIDEO_FILE_NAME $ENC_VIDEO_FILE_NAME $MD_FILE_NAME
+# ./encoder/h264enc_x64 -is_yuyv -fps10 -numframes$NUM_OF_FRAMES $VIDEO_FILE_NAME $ENC_VIDEO_FILE_NAME $MD_FILE_NAME
 
 # sign encoded video
 

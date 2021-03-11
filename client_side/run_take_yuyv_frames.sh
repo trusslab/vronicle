@@ -17,21 +17,23 @@
 
 # Set variables
 NUM_OF_FRAMES="60"
-VIDEO_FILE_NAME="./output/out.720p"
+VIDEO_FILE_NAME="./output/out_raw"
 ENC_VIDEO_FILE_NAME="./output/out.h264"
 SIG_FILE_NAME="./output/out.sig"
 MD_FILE_NAME="./output/metadata.json"
 CERT_FILE_NAME="./signer/camera_cert"
 PRIVKEY_FILE_NAME="./signer/camera_pri"
 PUBKEY_FILE_NAME="./signer/camera_pub"
-SERVER_IP_ADDR="13.90.224.167"
-SERVER_PORT="10111"
+# SERVER_IP_ADDR="13.90.224.167"
+SERVER_IP_ADDR="20.39.52.2"
+# SERVER_PORT="10111"
+SERVER_PORT="10112"
 
 # # run
 # ./video_capture/take_yuyv_frames $NUM_OF_FRAMES $VIDEO_FILE_NAME
 
 # encode
-./encoder/h264enc_x64 -is_yuyv -fps10 -numframes$NUM_OF_FRAMES $VIDEO_FILE_NAME $ENC_VIDEO_FILE_NAME $MD_FILE_NAME $SIG_FILE_NAME $PRIVKEY_FILE_NAME $PUBKEY_FILE_NAME
+# ./encoder/h264enc_x64 -is_yuyv -fps10 -numframes$NUM_OF_FRAMES $VIDEO_FILE_NAME $ENC_VIDEO_FILE_NAME $MD_FILE_NAME $SIG_FILE_NAME $PRIVKEY_FILE_NAME $PUBKEY_FILE_NAME
 
 # sign encoded video
 

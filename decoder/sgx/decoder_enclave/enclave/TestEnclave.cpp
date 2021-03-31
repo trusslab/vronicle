@@ -70,6 +70,8 @@
 #include "decoder/src/h264bsd_util.h"
 
 #include "yuvconverter.h"
+#define MINIMP4_IMPLEMENTATION
+#include "minimp4.h"
 
 #define ADD_ENTROPY_SIZE	32
 
@@ -308,6 +310,115 @@ void print_public_key(EVP_PKEY* enc_priv_key){
 	printf("\"}\n");
 
 	free(buf);
+}
+
+typedef struct
+{
+    uint8_t *buffer;
+    ssize_t size;
+} INPUT_BUFFER;
+
+static int read_callback(int64_t offset, void *buffer, size_t size, void *token)
+{
+    INPUT_BUFFER *buf = (INPUT_BUFFER*)token;
+    size_t to_copy = MINIMP4_MIN(size, buf->size - offset - size);
+    memcpy(buffer, buf->buffer + offset, to_copy);
+    return to_copy != size;
+}
+
+int demux(uint8_t *input_buf, ssize_t input_size, u8 *output_stream, int ntrack)
+{
+    int /*ntrack, */i, spspps_bytes;
+    const void *spspps;
+    INPUT_BUFFER buf = { input_buf, input_size };
+    MP4D_demux_t mp4 = { 0, };
+    MP4D_open(&mp4, read_callback, &buf, input_size);
+
+    printf("There are a total of %d tracks in this mp4 container...\n", mp4.track_count);
+
+    for (ntrack = 0; ntrack < mp4.track_count; ntrack++)
+    {
+        printf("Dealing with track %d now...\n", ntrack);
+        MP4D_track_t *tr = mp4.track + ntrack;
+        unsigned sum_duration = 0;
+        i = 0;
+        if (tr->handler_type == MP4D_HANDLER_TYPE_VIDE)
+        {   // assume h264
+#define USE_SHORT_SYNC 0
+            char sync[4] = { 0, 0, 0, 1 };
+            while (spspps = MP4D_read_sps(&mp4, ntrack, i, &spspps_bytes))
+            {
+				memcpy(output_stream, sync + USE_SHORT_SYNC, 4 - USE_SHORT_SYNC);
+				memcpy(output_stream, spspps, spspps_bytes);
+                // fwrite(sync + USE_SHORT_SYNC, 1, 4 - USE_SHORT_SYNC, fout);
+                // fwrite(spspps, 1, spspps_bytes, fout);
+                i++;
+            }
+            i = 0;
+            while (spspps = MP4D_read_pps(&mp4, ntrack, i, &spspps_bytes))
+            {
+				memcpy(output_stream, sync + USE_SHORT_SYNC, 4 - USE_SHORT_SYNC);
+				memcpy(output_stream, spspps, spspps_bytes);
+                // fwrite(sync + USE_SHORT_SYNC, 1, 4 - USE_SHORT_SYNC, fout);
+                // fwrite(spspps, 1, spspps_bytes, fout);
+                i++;
+            }
+            printf("There are a total of %d samples in the video track...\n", mp4.track[ntrack].sample_count);
+            for (i = 0; i < mp4.track[ntrack].sample_count; i++)
+            {
+                unsigned frame_bytes, timestamp, duration;
+                MP4D_file_offset_t ofs = MP4D_frame_offset(&mp4, ntrack, i, &frame_bytes, &timestamp, &duration);
+                uint8_t *mem = input_buf + ofs;
+                sum_duration += duration;
+                // printf("frame_bytes in video is: %d\n", frame_bytes);
+                while (frame_bytes)
+                {
+                    uint32_t size = ((uint32_t)mem[0] << 24) | ((uint32_t)mem[1] << 16) | ((uint32_t)mem[2] << 8) | mem[3];
+                    // printf("size in video is: %d\n", size);
+                    size += 4;
+                    mem[0] = 0; mem[1] = 0; mem[2] = 0; mem[3] = 1;
+					memcpy(output_stream, mem + USE_SHORT_SYNC, size - USE_SHORT_SYNC);
+                    // fwrite(mem + USE_SHORT_SYNC, 1, size - USE_SHORT_SYNC, fout);
+                    if (frame_bytes < size)
+                    {
+                        printf("error: demux sample failed\n");
+                        exit(1);
+                    }
+                    frame_bytes -= size;
+                    mem += size;
+                }
+            }
+        } else if (tr->handler_type == MP4D_HANDLER_TYPE_SOUN)
+        {
+            // The following codes are for storing both audio dsi and audio raw data(AAC)...
+            printf("Audio track detected...with sample_count: %d, channel_count: %d, sample_rate: %d, dsi_bytes: %d, and lanaguage: {%s}\n", 
+                mp4.track[ntrack].sample_count, (tr->SampleDescription).audio.channelcount, (tr->SampleDescription).audio.samplerate_hz, tr->dsi_bytes, tr->language);
+            printf("Audio has type: %x, compared with default_output_audio_type: %x\n", tr->object_type_indication, MP4_OBJECT_TYPE_AUDIO_ISO_IEC_14496_3);
+            printf("Trying to print dsi_bytes: {%s}\n", tr->dsi);
+
+            // fwrite(tr->dsi, 1, tr->dsi_bytes, f_audio_dsi_out);
+            for (i = 0; i < mp4.track[ntrack].sample_count; i++)
+            {
+                // printf("Dealing with audio sample_count: %d, where the total sample count is: %d\n", i, mp4.track[ntrack].sample_count);
+                unsigned frame_bytes, timestamp, duration;
+                MP4D_file_offset_t ofs = MP4D_frame_offset(&mp4, ntrack, i, &frame_bytes, &timestamp, &duration);
+                if (ofs > input_size) {
+                    printf("Abandoning audio from sample_count: %d, where the total sample_count is: %d\n", i, mp4.track[ntrack].sample_count);
+                    break;
+                }
+                // fwrite(input_buf + ofs, 1, frame_bytes, f_audio_out);
+                // printf("sample_count: %d, ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", i, (unsigned)ofs, frame_bytes, timestamp, duration);
+            }
+            // printf("Audio track is done...\n");
+        }
+    }
+
+    // printf("Going to do MP4D_close...\n");
+
+    MP4D_close(&mp4);
+    if (input_buf)
+        free(input_buf);
+    return 0;
 }
 
 int t_sgxver_prepare_decoder(

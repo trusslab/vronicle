@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">FilterTestWithNativeC</string>
+    <string name="google_play_services_not_available">Google Play Services not available!</string>
+    <string name="safetynet_quote_requested">SafetyNet quote is requested!</string>
 </resources>

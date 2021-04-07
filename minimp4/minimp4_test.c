@@ -12,7 +12,7 @@ typedef size_t ssize_t;
 #define AUDIO_RATE 12000
 #endif
 
-#define VIDEO_FPS 60
+#define VIDEO_FPS 24
 
 static uint8_t *preload(const char *path, ssize_t *data_size)
 {
@@ -72,7 +72,7 @@ static int read_callback(int64_t offset, void *buffer, size_t size, void *token)
     return to_copy != size;
 }
 
-int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out, FILE *f_audio_dsi_out, int ntrack)
+int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out, FILE *f_audio_meta_out, int ntrack)
 {
     int /*ntrack, */i, spspps_bytes;
     const void *spspps;
@@ -141,18 +141,28 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
             }
 #endif
             // The following codes are for storing both audio dsi and audio raw data(AAC)...
-            printf("Audio track detected...with sample_count: %d, channel_count: %d, sample_rate: %d, dsi_bytes: %d, and lanaguage: {%s}\n", 
-                mp4.track[ntrack].sample_count, (tr->SampleDescription).audio.channelcount, (tr->SampleDescription).audio.samplerate_hz, tr->dsi_bytes, tr->language);
+            printf("Audio track detected...with sample_count: %d, channel_count: %d, sample_rate: %d, dsi_bytes: %d, and language: {%s}, timescale: %i\n", 
+                mp4.track[ntrack].sample_count, (tr->SampleDescription).audio.channelcount, (tr->SampleDescription).audio.samplerate_hz, tr->dsi_bytes, tr->language, tr->timescale);
             printf("Audio has type: %x, compared with default_output_audio_type: %x\n", tr->object_type_indication, MP4_OBJECT_TYPE_AUDIO_ISO_IEC_14496_3);
-            printf("Trying to print dsi_bytes: {%s}\n", tr->dsi);
 
-            fwrite(tr->dsi, 1, tr->dsi_bytes, f_audio_dsi_out);
+            // Write audio-related metadata.
+            // Samplerate in Hz.
+            fwrite(&(tr->SampleDescription).audio.samplerate_hz, 1, sizeof(unsigned int), f_audio_meta_out);
+            // timescale
+            fwrite(&tr->timescale, 1, sizeof(unsigned int), f_audio_meta_out);
+            // DSI
+            fwrite(&tr->dsi_bytes, 1, sizeof(unsigned int), f_audio_meta_out);
+            fwrite(tr->dsi, 1, tr->dsi_bytes, f_audio_meta_out);
+
+            // Write audio data
+            fwrite(&(mp4.track[ntrack].sample_count), 1, sizeof(unsigned int), f_audio_out);
             for (i = 0; i < mp4.track[ntrack].sample_count; i++)
             {
                 unsigned frame_bytes, timestamp, duration;
                 MP4D_file_offset_t ofs = MP4D_frame_offset(&mp4, ntrack, i, &frame_bytes, &timestamp, &duration);
+                fwrite(&frame_bytes, 1, sizeof(unsigned), f_audio_out);
                 fwrite(input_buf + ofs, 1, frame_bytes, f_audio_out);
-                printf("sample_count: %d, ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", i, (unsigned)ofs, frame_bytes, timestamp, duration);
+                // printf("sample_count: %d, ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", i, (unsigned)ofs, frame_bytes, timestamp, duration);
 #if ENABLE_AUDIO
                 UCHAR *frame = (UCHAR *)(input_buf + ofs);
                 UINT frame_size = frame_bytes;
@@ -181,6 +191,9 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
         }
     }
 
+    fclose(fout);
+    fclose(f_audio_meta_out);
+    fclose(f_audio_out);
     MP4D_close(&mp4);
     if (input_buf)
         free(input_buf);
@@ -232,9 +245,9 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    FILE *f_audio_out = NULL, *f_audio_dsi_out = NULL;
-    uint8_t *buf_h264_audio, *buf_h264_audio_dsi;
-    ssize_t h264_audio_size, h264_audio_dsi_size;
+    FILE *f_audio_out = NULL, *f_audio_meta_out = NULL;
+    uint8_t *buf_h264_audio, *buf_h264_audio_meta;
+    ssize_t h264_audio_size, h264_audio_meta_size;
 
     if (do_demux){
         f_audio_out = fopen(argv[i + 1], "wb");
@@ -244,10 +257,10 @@ int main(int argc, char **argv)
             exit(1);
         }
 
-        f_audio_dsi_out = fopen(argv[i + 2], "wb");
-        if (!f_audio_dsi_out)
+        f_audio_meta_out = fopen(argv[i + 2], "wb");
+        if (!f_audio_meta_out)
         {
-            printf("error: can't open output audio file\n");
+            printf("error: can't open output audio metadata file\n");
             exit(1);
         }
     } else {
@@ -257,8 +270,8 @@ int main(int argc, char **argv)
             printf("error: can't open buf_h264_audio file\n");
             exit(1);
         }
-        buf_h264_audio_dsi = preload(argv[i + 2], &h264_audio_dsi_size);
-        if (!buf_h264_audio_dsi)
+        buf_h264_audio_meta = preload(argv[i + 2], &h264_audio_meta_size);
+        if (!buf_h264_audio_meta)
         {
             printf("error: can't open buf_h264_audio_dsi file\n");
             exit(1);
@@ -273,7 +286,7 @@ int main(int argc, char **argv)
     }
 
     if (do_demux)
-        return demux(alloc_buf, h264_size, fout, f_audio_out, f_audio_dsi_out, track);
+        return demux(alloc_buf, h264_size, fout, f_audio_out, f_audio_meta_out, track);
 
     int is_hevc = (0 != strstr(argv[1], "265")) || (0 != strstr(argv[i], "hevc"));
 
@@ -287,6 +300,14 @@ int main(int argc, char **argv)
     }
 
     // Start of audio part
+    // Get sample rate and timescale
+    unsigned int sample_rate = 0, timescale = 0;
+    memcpy(&sample_rate, buf_h264_audio_meta, sizeof(unsigned int));
+    buf_h264_audio_meta += sizeof(unsigned int);
+    memcpy(&timescale, buf_h264_audio_meta, sizeof(unsigned int));
+    buf_h264_audio_meta += sizeof(unsigned int);
+
+    // Set track data
     MP4E_track_t tr;
     tr.track_media_kind = e_audio;
     tr.language[0] = 'u';
@@ -294,13 +315,17 @@ int main(int argc, char **argv)
     tr.language[2] = 'd';
     tr.language[3] = 0;
     tr.object_type_indication = MP4_OBJECT_TYPE_AUDIO_ISO_IEC_14496_3;
-    tr.time_scale = 90000;
+    tr.time_scale = timescale;
     tr.default_duration = 0;
     tr.u.a.channelcount = 2;
-    tr.u.a.samplerate_hz = 48000;
+    tr.u.a.samplerate_hz = sample_rate;
     int audio_track_id = MP4E_add_track(mux, &tr);
-    printf("The dsi info used is(%ld): {%s}\n", h264_audio_dsi_size, buf_h264_audio_dsi);
-    MP4E_set_dsi(mux, audio_track_id, buf_h264_audio_dsi, h264_audio_dsi_size);
+
+    // Set DSI
+    unsigned int dsi_bytes = 0;
+    memcpy(&dsi_bytes, buf_h264_audio_meta, sizeof(unsigned int));
+    buf_h264_audio_meta += sizeof(unsigned int);
+    MP4E_set_dsi(mux, audio_track_id, buf_h264_audio_meta, dsi_bytes);
     // End of audio part
 
 #if ENABLE_AUDIO
@@ -339,7 +364,7 @@ int main(int argc, char **argv)
     MP4E_set_dsi(mux, audio_track_id, info.confBuf, info.confSize);
 #endif
     int counter = 0;
-    u_int8_t *buf_h264_audio_temp = buf_h264_audio;
+    uint8_t *buf_h264_audio_temp = buf_h264_audio;
     while (h264_size > 0)
     {
         ssize_t nal_size = get_nal_size(buf_h264, h264_size);
@@ -364,24 +389,10 @@ int main(int argc, char **argv)
         buf_h264  += nal_size;
         h264_size -= nal_size;
 
-        // The following codes suppose to align each sample of audio with each frame...though not working...
-        // Using this command "ffprobe -select_streams v -show_streams [video_file_path]" can analyze the whole mp4 container...
-        // which prompts an error of "[aac @ 0x55e4ea176b40] TYPE_FIL: Input buffer exhausted before END element found"
-        // Also, here is another interesting tool: https://www.colincrawley.com/audio-duration-calculator/
-        // Start of audio part
         if (fragmentation_mode && !mux->fragments_count)
             continue; /* make sure mp4_h26x_write_nal writes sps/pps, because in fragmentation mode first MP4E_put_sample writes moov with track information and dsi.
                          all tracks dsi must be set (MP4E_set_dsi) before first MP4E_put_sample. */
-        // printf("Let's see the counter: %d\n", ++counter);
         ++counter;
-        // if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, h264_audio_size / 6447, 9668132 / 6447, MP4E_SAMPLE_RANDOM_ACCESS))
-        // // if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio, h264_audio_size, 5035 * 1024 * 2, MP4E_SAMPLE_RANDOM_ACCESS))
-        // {
-        //     printf("error: MP4E_put_sample failed\n");
-        //     exit(1);
-        // }
-        // buf_h264_audio_temp += h264_audio_size / 6447;
-        // End of audio part
 
 #if ENABLE_AUDIO
         if (fragmentation_mode && !mux->fragments_count)
@@ -437,26 +448,22 @@ int main(int argc, char **argv)
         }
 #endif
     }
-    // The following audio codes is temp solution for working audio, which is to align the entire audio data with only the first frame
-    // However, any relocation of frame will cause audio to stop working as no audio is aligned with other frames
-    // Start of audio part
-    // This for loop is another attempt
-    // My assumption why audio doesn't work when spliting samples into different and align each of them with a frame(maybe it shouldn't be aligned with frames)
-    // is that each sample's size is different.....(check the printf output when demuxing...it shows video sample count and each sample's size...)
-    // int test_total_num_of_frames = 5034;    // This is currently aligned with sample count of audio from demuxing
-    // for (int i = 0; i < test_total_num_of_frames; ++i){
-    //     if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, h264_audio_size / test_total_num_of_frames, 1024, MP4E_SAMPLE_RANDOM_ACCESS))
-    //     {
-    //         printf("error: MP4E_put_sample failed\n");
-    //         exit(1);
-    //     }
-    //     buf_h264_audio_temp += (h264_audio_size / test_total_num_of_frames);
-    // }
-    // The codes below is the temp solution for aligning with the very first frame
-    if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, h264_audio_size, 0, MP4E_SAMPLE_RANDOM_ACCESS))
-    {
-        printf("error: MP4E_put_sample failed\n");
-        exit(1);
+    // Put audio data to container
+    unsigned int sample_count = 0;
+    memcpy(&sample_count, buf_h264_audio_temp, sizeof(unsigned int));
+    printf("read sample_count: %u\n", sample_count);
+    buf_h264_audio_temp += sizeof(unsigned int);
+    for (int i = 0; i < sample_count; ++i){
+        unsigned frame_bytes = 0;
+        memcpy(&frame_bytes, buf_h264_audio_temp, sizeof(unsigned));
+        if (i == 3) printf("read frame_bytes: %u\n", frame_bytes);
+        buf_h264_audio_temp += sizeof(unsigned);
+        if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, frame_bytes, 1024, MP4E_SAMPLE_RANDOM_ACCESS))
+        {
+            printf("error: MP4E_put_sample failed\n");
+            exit(1);
+        }
+        buf_h264_audio_temp += frame_bytes;
     }
     // End of audio part
 #if ENABLE_AUDIO
@@ -472,6 +479,6 @@ int main(int argc, char **argv)
         fclose(fout);
     if (f_audio_out)
         fclose(f_audio_out);
-    if (f_audio_dsi_out)
-        fclose(f_audio_dsi_out);
+    if (f_audio_meta_out)
+        fclose(f_audio_meta_out);
 }

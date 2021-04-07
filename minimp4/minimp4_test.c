@@ -84,6 +84,7 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
 
     for (ntrack = 0; ntrack < mp4.track_count; ntrack++)
     {
+        printf("Dealing with track %d now...\n", ntrack);
         MP4D_track_t *tr = mp4.track + ntrack;
         unsigned sum_duration = 0;
         i = 0;
@@ -158,9 +159,14 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
             fwrite(&(mp4.track[ntrack].sample_count), 1, sizeof(unsigned int), f_audio_out);
             for (i = 0; i < mp4.track[ntrack].sample_count; i++)
             {
+                // printf("Dealing with audio sample_count: %d, where the total sample count is: %d\n", i, mp4.track[ntrack].sample_count);
                 unsigned frame_bytes, timestamp, duration;
                 MP4D_file_offset_t ofs = MP4D_frame_offset(&mp4, ntrack, i, &frame_bytes, &timestamp, &duration);
                 fwrite(&frame_bytes, 1, sizeof(unsigned), f_audio_out);
+                if (ofs > input_size) {
+                    printf("Abandoning audio from sample_count: %d, where the total sample_count is: %d\n", i, mp4.track[ntrack].sample_count);
+                    break;
+                }
                 fwrite(input_buf + ofs, 1, frame_bytes, f_audio_out);
                 // printf("sample_count: %d, ofs=%d frame_bytes=%d timestamp=%d duration=%d\n", i, (unsigned)ofs, frame_bytes, timestamp, duration);
 #if ENABLE_AUDIO
@@ -188,6 +194,7 @@ int demux(uint8_t *input_buf, ssize_t input_size, FILE *fout, FILE *f_audio_out,
                 fwrite(pcm, sizeof(INT_PCM)*info->frameSize*info->numChannels, 1, fout);
 #endif
             }
+            // printf("Audio track is done...\n");
         }
     }
 

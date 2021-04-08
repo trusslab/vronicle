@@ -146,6 +146,7 @@ void *start_receiving_helper_scheduler_report(void * m)
     if( tcp_server_for_scheduler_helper.setup(main_scheduler_report_port, opts) != 0) {
         cerr << "(tcp_server_for_scheduler_helper)Errore apertura socket" << endl;
     }
+    printf("Start listening for helper scheduler at port: %d\n", main_scheduler_report_port);
 
     while(true){
         int current_communicating_helper_scheduler_id = tcp_server_for_scheduler_helper.accepted();
@@ -690,8 +691,9 @@ int main(int argc, char *argv[], char **env)
     if(argc >= 3){
         current_scheduler_mode = atoi(argv[2]);
         main_scheduler_ip_address = argv[3];
-        main_scheduler_port = atoi(argv[1]);
     }
+    
+    main_scheduler_port = atoi(argv[1]);
 
     // Print current mode of scheduler
     if(current_scheduler_mode == 0){
@@ -820,7 +822,8 @@ int main(int argc, char *argv[], char **env)
 
         // Start TCPServer for receving incoming data
         pthread_t msg;
-        if( tcp_server.setup(atoi(argv[1]),opts) != 0) {
+        printf("Main scheduler going to listen for incoming data at port: %d\n", main_scheduler_port);
+        if( tcp_server.setup(atoi(argv[1]), opts) != 0) {
             cerr << "Errore apertura socket" << endl;
         }
 

@@ -95,7 +95,9 @@ int main(int argc, char *argv[])
 	}
 	signal(SIGINT, sig_exit);
 
+	printf("Going to connect to %s at port %s\n", argv[1], argv[2]);
 	tcp.setup(argv[1],atoi(argv[2]));
+	printf("Connected, now uploading...\n");
 
 	char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
 

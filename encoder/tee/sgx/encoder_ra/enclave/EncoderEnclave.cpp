@@ -65,6 +65,9 @@
 #include "metadata.h"
 #include <math.h>
 
+#define MINIMP4_IMPLEMENTATION
+#include "minimp4.h"
+
 H264E_persist_t *enc;
 H264E_scratch_t *scratch;
 H264E_create_param_t create_param;
@@ -82,6 +85,16 @@ metadata* in_md;
 metadata* out_md;
 char* mrenclave;
 size_t mrenclave_len;
+
+// For muxing
+uint8_t *mp4_strm = NULL;
+size_t sizeof_mp4_strm = 0;
+size_t sizeof_current_mp4_strm = 0;
+size_t sizeof_used_mp4_strm = 0;
+size_t standard_block_size = 1000000;	// For controlling how mp4_strm grows
+
+// For audio data
+EVP_PKEY *pubkey_of_decoder = NULL;
 
 void exit(int status)
 {
@@ -514,7 +527,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     metadata* md;
     md = json_2_metadata(md_json, md_json_size);
     if (frame_counter != md->frame_id) {
-        printf("Frame out of order\n");
+        printf("[EncoderEnclave]: Frame out of order: frame_counter: %d v.s. md->frame_id: %d\n", frame_counter, md->frame_id);
         return -1;
     }
     int fps = md->frame_rate;
@@ -643,7 +656,7 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
     res = H264E_encode(enc, scratch, &run_param, &yuv, &coded_data, &sizeof_coded_data);
     if (res)
     {
-        printf("t_encode_frame: ERROR during encoding\n");
+        printf("[EncoderEnclave]: t_encode_frame: ERROR during encoding\n");
         return res;
     }
 
@@ -658,15 +671,255 @@ int t_encode_frame (unsigned char* frame_sig, size_t frame_sig_size,
         memset(tmp + total_coded_data_size, 0, sizeof_coded_data);
         memcpy(tmp + total_coded_data_size, coded_data, sizeof_coded_data);
         total_coded_data_size += sizeof_coded_data;
+        // printf("[EncoderEnclave]: Now has total_coded_data_size: %d\n", total_coded_data_size);
         total_coded_data = tmp;
     }
     else
     {
-        printf("t_encode_frame: ERROR no memory available\n");
+        printf("[EncoderEnclave]: t_encode_frame: ERROR no memory available\n");
         res = -1;
     }
    
     return res;
+}
+
+static ssize_t get_nal_size(uint8_t *buf, ssize_t size)
+{
+    ssize_t pos = 3;
+    while ((size - pos) > 3)
+    {
+        if (buf[pos] == 0 && buf[pos + 1] == 0 && buf[pos + 2] == 1)
+            return pos;
+        if (buf[pos] == 0 && buf[pos + 1] == 0 && buf[pos + 2] == 0 && buf[pos + 3] == 1)
+            return pos;
+        pos++;
+    }
+    return size;
+}
+
+int expand_allocation_space_if_necessary(void** pointer_to_check, size_t *size_of_data, size_t current_used_size, size_t size_to_write, size_t size_to_expand) 
+{
+	// Return 0 for success, otherwise fail
+
+	while ((*size_of_data - current_used_size) < size_to_write) {
+		// printf("[EncoderEnclave]: expand_allocation_space_if_necessary: Going to expand to %d\n", *size_of_data + size_to_expand);
+		*pointer_to_check = realloc(*pointer_to_check, *size_of_data + size_to_expand);
+		// printf("[EncoderEnclave]: expand_allocation_space_if_necessary: Expanded to %d\n", *size_of_data + size_to_expand);
+		if (*pointer_to_check == NULL) {
+			printf("[EncoderEnclave]: expand_allocation_space_if_necessary is failed when trying to resize from %d to %d...\n", *size_of_data, current_used_size);
+			return 1;
+		}
+		*size_of_data += size_to_expand;
+	}
+	// printf("[EncoderEnclave]: After expand_allocation_space_if_necessary, size_of_data is now expanded to: %d\n", *size_of_data);
+	return 0;
+}
+
+int adjust_allocation_space_as_needed(void** pointer_to_check, size_t *size_of_data, size_t current_used_size)
+{
+	// Return 0 for success, otherwise fail
+	if (*size_of_data < current_used_size) {
+		printf("[EncoderEnclave]: adjust_allocation_space_as_needed is failed when trying to resize from %d to %d...\n", *size_of_data, current_used_size);
+		return 1;
+	} else if (*size_of_data > current_used_size) {
+		*pointer_to_check = realloc(*pointer_to_check, current_used_size);
+		if (*pointer_to_check == NULL) {
+			printf("[EncoderEnclave]: adjust_allocation_space_as_needed is failed when trying to resize from %d to %d...\n", *size_of_data, current_used_size);
+			return 1;
+		}
+		*size_of_data = current_used_size;
+	}
+	return 0;
+}
+
+static int write_callback(int64_t offset, const void *buffer, size_t size, void *token)
+{
+	// Return 0 for success, otherwise fail
+
+    // FILE *f = (FILE*)token;
+    // fseek(f, offset, SEEK_SET);
+    // return fwrite(buffer, 1, size, f) != size;
+
+    // Don't forget to play the trick: passing **token into the *token argument...(since otherwise have to modify the whole minimp4.h)
+    // Also, we are assuming token is the mp4_strm
+
+    // printf("[EncoderEnclave]: mux: write_callback is called...\n");
+    if (expand_allocation_space_if_necessary((void**) token, &sizeof_current_mp4_strm, sizeof_used_mp4_strm, size, standard_block_size) != 0) {
+        return 1;
+    }
+    // printf("[EncoderEnclave]: mux: write_callback is called 1...\n");
+
+    memcpy((*(void**)token) + offset, buffer, size);
+    // printf("[EncoderEnclave]: mux: write_callback is called 2...\n");
+    sizeof_used_mp4_strm += size;
+    return 0;
+}
+
+int mux(metadata* video_meta,
+        uint8_t* video_strm, size_t video_strm_size,
+        uint8_t* audio_dsi_strm, size_t audio_dsi_strm_size,
+        uint8_t* audio_strm, size_t audio_strm_size,
+        uint8_t** mp4_buffer, size_t* mp4_buffer_size) {
+    // Return 0 for success, otherwise fail
+    // Note that mp4_buffer will be newly allocated here, so make sure you free it
+
+    // printf("[EncoderEnclave]: mux: checkpoint 1...\n");
+
+    int is_hevc = 0;    // TO-DO: Consider supporting HEVC
+    int sequential_mode = 0;    // TO-DO: Consider supporting sequential_mode
+    int fragmentation_mode = 0; // TO-DO: Consider supporting fragmentation_mode
+    
+    // printf("[EncoderEnclave]: mux: checkpoint 2...\n");
+
+    // Init mp4_buffer
+    sizeof_current_mp4_strm = standard_block_size;
+    *mp4_buffer = (uint8_t*) malloc(sizeof_current_mp4_strm);
+
+    // printf("[EncoderEnclave]: mux: checkpoint 3...\n");
+
+    MP4E_mux_t *mux;
+    mp4_h26x_writer_t mp4wr;
+    mux = MP4E_open(sequential_mode, fragmentation_mode, mp4_buffer, write_callback);
+
+    if (mux == 0) {
+        printf("[EncoderEnclave]: MP4E_open failed...\n");
+        return 1;
+    }
+    
+    // printf("[EncoderEnclave]: mux: checkpoint 4...\n");
+
+    if (MP4E_STATUS_OK != mp4_h26x_write_init(&mp4wr, mux, 352, 288, is_hevc))
+    {
+        printf("[EncoderEnclave]: error: mp4_h26x_write_init failed\n");
+        return 1;
+    }
+    
+    // printf("[EncoderEnclave]: mux: checkpoint 5...\n");
+
+    // Start of audio part
+    uint8_t *audio_dsi_strm_temp = audio_dsi_strm;
+    // Get sample rate and timescale
+    unsigned int sample_rate = 0, timescale = 0;
+    memcpy(&sample_rate, audio_dsi_strm_temp, sizeof(unsigned int));
+    audio_dsi_strm_temp += sizeof(unsigned int);
+    memcpy(&timescale, audio_dsi_strm_temp, sizeof(unsigned int));
+    audio_dsi_strm_temp += sizeof(unsigned int);
+    
+    // printf("[EncoderEnclave]: mux: checkpoint 6...\n");
+
+    // Set track data
+    MP4E_track_t tr;
+    tr.track_media_kind = e_audio;
+    tr.language[0] = 'u';
+    tr.language[1] = 'n';
+    tr.language[2] = 'd';
+    tr.language[3] = 0;
+    tr.object_type_indication = MP4_OBJECT_TYPE_AUDIO_ISO_IEC_14496_3;
+    tr.time_scale = timescale;
+    tr.default_duration = 0;
+    tr.u.a.channelcount = 2;
+    tr.u.a.samplerate_hz = sample_rate;
+    int audio_track_id = MP4E_add_track(mux, &tr);
+    
+    // printf("[EncoderEnclave]: mux: checkpoint 7...\n");
+
+    // Set DSI
+    unsigned int dsi_bytes = 0;
+    memcpy(&dsi_bytes, audio_dsi_strm_temp, sizeof(unsigned int));
+    audio_dsi_strm_temp += sizeof(unsigned int);
+    MP4E_set_dsi(mux, audio_track_id, audio_dsi_strm_temp, dsi_bytes);
+    // End of audio part
+    
+    // printf("[EncoderEnclave]: mux: checkpoint 8...\n");
+
+    int counter = 0;
+    uint8_t *buf_h264_audio_temp = audio_strm;
+    uint8_t *video_strm_temp = video_strm;
+    
+    // printf("[EncoderEnclave]: mux: checkpoint 9...video_strm_size: %d\n", video_strm_size);
+
+    while (video_strm_size > 0)
+    {
+        // printf("[EncoderEnclave]: mux: checkpoint 9.1...\n");
+
+        ssize_t nal_size = get_nal_size(video_strm_temp, video_strm_size);
+
+        // printf("[EncoderEnclave]: mux: checkpoint 9.2...nal_size: %d\n", nal_size);
+
+        if (nal_size < 4)
+        {
+            video_strm_temp  += 1;
+            video_strm_size -= 1;
+            continue;
+        }
+
+        // printf("[EncoderEnclave]: mux: checkpoint 9.3...video_meta->frame_rate: %d\n", video_meta->frame_rate);
+
+        if (MP4E_STATUS_OK != mp4_h26x_write_nal(&mp4wr, video_strm_temp, nal_size, 90000/video_meta->frame_rate))
+        {
+            printf("[EncoderEnclave]: error: mp4_h26x_write_nal failed\n");
+            return 1;
+        }
+
+        // printf("[EncoderEnclave]: mux: checkpoint 9.4...\n");
+
+        video_strm_temp  += nal_size;
+        video_strm_size -= nal_size;
+        
+        // printf("[EncoderEnclave]: mux: checkpoint 9.5...\n");
+
+        if (fragmentation_mode && !mux->fragments_count)
+            continue; /* make sure mp4_h26x_write_nal writes sps/pps, because in fragmentation mode first MP4E_put_sample writes moov with track information and dsi.
+                         all tracks dsi must be set (MP4E_set_dsi) before first MP4E_put_sample. */
+        ++counter;
+
+        // printf("[EncoderEnclave]: mux: checkpoint 9.6...\n");
+    }
+
+    // printf("[EncoderEnclave]: mux: checkpoint 10...\n");
+
+    // Put audio data to container
+    unsigned int sample_count = 0;
+
+    // printf("[EncoderEnclave]: mux: checkpoint 11...\n");
+
+    memcpy(&sample_count, buf_h264_audio_temp, sizeof(unsigned int));
+
+    // printf("[EncoderEnclave]: mux: checkpoint 12...\n");
+
+    // printf("[EncoderEnclave]: read sample_count: %u\n", sample_count);
+    buf_h264_audio_temp += sizeof(unsigned int);
+
+    // printf("[EncoderEnclave]: mux: checkpoint 13...\n");
+
+    for (int i = 0; i < sample_count; ++i){
+        unsigned frame_bytes = 0;
+        memcpy(&frame_bytes, buf_h264_audio_temp, sizeof(unsigned));
+        // if (i == 3) printf("[EncoderEnclave]: read frame_bytes: %u\n", frame_bytes);
+        buf_h264_audio_temp += sizeof(unsigned);
+        if (MP4E_STATUS_OK != MP4E_put_sample(mux, audio_track_id, buf_h264_audio_temp, frame_bytes, 1024, MP4E_SAMPLE_RANDOM_ACCESS))
+        {
+            printf("error: MP4E_put_sample failed\n");
+            exit(1);
+        }
+        buf_h264_audio_temp += frame_bytes;
+    }
+    // End of audio part
+
+    // printf("[EncoderEnclave]: mux: checkpoint 14...\n");
+
+    MP4E_close(mux);
+    mp4_h26x_write_close(&mp4wr);
+    
+    // Muxing finished!
+    if (adjust_allocation_space_as_needed((void**) mp4_buffer, &sizeof_current_mp4_strm, sizeof_used_mp4_strm) != 0) {
+		return 1;
+	}
+    *mp4_buffer_size = sizeof_used_mp4_strm;
+
+    printf("[EncoderEnclave]: mux: mp4_buffer_size: %d\n", *mp4_buffer_size);
+
+    return 0;
 }
 
 int t_verify_cert(void* cert, size_t size_of_cert, size_t client_id)
@@ -708,9 +961,44 @@ int t_verify_cert(void* cert, size_t size_of_cert, size_t client_id)
 	return ret;
 }
 
-void t_get_sig_size (size_t* sig_size)
+int t_verify_decoder_cert(void* cert, size_t size_of_cert)
+{
+	int ret = 1;
+	X509 *crt = NULL;
+	do {
+		// Verify certificate
+#ifndef ENABLE_DCAP
+		ret = verify_sgx_cert_extensions((uint8_t*)cert, (uint32_t)size_of_cert);
+#else
+		ret = ecdsa_verify_sgx_cert_extensions((uint8_t*)cert, (uint32_t)size_of_cert);
+#endif
+		if (ret) {
+			printf("[EncoderEnclave]: Decoder cert verification failed\n");
+			break;
+		}
+
+		// Extract public key from certificate
+		pubkey_of_decoder = EVP_PKEY_new();
+ 	    const unsigned char* p = (unsigned char*)cert;
+ 	    crt = d2i_X509(NULL, &p, size_of_cert);
+ 	    assert(crt != NULL);
+ 	    pubkey_of_decoder = X509_get_pubkey(crt);
+		if(!pubkey_of_decoder){
+			ret = 1;
+			printf("[EncoderEnclave]: Failed to retreive decoder public key\n");
+			break;
+		}
+	} while(0);
+
+	// Clean up
+    if (crt) X509_free(crt);
+	return ret;
+}
+
+void t_get_sig_size (size_t* sig_size, char* original_md_json,  size_t original_md_json_size)
 {
     // Generate metadata
+    // This must be called first before any other signature or metadata related output functions
 
     // char* output_json_4_in = metadata_2_json(in_md);
     
@@ -724,22 +1012,47 @@ void t_get_sig_size (size_t* sig_size)
 	out_md->digests[tmp_total_digests] = (char*)malloc(mrenclave_len);
 	memset(out_md->digests[tmp_total_digests], 0, mrenclave_len);
 	memcpy(out_md->digests[tmp_total_digests], mrenclave, mrenclave_len);
+
+    // For case of SafetyNet
+    metadata *original_md = json_2_metadata(original_md_json, original_md_json_size);
+    if (original_md->is_safetynet_presented) {
+        out_md->is_safetynet_presented = original_md->is_safetynet_presented;
+        out_md->num_of_safetynet_jws = original_md->num_of_safetynet_jws;
+        out_md->safetynet_jws = (char**)malloc(sizeof(char*) * out_md->num_of_safetynet_jws);
+        for (int i = 0; i < out_md->num_of_safetynet_jws; ++i) {
+            size_t size_of_current_jws = strlen(original_md->safetynet_jws[i]);
+            out_md->safetynet_jws[i] = (char*)malloc(sizeof(char) * size_of_current_jws);
+            memcpy(out_md->safetynet_jws[i], original_md->safetynet_jws[i], size_of_current_jws);
+        }
+    }
+
 	char* output_json = metadata_2_json_without_frame_id(out_md);
+
+    if (original_md->is_safetynet_presented) {
+        printf("[EncoderEnclave]: After safetynet related data is presented in metadata, the final size of output_json will be: %d\n", strlen(output_json));
+    }
 
     // printf("[EncoderEnclave]: In t_get_sig_size, we have output_json(%d): [%s]\n", strlen(output_json), output_json);
 
 	// Create buffer for signing
-	unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
-	memset(buf, 0, total_coded_data_size + strlen(output_json));
-	memcpy(buf, total_coded_data, total_coded_data_size);
-	memcpy(buf + total_coded_data_size, output_json, strlen(output_json));
+	// unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
+	// memset(buf, 0, total_coded_data_size + strlen(output_json));
+	// memcpy(buf, total_coded_data, total_coded_data_size);
+	// memcpy(buf + total_coded_data_size, output_json, strlen(output_json));
+
+    unsigned char *buf = (unsigned char*)malloc(sizeof_mp4_strm + strlen(output_json));
+	memset(buf, 0, sizeof_mp4_strm + strlen(output_json));
+	memcpy(buf, mp4_strm, sizeof_mp4_strm);
+	memcpy(buf + sizeof_mp4_strm, output_json, strlen(output_json));
 
     // Sign
     // printf("Going to sign with output_json(%d): [%s]\n", strlen(output_json), output_json);
-    sign(enc_priv_key, buf, total_coded_data_size + strlen(output_json), NULL, sig_size);
+    // sign(enc_priv_key, buf, total_coded_data_size + strlen(output_json), NULL, sig_size);
+    sign(enc_priv_key, buf, sizeof_mp4_strm + strlen(output_json), NULL, sig_size);
 
     free(buf);
     free(output_json);
+    free_metadata(original_md);
 }
 
 void t_get_sig (unsigned char* sig, size_t sig_size)
@@ -749,15 +1062,27 @@ void t_get_sig (unsigned char* sig, size_t sig_size)
     // printf("[EncoderEnclave]: In t_get_sig, we have output_json(%d): [%s]\n", strlen(output_json), output_json);
 
 	// Create buffer for signing
-	unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
-	memset(buf, 0, total_coded_data_size + strlen(output_json));
-	memcpy(buf, total_coded_data, total_coded_data_size);
-	memcpy(buf + total_coded_data_size, output_json, strlen(output_json));
+	// unsigned char *buf = (unsigned char*)malloc(total_coded_data_size + strlen(output_json));
+	// memset(buf, 0, total_coded_data_size + strlen(output_json));
+	// memcpy(buf, total_coded_data, total_coded_data_size);
+	// memcpy(buf + total_coded_data_size, output_json, strlen(output_json));
+
+    unsigned char *buf = (unsigned char*)malloc(sizeof_mp4_strm + strlen(output_json));
+	memset(buf, 0, sizeof_mp4_strm + strlen(output_json));
+	memcpy(buf, mp4_strm, sizeof_mp4_strm);
+	memcpy(buf + sizeof_mp4_strm, output_json, strlen(output_json));
 
     // Sign
-    sign(enc_priv_key, buf, total_coded_data_size + strlen(output_json), &sig, &sig_size);
+    // sign(enc_priv_key, buf, total_coded_data_size + strlen(output_json), &sig, &sig_size);
+    sign(enc_priv_key, buf, sizeof_mp4_strm + strlen(output_json), &sig, &sig_size);
 
     free(buf);
+    free(output_json);
+}
+
+void t_get_metadata_size (size_t *size_of_metadata) {
+    char* output_json = metadata_2_json_without_frame_id(out_md);
+    *size_of_metadata = strlen(output_json);
     free(output_json);
 }
 
@@ -787,6 +1112,65 @@ void t_get_encoded_video (unsigned char* out_data, size_t out_data_size)
 {
     memcpy(out_data, total_coded_data, total_coded_data_size);
     out_data_size = total_coded_data_size;
+}
+
+int t_mux_video_with_audio (char* audio_meta_in, size_t size_of_audio_meta_in, 
+                            char* audio_data_in, size_t size_of_audio_data_in, 
+                            unsigned char* audio_related_data_sig_in, size_t size_of_audio_related_data_sig_in, 
+                            size_t* size_of_muxed_video) 
+{
+    // Return 0 on success, otherwise fail
+    if (pubkey_of_decoder == NULL) {
+        printf("[EncoderEnclave]: call t_verify_decoder_cert first...\n");
+        return 1;
+    }
+
+    if (sizeof_mp4_strm != 0) {
+        printf("[EncoderEnclave]: Multiple calls of t_mux_video_with_audio is not allowed...\n");
+        return 1;
+    }
+
+    unsigned char* buf_4_verify = (unsigned char*)malloc(size_of_audio_meta_in + size_of_audio_data_in);
+    if (!buf_4_verify) {
+        printf("[EncoderEnclave]: No memory left for audio verification\n");
+        return 1;
+    }
+    memset(buf_4_verify, 0, size_of_audio_meta_in + size_of_audio_data_in);
+    memcpy(buf_4_verify, audio_meta_in, size_of_audio_meta_in);
+    memcpy(buf_4_verify + size_of_audio_meta_in, audio_data_in, size_of_audio_data_in);
+    int res_of_verify = verify_sig((void*)buf_4_verify, size_of_audio_meta_in + size_of_audio_data_in, audio_related_data_sig_in, size_of_audio_related_data_sig_in, pubkey_of_decoder);
+    if (res_of_verify != 1) {
+        printf("[EncoderEnclave]: Audio related data signature cannot be verified\n");
+        return -1;
+    }
+    free(buf_4_verify);
+
+    int res_of_mux = mux(in_md, total_coded_data, total_coded_data_size, (uint8_t*)audio_meta_in, size_of_audio_meta_in, (uint8_t*)audio_data_in, size_of_audio_data_in, &mp4_strm, &sizeof_mp4_strm);
+    if (res_of_mux != 0) {
+        printf("[EncoderEnclave]: Mux is failed...\n");
+        return -1;
+    }
+
+    *size_of_muxed_video = sizeof_mp4_strm;
+    return 0;
+}
+
+int t_get_muxed_video (char* mp4_video, size_t size_of_mp4_video)
+{
+    // Return 0 on success, otherwise fail
+    if (sizeof_mp4_strm == 0) {
+        printf("[EncoderEnclave]: call t_mux_video_with_audio first...\n");
+        return 1;
+    }
+
+    if (size_of_mp4_video != sizeof_mp4_strm) {
+        printf("[EncoderEnclave]: size_of_mp4_video: %d is not equal to sizeof_mp4_strm: %d...\n", size_of_mp4_video, sizeof_mp4_strm);
+        return 1;
+    }
+
+    memcpy(mp4_video, mp4_strm, size_of_mp4_video);
+
+    return 0;
 }
 
 #ifndef ENABLE_DCAP
@@ -839,6 +1223,9 @@ void t_free(void)
         }
         free(pubkeys);
     }
+    if (pubkey_of_decoder) {
+        EVP_PKEY_free(pubkey_of_decoder);
+    }
     if (enc_priv_key)
         EVP_PKEY_free(enc_priv_key);
 
@@ -848,6 +1235,10 @@ void t_free(void)
         free(scratch);
     if (total_coded_data)
         free(total_coded_data);
+
+    // Free data for muxing
+    if (mp4_strm)
+        free(mp4_strm);
 
     if (buf_in)
         free(buf_in);

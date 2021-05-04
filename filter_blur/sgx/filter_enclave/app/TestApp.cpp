@@ -908,6 +908,8 @@ int verification_reply(
         printf("Runtime result verification failed: %d\n", ret);
         return 1;
     }
+    
+    printf("[filter_blur:TestApp]: Processed frame: %d\n", md->frame_id);
 
     
     start = high_resolution_clock::now();

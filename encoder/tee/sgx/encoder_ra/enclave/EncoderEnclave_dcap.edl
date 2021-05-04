@@ -97,11 +97,18 @@ include "sgx_qve_header.h"
         public int t_verify_cert(
             [in, size=size_of_dcap_cert] void *dcap_cert, size_t size_of_dcap_cert, size_t client_id
         );
+        public int t_verify_decoder_cert(
+            [in, size=size_of_dcap_cert] void *dcap_cert, size_t size_of_dcap_cert
+        );
         public void t_get_sig_size(
-            [out] size_t* sig_size
+            [out] size_t* sig_size,
+            [in, size=original_md_json_size] char* original_md_json,  size_t original_md_json_size
         );
         public void t_get_sig(
             [out, size=sig_size] unsigned char* sig, size_t sig_size
+        );
+        public void t_get_metadata_size(
+            [out] size_t *size_of_metadata
         );
         public void t_get_metadata(
             [out, size=metadata_size] char* metadata, size_t metadata_size
@@ -111,6 +118,15 @@ include "sgx_qve_header.h"
         );
         public void t_get_encoded_video(
             [out, size=video_size] unsigned char* video, size_t video_size
+        );
+        public int t_mux_video_with_audio (
+            [in, size=size_of_audio_meta_in] char* audio_meta_in, size_t size_of_audio_meta_in, 
+            [in, size=size_of_audio_data_in] char* audio_data_in, size_t size_of_audio_data_in, 
+            [in, size=size_of_audio_related_data_sig_in] unsigned char* audio_related_data_sig_in, size_t size_of_audio_related_data_sig_in, 
+            [out] size_t* size_of_muxed_video
+        );
+        public int t_get_muxed_video (
+            [out, size=size_of_mp4_video] char* mp4_video, size_t size_of_mp4_video
         );
         public void t_create_key_and_x509(
             [out, size=size_of_cert] void* cert, size_t size_of_cert,

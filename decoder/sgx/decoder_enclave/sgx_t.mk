@@ -35,6 +35,7 @@
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 ENCLAVE_DIR=enclave
+COMMON_DIR=common
 ENABLE_DCAP ?= 0
 
 ifeq ($(shell getconf LONG_BIT), 32)

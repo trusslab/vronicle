@@ -55,9 +55,9 @@ typedef struct incoming_data {
 
 typedef struct decoder_args {
     // char* path_of_cam_vender_pubkey;
-    int incoming_port;
-    char* outgoing_ip_addr;
-    int outgoing_port;
+    int incoming_port;  // Actually scheduler_port_to_report
+    char* outgoing_ip_addr; // Deprecated 
+    int outgoing_port;  // Deprecated
     int is_filter_bundle_detected = 0;
 } decoder_args;
 
@@ -79,6 +79,8 @@ typedef struct encoder_args {
     int incoming_port;
     int outgoing_port;
     int is_filter_bundle_detected = 0;
+    int port_for_decoder;
+    char* encoder_ip_addr;  // Should be remote ip address instead of local
 } encoder_args;
 
 typedef struct helper_scheduler_info {
@@ -144,10 +146,11 @@ workflow** workflows = NULL;
 int main_scheduler_report_port = 10111; // This port is used for helper scheduler to report to main scheduler in order to be controlled by main scheduler
 int self_server_port_marker = 10113;
 int encoder_outgoing_port_marker = 41231;   // Reason we have this seperately is Azure currently only have 10111(used by scheduler) and 41234 opened...
+int encoder_port_for_decoder_to_connect_marker = 41236; // For decoder to connect to encoder to send audio info...
 
 // For filter-bundle test only
 // int is_filter_bundle_detected = 0;   // Replaced by pre_workflow
-int self_server_port_marker_extra = 20112;
+int self_server_port_marker_extra = 20112;  // For bundle test/eval
 int num_of_filter_in_bundle = 2;
 
 // For mode that current scheduler is running at

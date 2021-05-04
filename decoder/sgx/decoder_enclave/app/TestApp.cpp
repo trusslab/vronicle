@@ -97,7 +97,8 @@
 #include "tcp_module/TCPClient.h"
 
 // For TCP module
-TCPServer tcp_server;   // For direct use
+TCPServer tcp_server;   // For direct use (Deprecated)
+TCPServer tcp_server_for_decoder;
 TCPClient tcp_client_rec;    // For scheduler use
 TCPClient **tcp_clients;
 pthread_t msg1[MAX_CLIENT];
@@ -106,6 +107,9 @@ int time_send   = 1;
 int num_of_times_received = 0;
 int size_of_msg_buf_for_rec = REPLYMSGSIZE;
 char* msg_buf_for_rec;
+
+// For TCP connection with encoder
+TCPClient tcp_client_with_encoder;
 
 // For multi bundle-filter enclaves
 int num_of_pair_of_output = -1;
@@ -122,6 +126,18 @@ long vid_sig_buf_length = 0;
 char* vid_sig_buf = NULL;
 long md_json_len = 0;
 char* md_json = NULL;
+
+// For SafetyNet data
+char *original_md_json;
+long original_md_json_len;
+
+// For audio data
+size_t size_of_audio_meta = 0;
+char* audio_meta = NULL;
+size_t size_of_audio_data = 0;
+char* audio_data = NULL;
+size_t size_of_audio_sig = 0;
+char* audio_sig = NULL;
 
 // For outgoing data
 unsigned char *der_cert;
@@ -641,6 +657,7 @@ void close_app(int signum) {
     for(int i = 0; i < num_of_pair_of_output; ++i){
 	    tcp_clients[i]->exit();
     }
+    tcp_client_with_encoder.exit();
 	exit(0);
 }
 
@@ -763,33 +780,33 @@ void try_receive_something(void* data_for_storage, long data_size){
     return;
 }
 
-int send_buffer(void* buffer, long buffer_lenth, int sending_target_id){
+int send_buffer(void* buffer, long buffer_length, TCPClient* target_tcp_client) {
     // Return 0 on success, return 1 on failure
 
-	// Send size of buffer
-	tcp_clients[sending_target_id]->Send(&buffer_lenth, sizeof(long));
-	string rec = tcp_clients[sending_target_id]->receive_exact(REPLYMSGSIZE);
+    // Send size of buffer
+	target_tcp_client->Send(&buffer_length, sizeof(long));
+	string rec = target_tcp_client->receive_exact(REPLYMSGSIZE);
 	if( rec != "" )
 	{
 		// cout << rec << endl;
 	}
 
-    long remaining_size_of_buffer = buffer_lenth;
+    long remaining_size_of_buffer = buffer_length;
     void* temp_buffer = buffer;
     int is_finished = 0;
 
 	while(1)
 	{
         if(remaining_size_of_buffer > SIZEOFPACKAGE_HIGH){
-		    tcp_clients[sending_target_id]->Send(temp_buffer, SIZEOFPACKAGE_HIGH);
+		    target_tcp_client->Send(temp_buffer, SIZEOFPACKAGE_HIGH);
             remaining_size_of_buffer -= SIZEOFPACKAGE_HIGH;
             temp_buffer += SIZEOFPACKAGE_HIGH;
         } else {
-		    tcp_clients[sending_target_id]->Send(temp_buffer, remaining_size_of_buffer);
+		    target_tcp_client->Send(temp_buffer, remaining_size_of_buffer);
             is_finished = 1;
         }
         // printf("(inside)Going to wait for receive...just send buffer with size: %d\n", remaining_size_of_buffer);
-		string rec = tcp_clients[sending_target_id]->receive_exact(REPLYMSGSIZE);
+		string rec = target_tcp_client->receive_exact(REPLYMSGSIZE);
         // printf("(inside)Going to wait for receive(finished)...\n");
 		if( rec != "" )
 		{
@@ -803,19 +820,28 @@ int send_buffer(void* buffer, long buffer_lenth, int sending_target_id){
             break;
         }
 	}
-
+    
     return 0;
 }
 
-void send_message(char* message, int msg_size, int sending_target_id){
-	tcp_clients[sending_target_id]->Send(message, msg_size);
+int send_buffer_to_next_enclave(void* buffer, long buffer_lenth, int sending_target_id){
+
+	return send_buffer(buffer, buffer_lenth, tcp_clients[sending_target_id]);
+}
+
+void send_message(char* message, int msg_size, TCPClient *target_tcp_client) {
+    target_tcp_client->Send(message, msg_size);
     // printf("(send_message)Going to wait for receive...\n");
-	string rec = tcp_clients[sending_target_id]->receive_exact(REPLYMSGSIZE);
+	string rec = target_tcp_client->receive_exact(REPLYMSGSIZE);
     // printf("(send_message)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
 		// cout << "send_message received: " << rec << endl;
 	}
+}
+
+void send_message_to_next_enclave(char* message, int msg_size, int sending_target_id){
+	send_message(message, msg_size, tcp_clients[sending_target_id]);
 }
 
 int check_and_change_to_main_scheduler(){
@@ -920,13 +946,116 @@ int setup_tcp_clients_auto(){
             return 1;
         }
         // Send certificate
-        send_message(msg_buf, SIZEOFPACKAGEFORNAME, i);
+        send_message_to_next_enclave(msg_buf, SIZEOFPACKAGEFORNAME, i);
         // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
-        send_buffer(der_cert, size_of_cert, i);
+        send_buffer_to_next_enclave(der_cert, size_of_cert, i);
         // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
     }
     free(reply_to_scheduler);
     return 0;
+}
+
+int setup_connection_with_encoder_using_scheduler() {
+    // Return 0 on success, otherwise return 1
+
+    char* reply_to_scheduler = (char*)malloc(REPLYMSGSIZE);
+    memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+    memcpy(reply_to_scheduler, "ready", 5);
+
+    string encoder_ip_addr = tcp_client_rec.receive_name();
+    tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+
+    int encoder_port = (long)tcp_client_rec.receive_size_of_data();
+    tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+
+    printf("[decoder:TestApp]: Going to connect to encoder at ip: %s with port: %d\n", encoder_ip_addr.c_str(), encoder_port);
+
+    bool result_of_connection_setup = tcp_client_with_encoder.setup(encoder_ip_addr.c_str(), encoder_port);
+    if(!result_of_connection_setup){
+        free(reply_to_scheduler);
+        return 1;
+    }
+
+    free(reply_to_scheduler);
+    return 0;
+}
+
+void * get_and_send_audio_related_data_and_metadata_to_encoder(void* m) {
+    // Will get audio related data from enclave and send to encoder
+    // Return 0 on success, otherwise return 1
+
+    int *result_to_return = (int*)malloc(sizeof(int));
+    *result_to_return = 0;
+
+    int ret = 1;
+    sgx_status_t status = t_sgxver_get_audio_related_data_sizes(global_eid, &ret, &size_of_audio_meta, &size_of_audio_data, &size_of_audio_sig, sizeof(size_t));
+
+    if (ret != 0) {
+        printf("[decoder:TestApp]: Failed to get audio related data size with error code: [%d]\n", ret);
+        *result_to_return = 1;
+        return result_to_return;
+    }
+
+    // Pre allocate all audio data
+    audio_meta = (char*) malloc(size_of_audio_meta);
+    audio_data = (char*) malloc(size_of_audio_data);
+    audio_sig = (char*) malloc(size_of_audio_sig);
+
+    status = t_sgxver_get_audio_related_data(global_eid, &ret, audio_meta, size_of_audio_meta, audio_data, size_of_audio_data, audio_sig, size_of_audio_sig);
+
+    if (ret != 0) {
+        printf("[decoder:TestApp]: Failed to get audio related data with error code: [%d]\n", ret);
+        *result_to_return = 1;
+        return result_to_return;
+    }
+
+    int size_of_msg_buf = SIZEOFPACKAGEFORNAME;
+    char* msg_buf = (char*) malloc(size_of_msg_buf);
+
+    // Send certificate
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "cert", 4);
+
+    // printf("[decoder:TestApp]: Going to send {%s} to encoder...\n", msg_buf);
+    send_message(msg_buf, size_of_msg_buf, &tcp_client_with_encoder);
+    // printf("[decoder:TestApp]: Message is sent...\n");
+    send_buffer(der_cert, size_of_cert, &tcp_client_with_encoder);
+    // Free der_cert last as we need it for passing to next filter(s)
+
+    // Send audio_data
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "audio_data", 10);
+
+    send_message(msg_buf, size_of_msg_buf, &tcp_client_with_encoder);
+    send_buffer(audio_data, size_of_audio_data, &tcp_client_with_encoder);
+    free(audio_data);
+
+    // Send audio_sig
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "audio_sig", 9);
+
+    send_message(msg_buf, size_of_msg_buf, &tcp_client_with_encoder);
+    send_buffer(audio_sig, size_of_audio_sig, &tcp_client_with_encoder);
+    free(audio_sig);
+
+    // Send audio_meta
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "audio_meta", 10);
+
+    send_message(msg_buf, size_of_msg_buf, &tcp_client_with_encoder);
+    send_buffer(audio_meta, size_of_audio_meta, &tcp_client_with_encoder);
+    free(audio_meta);
+
+    // Send original metadata
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "metadata", 8);
+
+    send_message(msg_buf, size_of_msg_buf, &tcp_client_with_encoder);
+    send_buffer(original_md_json, original_md_json_len, &tcp_client_with_encoder);
+
+    free(msg_buf);
+    
+    return result_to_return;
 }
 
 void do_decoding(
@@ -961,7 +1090,7 @@ void do_decoding(
 
     if(!connection_result){
         printf("[decoder:TestApp]: Connection cannot be established...\n");
-        return;
+        close_app(0);
     }
 
     // Determine if the current scheduler is in main mode or in helper mode
@@ -993,7 +1122,7 @@ void do_decoding(
     vendor_pub = read_file_as_str(input_vendor_pub_path.c_str(), &vendor_pub_len);
     if (!vendor_pub) {
         printf("[decoder:TestApp]: Failed to read camera vendor public key\n");
-        return;
+        close_app(0);
     }
 
     end = high_resolution_clock::now();
@@ -1049,7 +1178,7 @@ void do_decoding(
 
         } else {
             printf("[decoder:TestApp]: Received invalid file name: [%s]\n", name_of_current_file);
-            return;
+            close_app(0);
         }
 
         memset(msg_buf_for_rec, 0, size_of_msg_buf_for_rec);
@@ -1067,13 +1196,29 @@ void do_decoding(
     start = high_resolution_clock::now();
 
     // Parse metadata
-    // printf("md_json(%ld): %s\n", md_json_len, md_json);
+    // printf("[decoder:TestApp]: md_json(%ld): {%s}\n", md_json_len, md_json);
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
         printf("[decoder:TestApp]: Failed to parse metadata\n");
-        return;
+        close_app(0);
+    }
+
+    // Extra parsing for Safetynet
+    metadata *original_md = md;
+    original_md_json = md_json;
+    original_md_json_len = md_json_len;
+    if (original_md->is_safetynet_presented) {
+        md = json_2_metadata((char*)md_json, md_json_len);
+        for (int i = 0; i < md->num_of_safetynet_jws; ++i) {
+            free(md->safetynet_jws[i]);
+        }
+        free(md->safetynet_jws);
+        md->num_of_safetynet_jws = 0;
+        md->is_safetynet_presented = 0;
+        md_json = metadata_2_json_without_frame_id(md);
+        md_json_len = strlen((char*)md_json);
     }
 
     // Decode signature
@@ -1096,19 +1241,19 @@ void do_decoding(
     u8* output_rgb_buffer = (u8*)malloc(total_size_of_raw_rgb_buffer + 1);
     if (!output_rgb_buffer) {
         printf("[decoder:TestApp]: No memory left (RGB)\n");
-        return;
+        close_app(0);
     }
     size_t total_size_of_sig_buffer = sig_size * md->total_frames;
     u8* output_sig_buffer = (u8*)malloc(total_size_of_sig_buffer + 1);
     if (!output_sig_buffer) {
         printf("[decoder:TestApp]: No memory left (SIG)\n");
-        return;
+        close_app(0);
     }
     size_t total_size_of_md_buffer = md_size * md->total_frames;
     u8* output_md_buffer = (u8*)malloc(total_size_of_md_buffer + 1);
     if (!output_md_buffer) {
         printf("[decoder:TestApp]: No memory left (MD)\n");
-        return;
+        close_app(0);
     }
 
     end = high_resolution_clock::now();
@@ -1118,12 +1263,13 @@ void do_decoding(
     start = high_resolution_clock::now();
 
     int ret = 0;
+    // printf("[decoder:TestApp]: Going to call t_sgxver_prepare_decoder with size_of_contentBuffer: %d...\n", contentSize);
     sgx_status_t status = t_sgxver_prepare_decoder(global_eid, &ret,
                                                   contentBuffer, contentSize, 
-                                                  md_json, md_json_len,
+                                                  original_md_json, original_md_json_len,
                                                   vendor_pub, vendor_pub_len,
                                                   camera_cert, camera_cert_len,
-                                                  vid_sig, vid_sig_length);
+                                                  vid_sig, vid_sig_length, md->is_safetynet_presented);
     // printf("[decoder: TestApp]: t_sgxver_prepare_decoder: [%d]\n", ret);
 
     // status = t_sgxver_decode_content(global_eid, &ret,
@@ -1145,160 +1291,186 @@ void do_decoding(
         printf("[decoder:TestApp]: Failed to prepare decoding video with error code: [%d]\n", ret);
         close_app(0);
     }
-    else {
-        // printf("[decoder:TestApp]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
-        //     *frame_width, *frame_height, *num_of_frames);
+
+    // printf("[decoder:TestApp]: After decoding, we know the frame width: %d, frame height: %d, and there are a total of %d frames.\n", 
+    //     *frame_width, *frame_height, *num_of_frames);
+
+    // Clean signle frame info each time before getting something new...
+
+    u8* temp_output_rgb_buffer = output_rgb_buffer;
+    u8* temp_output_sig_buffer = output_sig_buffer;
+    u8* temp_output_md_buffer = output_md_buffer;
+
+    // Prepare buf for sending message
+    int size_of_msg_buf = SIZEOFPACKAGEFORNAME;
+    char* msg_buf = (char*) malloc(size_of_msg_buf);
+
+    // Prepare sending cert to all bundle-filter enclaves
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "cert", 4);
+
+    // printf("Going to prepare all tcp clients...\n");
+
+    // Prepare all tcp clients
+    if(set_num_of_pair_of_output() != 0){
+        printf("[decoder:TestApp]: Failed to do set_num_of_pair_of_output\n");
+        close_app(0);
+    }
+    // fprintf(stderr, "[Evaluation]: Decoder is going to connect to next filter(s) at: %ld\n", high_resolution_clock::now());
+    // printf("[decoder:TestApp]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
+    if(setup_tcp_clients_auto() != 0){
+        printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");
+        close_app(0);
+    }
+
+    // Set up connection with encoder
+    if (setup_connection_with_encoder_using_scheduler() != 0) {
+        printf("[decoder:TestApp]: Failed to do setup_connection_with_encoder_using_scheduler\n");
+        close_app(0);
+    }
+
+    // Get audio related data from enclave and send to encoder
+    pthread_t thread_4_encoder_sender;
+
+    // printf("[decoder:TestApp]: Going to create thread for get_and_send_audio_related_data_and_metadata_to_encoder...\n");
+    if(pthread_create(&thread_4_encoder_sender, NULL, get_and_send_audio_related_data_and_metadata_to_encoder, (void *)0) != 0){
+        printf("[decoder:TestApp]: pthread for get_and_send_audio_related_data_and_metadata_to_encoder created failed...quiting...\n");
+        close_app(0);
+    }
+
+    end = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(end - start_s);
+    alt_eval_file << duration.count() << ", ";
+
+    // Init for single frame info
+    u8* single_frame_buf = (u8*)malloc(frame_size);
+    u8* single_frame_md_json = (u8*)malloc(md_size);
+    u8* single_frame_sig = (u8*)malloc(sig_size);
+
+    // Start sending frames 
+    for(int i = 0; i < num_of_frames; ++i){
+
+        // printf("[decoder:TestApp]: Sending frame: %d\n", i);
 
         // Clean signle frame info each time before getting something new...
+        memset(single_frame_buf, 0, frame_size);
+        memset(single_frame_md_json, 0, md_size);
+        memset(single_frame_sig, 0, sig_size);
 
-        u8* temp_output_rgb_buffer = output_rgb_buffer;
-        u8* temp_output_sig_buffer = output_sig_buffer;
-        u8* temp_output_md_buffer = output_md_buffer;
+        // printf("[decoder:TestApp]: Going to decode frame: %d\n", i);
 
-        // Prepare buf for sending message
-        int size_of_msg_buf = 100;
-        char* msg_buf = (char*) malloc(size_of_msg_buf);
+        sgx_status_t status = t_sgxver_decode_single_frame(global_eid, &ret,
+                                                        single_frame_buf, frame_size,
+                                                        single_frame_md_json, md_size,
+                                                        single_frame_sig, sig_size);
 
-        // Prepare sending cert to all bundle-filter enclaves
+        if(ret == -1 && i + 1 < num_of_frames){
+            printf("[decoder:TestApp]: Finished decoding video on incorrect frame: [%d], where total frame is: [%d]...\n", i, num_of_frames);
+            close_app(0);
+        } else if(ret != 0 && ret != -1){
+            printf("[decoder:TestApp]: Failed to decode video on frame: [%d]\n", i);
+            close_app(0);
+        }
+
+        printf("[decoder:TestApp]: Decoded frame: %d\n", i);
+
+        string frame_num = to_string(i);
+        
+        // Send frame
+        // char* b64_frame = NULL;
+        // size_t b64_frame_size = 0;
+        // Base64Encode(temp_output_rgb_buffer, frame_size, &b64_frame, &b64_frame_size);
         memset(msg_buf, 0, size_of_msg_buf);
-        memcpy(msg_buf, "cert", 4);
+        memcpy(msg_buf, "frame", 5);
+        // printf("Going to send frame %d's name...\n", i);
 
-        // printf("Going to prepare all tcp clients...\n");
+        start = high_resolution_clock::now();
 
-        // Prepare all tcp clients
-        if(set_num_of_pair_of_output() != 0){
-            printf("[decoder:TestApp]: Failed to do set_num_of_pair_of_output\n");
-            return;
-        }
-        // fprintf(stderr, "[Evaluation]: Decoder is going to connect to next filter(s) at: %ld\n", high_resolution_clock::now());
-        // printf("[decoder:TestApp]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
-        if(setup_tcp_clients_auto() != 0){
-            printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");
-            return;
-        }
+        send_message_to_next_enclave(msg_buf, size_of_msg_buf, current_sending_target_id);
+        // printf("Very first set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[0], temp_output_rgb_buffer[1], temp_output_rgb_buffer[2]);
+        // int last_pixel_position = 1280 * 720 * 3 - 3;
+        // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
+        // printf("Going to send frame %d's info...\n", i);
+        // send_buffer(temp_output_rgb_buffer, frame_size, current_sending_target_id);
+        send_buffer_to_next_enclave(single_frame_buf, frame_size, current_sending_target_id);
 
         end = high_resolution_clock::now();
-        duration = duration_cast<microseconds>(end - start_s);
-        alt_eval_file << duration.count() << ", ";
+        duration = duration_cast<microseconds>(end - start);
+        eval_file << duration.count() << ", ";
 
-        // Init for single frame info
-        u8* single_frame_buf = (u8*)malloc(frame_size);
-        u8* single_frame_md_json = (u8*)malloc(md_size);
-        u8* single_frame_sig = (u8*)malloc(sig_size);
+        // free(b64_frame);
+        // temp_output_rgb_buffer += frame_size;
 
-        // Start sending frames 
-        for(int i = 0; i < num_of_frames; ++i){
-
-            // printf("[decoder:TestApp]: Sending frame: %d\n", i);
-
-            // Clean signle frame info each time before getting something new...
-            memset(single_frame_buf, 0, frame_size);
-            memset(single_frame_md_json, 0, md_size);
-            memset(single_frame_sig, 0, sig_size);
-
-            sgx_status_t status = t_sgxver_decode_single_frame(global_eid, &ret,
-                                                            single_frame_buf, frame_size,
-                                                            single_frame_md_json, md_size,
-                                                            single_frame_sig, sig_size);
-
-            if(ret == -1 && i + 1 < num_of_frames){
-                printf("[decoder:TestApp]: Finished decoding video on incorrect frame: [%d], where total frame is: [%d]...\n", i, num_of_frames);
-                close_app(0);
-            } else if(ret != 0 && ret != -1){
-                printf("[decoder:TestApp]: Failed to decode video on frame: [%d]\n", i);
-                close_app(0);
-            }
-
-            string frame_num = to_string(i);
-            
-            // Send frame
-            // char* b64_frame = NULL;
-            // size_t b64_frame_size = 0;
-            // Base64Encode(temp_output_rgb_buffer, frame_size, &b64_frame, &b64_frame_size);
-            memset(msg_buf, 0, size_of_msg_buf);
-            memcpy(msg_buf, "frame", 5);
-            // printf("Going to send frame %d's name...\n", i);
-
-            start = high_resolution_clock::now();
-
-            send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
-            // printf("Very first set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[0], temp_output_rgb_buffer[1], temp_output_rgb_buffer[2]);
-            // int last_pixel_position = 1280 * 720 * 3 - 3;
-            // printf("Very last set of image pixel: %d, %d, %d\n", temp_output_rgb_buffer[last_pixel_position], temp_output_rgb_buffer[last_pixel_position + 1], temp_output_rgb_buffer[last_pixel_position + 2]);
-            // printf("Going to send frame %d's info...\n", i);
-            // send_buffer(temp_output_rgb_buffer, frame_size, current_sending_target_id);
-            send_buffer(single_frame_buf, frame_size, current_sending_target_id);
-
-            end = high_resolution_clock::now();
-            duration = duration_cast<microseconds>(end - start);
-            eval_file << duration.count() << ", ";
-
-            // free(b64_frame);
-            // temp_output_rgb_buffer += frame_size;
-
-            // Send signature
-            // char* b64_sig = NULL;
-            // size_t b64_sig_size = 0;
-            // Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
-            memset(msg_buf, 0, size_of_msg_buf);
-            memcpy(msg_buf, "sig", 3);
-            // printf("Going to send frame %d's sig's name...\n", i);
-
-            start = high_resolution_clock::now();
-
-            send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
-            // printf("signature(%d) going to be sent is: [%s]\n", b64_sig_size, b64_sig);
-            // printf("Going to send frame %d's sig's info...\n", i);
-            // send_buffer(temp_output_sig_buffer, sig_size, current_sending_target_id);
-            send_buffer(single_frame_sig, sig_size, current_sending_target_id);
-
-            end = high_resolution_clock::now();
-            duration = duration_cast<microseconds>(end - start);
-            eval_file << duration.count() << ", ";
-            
-            //free(b64_sig);
-            // temp_output_sig_buffer += sig_size;
-
-            // Send metadata
-            memset(msg_buf, 0, size_of_msg_buf);
-            memcpy(msg_buf, "meta", 4);
-            // printf("Going to send frame %d's md's name...\n", i);
-            // int md_size_for_sending = md_size + 1;
-            // char* md_for_print = (char*) malloc(md_size_for_sending);
-            // memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
-            // md_for_print[md_size_for_sending - 1] = '\0';
-            // printf("metadata(%d) going to be sent is: [%s]\n", md_size_for_sending, md_for_print);
-            // printf("Going to send frame %d's md's info...\n", i);
-
-            start = high_resolution_clock::now();
-
-            send_message(msg_buf, size_of_msg_buf, current_sending_target_id);
-            // send_buffer(temp_output_md_buffer, md_size, current_sending_target_id);
-            // printf("[decoder:TestApp]: Going to send md_json(%d): {%s}\n", md_size, single_frame_md_json);
-            send_buffer(single_frame_md_json, md_size, current_sending_target_id);
-
-            end = high_resolution_clock::now();
-            duration = duration_cast<microseconds>(end - start);
-            eval_file << duration.count() << "\n";
-
-            //free(md_for_print);
-            // temp_output_md_buffer += md_size;
-
-            // Switch to next sending target
-            current_sending_target_id = (current_sending_target_id + 1) % num_of_pair_of_output;
-        }
-
+        // Send signature
+        // char* b64_sig = NULL;
+        // size_t b64_sig_size = 0;
+        // Base64Encode(temp_output_sig_buffer, sig_size, &b64_sig, &b64_sig_size);
         memset(msg_buf, 0, size_of_msg_buf);
-        memcpy(msg_buf, "no_more_frame", 13);
+        memcpy(msg_buf, "sig", 3);
+        // printf("Going to send frame %d's sig's name...\n", i);
 
-        for(int i = 0; i < num_of_pair_of_output; ++i){
-            // Send no_more_frame msg
-            send_message(msg_buf, size_of_msg_buf, i);
-        }
+        start = high_resolution_clock::now();
 
-        free(msg_buf);
+        send_message_to_next_enclave(msg_buf, size_of_msg_buf, current_sending_target_id);
+        // printf("signature(%d) going to be sent is: [%s]\n", b64_sig_size, b64_sig);
+        // printf("Going to send frame %d's sig's info...\n", i);
+        // send_buffer(temp_output_sig_buffer, sig_size, current_sending_target_id);
+        send_buffer_to_next_enclave(single_frame_sig, sig_size, current_sending_target_id);
 
+        end = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(end - start);
+        eval_file << duration.count() << ", ";
+        
+        //free(b64_sig);
+        // temp_output_sig_buffer += sig_size;
+
+        // Send metadata
+        memset(msg_buf, 0, size_of_msg_buf);
+        memcpy(msg_buf, "meta", 4);
+        // printf("Going to send frame %d's md's name...\n", i);
+        // int md_size_for_sending = md_size + 1;
+        // char* md_for_print = (char*) malloc(md_size_for_sending);
+        // memcpy(md_for_print, temp_output_md_buffer, md_size_for_sending);
+        // md_for_print[md_size_for_sending - 1] = '\0';
+        // printf("metadata(%d) going to be sent is: [%s]\n", md_size_for_sending, md_for_print);
+        // printf("Going to send frame %d's md's info...\n", i);
+
+        start = high_resolution_clock::now();
+
+        send_message_to_next_enclave(msg_buf, size_of_msg_buf, current_sending_target_id);
+        // send_buffer(temp_output_md_buffer, md_size, current_sending_target_id);
+        // printf("[decoder:TestApp]: Going to send md_json(%d): {%s}\n", md_size, single_frame_md_json);
+        send_buffer_to_next_enclave(single_frame_md_json, md_size, current_sending_target_id);
+
+        end = high_resolution_clock::now();
+        duration = duration_cast<microseconds>(end - start);
+        eval_file << duration.count() << "\n";
+
+        //free(md_for_print);
+        // temp_output_md_buffer += md_size;
+
+        // Switch to next sending target
+        current_sending_target_id = (current_sending_target_id + 1) % num_of_pair_of_output;
     }
+
+    memset(msg_buf, 0, size_of_msg_buf);
+    memcpy(msg_buf, "no_more_frame", 13);
+
+    for(int i = 0; i < num_of_pair_of_output; ++i){
+        // Send no_more_frame msg
+        send_message_to_next_enclave(msg_buf, size_of_msg_buf, i);
+    }
+
+    free(msg_buf);
+
+    // After all frames are sent, let's finish sending audio_data
+    void *result_of_send_to_encoder;
+    pthread_join(thread_4_encoder_sender, &result_of_send_to_encoder);
+    if(*((int*)result_of_send_to_encoder) != 0){
+        printf("[decoder:TestApp]: No correct audio data is sent...\n");
+        close_app(0);
+    }
+    free(result_of_send_to_encoder);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start_s);
@@ -1312,6 +1484,10 @@ void do_decoding(
     //     free(frame_height);
     // if(num_of_frames)
     //     free(num_of_frames);
+    if(original_md->is_safetynet_presented){
+        free_metadata(original_md);
+        free(original_md_json);
+    }
     if(contentBuffer)
         free(contentBuffer);
     if(output_rgb_buffer)
@@ -1443,7 +1619,7 @@ int main(int argc, char *argv[], char **env)
     if(argc < 2){
         printf("[decoder:TestApp]: argc: %d\n", argc);
         // printf("%s, %s, %s, %s...\n", argv[0], argv[1], argv[2], argv[3]);
-        printf("[decoder:TestApp]: Usage: ./TestApp [incoming_port] \n");
+        printf("[decoder:TestApp]: Usage: ./TestApp [port_to_report]\n");
         return 1;
     }
 
@@ -1483,13 +1659,14 @@ int main(int argc, char *argv[], char **env)
     
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
-    alt_eval_file << duration.count() << ", "; 
+    alt_eval_file << duration.count() << ", ";
 
 	/* create the server waiting for the verification request from the client */
 	int s;
 	signal(SIGCHLD,wait_wrapper);
     do_decoding(argc, argv);
 
+    free(der_cert);
     t_free(global_eid);
 
      // Close eval file

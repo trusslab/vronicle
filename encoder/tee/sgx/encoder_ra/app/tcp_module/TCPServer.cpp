@@ -52,7 +52,7 @@ string TCPServer::receive_name()
   	char buffer[SIZEOFPACKAGEFORNAME + 1];
 	memset(&buffer[0], 0, sizeof(buffer));
 
-	// printf("Trying to receive from last_client_num: %d\n", last_client_num);
+	// printf("[Encoder:TCPServer]: Trying to receive from last_client_num: %d\n", last_client_num);
 
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)

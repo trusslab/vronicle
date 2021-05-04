@@ -49,6 +49,7 @@
 # define SIZEOFSIGN 512
 # define SIZEOFPUKEY 2048
 # define TARGET_NUM_FILES_RECEIVED 3
+# define TARGET_NUM_FILES_RECEIVED_FROM_DECODER 5
 
 #include <sgx_urts.h>
 
@@ -157,6 +158,22 @@ int num_of_times_received = 0;
 int size_of_msg_buf = 100;
 char* msg_buf;
 
+// TCP connection with decoder
+int port_for_decoder = 0;
+TCPServer tcp_server_for_decoder;
+
+// For incoming data directly from decoder
+long size_of_decoder_cert = 0;
+char *decoder_cert = NULL;
+long size_of_audio_meta = 0;
+char *audio_meta = NULL;
+long size_of_audio_data = 0;
+char *audio_data = NULL;
+long size_of_audio_sig = 0;
+char *audio_sig = NULL;
+long size_of_original_metadata = 0;
+char* original_metadata = NULL;
+
 // For incoming data
 long size_of_cert = 0;
 char *cert = NULL;
@@ -177,6 +194,8 @@ char* raw_frame_buf = NULL;
 
 // For Outgoing Data
 size_t potential_out_md_json_len = -1;
+char *mp4_video_out = NULL;
+size_t size_of_mp4_video_out = 0;
 
 // For evaluation
 ofstream eval_file;
@@ -636,6 +655,9 @@ static int read_cmdline_options(int argc, char *argv[])
         } else if (!port_for_viewer)
         {
             port_for_viewer = atoi(p);
+        } else if (!port_for_decoder)
+        {
+            port_for_decoder = atoi(p);
         } else
         {
             printf("ERROR: Unknown option %s\n", p);
@@ -645,7 +667,7 @@ static int read_cmdline_options(int argc, char *argv[])
     if (!incoming_port && !cl->gen)
     {
         printf("Usage:\n"
-               "    EncoderApp [options] <incoming_port> <port_for_viewer>\n"
+               "    EncoderApp [options] <incoming_port> <port_for_viewer> <decoder_addr> <decoder_port>\n"
                "Frame size can be: WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif\n"
                "    4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA\n"
                "Options:\n"
@@ -868,6 +890,7 @@ void close_app(int signum) {
 	printf("There is a SIGINT error happened...exiting......(%d)\n", signum);
     tcp_server.closed();
     tcp_server_for_viewer.closed();
+    tcp_server_for_decoder.closed();
 	exit(0);
 }
 
@@ -944,11 +967,11 @@ void * received(void * m)
                 // Let's cheat the logic as we only need to receive cert once
                 num_of_files_received = TARGET_NUM_FILES_RECEIVED - 1;
             } else if (file_name == "no_more_frame"){
-                printf("no_more_frame received...finished processing...\n");
+                printf("[EncoderApp]: received: no_more_frame received...finished processing...\n");
                 free(reply_msg);
                 return result_to_return;
             } else {
-                printf("The file_name is not valid: %s\n", file_name);
+                printf("[EncoderApp]: received: The file_name is not valid: %s\n", file_name);
                 free(reply_msg);
                 return result_to_return;
             }
@@ -997,6 +1020,7 @@ void * received(void * m)
                 ++num_of_files_received;
                 // printf("num_of_files_received: %d\n", num_of_files_received);
             }
+            // free(temp_buf);
         }
         memset(reply_msg, 0, size_of_reply);
         memcpy(reply_msg, "ready", 5);
@@ -1005,6 +1029,118 @@ void * received(void * m)
     free(reply_msg);
     ++current_receiving_frame_num;
     current_communicating_incoming_source = (current_communicating_incoming_source + 1) % total_num_of_incoming_sources;
+	return result_to_return;
+}
+
+void * received_4_decoder(void * m)
+{
+    // Return 0 on success; otherwise, return 1;
+    // Make sure we only run on thread of this function
+
+    // pthread_detach(pthread_self());
+    int *result_to_return = (int*)malloc(sizeof(int));
+    *result_to_return = 0;
+
+	int current_mode = 0;	// 0 means awaiting reading file's nickname; 1 means awaiting file size; 2 means awaiting file content
+    int current_file_indicator = -1;   // 0 means audio_data; 1 means audio_meta; 2 means signature; 3 menas cert
+    void* current_writing_location = NULL;
+    long* current_writing_size = NULL;
+	long remaining_file_size = 0;
+
+	int num_of_files_received = 0;
+
+    // Set uniformed msg to skip sleeping
+    int size_of_reply = SIZEOFPACKAGEFORNAME;
+    char* reply_msg = (char*) malloc(size_of_reply);
+
+    // Prepare temp_buf for receiving data
+    char* temp_buf;
+
+	while(num_of_files_received < TARGET_NUM_FILES_RECEIVED_FROM_DECODER)
+	{
+        // printf("[EncoderApp]: received_4_decoder: current_mode is: %d, with remaining size: %ld\n", current_mode, remaining_file_size);
+        if(current_mode == 0){
+            // printf("[EncoderApp]: received_4_decoder: Going to do receive_name...\n");
+            string file_name = tcp_server_for_decoder.receive_name();
+            // printf("[EncoderApp]: received_4_decoder: Got new file_name: %s\n", file_name.c_str());
+            if(file_name == "audio_data"){
+                current_file_indicator = 0;
+                current_writing_size = &size_of_audio_data;
+            } else if (file_name == "audio_meta"){
+                current_file_indicator = 1;
+                current_writing_size = &size_of_audio_meta;
+            } else if (file_name == "audio_sig"){
+                current_file_indicator = 2;
+                current_writing_size = &size_of_audio_sig;
+            } else if (file_name == "cert"){
+                current_file_indicator = 3;
+                current_writing_size = &size_of_decoder_cert;
+            } else if (file_name == "metadata"){
+                current_file_indicator = 4;
+                current_writing_size = &size_of_original_metadata;
+            } else {
+                printf("[EncoderApp]: received_4_decoder: The file_name is not valid: %s\n", file_name);
+                free(reply_msg);
+                *result_to_return = 1;
+                return result_to_return;
+            }
+            current_mode = 1;
+        } else if (current_mode == 1){
+            *current_writing_size = tcp_server_for_decoder.receive_size_of_data();
+            remaining_file_size = *current_writing_size;
+            // printf("[EncoderApp]: File size got: %ld, which should be equal to: %ld\n", remaining_file_size, *current_writing_size);
+            // printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!current file indicator is: %d\n", current_file_indicator);
+            switch(current_file_indicator){
+                case 0:
+                    audio_data = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = audio_data;
+                    break;
+                case 1:
+                    audio_meta = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = audio_meta;
+                    break;
+                case 2:
+                    audio_sig = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = audio_sig;
+                    break;
+                case 3:
+                    decoder_cert = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = decoder_cert;
+                    break;
+                case 4:
+                    original_metadata = (char*) malloc(*current_writing_size * sizeof(char));
+                    current_writing_location = original_metadata;
+                    break;
+                default:
+                    printf("[EncoderApp]: received_4_decoder: No file indicator is set, aborted...\n");
+                    free(reply_msg);
+                    *result_to_return = 1;
+                    return result_to_return;
+            }
+            current_mode = 2;
+        } else {
+            if(remaining_file_size > SIZEOFPACKAGE_HIGH){
+                // printf("!!!!!!!!!!!!!!!!!!!Going to write data to current file location: %d\n", current_file_indicator);
+                temp_buf = tcp_server_for_decoder.receive_exact(SIZEOFPACKAGE_HIGH);
+                memcpy(current_writing_location, temp_buf, SIZEOFPACKAGE_HIGH);
+                current_writing_location += SIZEOFPACKAGE_HIGH;
+                remaining_file_size -= SIZEOFPACKAGE_HIGH;
+            } else {
+                // printf("!!!!!!!!!!!!!!!!!!!Last write to the current file location: %d\n", current_file_indicator);
+                temp_buf = tcp_server_for_decoder.receive_exact(remaining_file_size);
+                memcpy(current_writing_location, temp_buf, remaining_file_size);
+                remaining_file_size = 0;
+                current_mode = 0;
+                ++num_of_files_received;
+                // printf("num_of_files_received: %d\n", num_of_files_received);
+            }
+            // free(temp_buf);
+        }
+        memset(reply_msg, 0, size_of_reply);
+        memcpy(reply_msg, "ready", 5);
+        tcp_server_for_decoder.send_to_last_connected_client(reply_msg, size_of_reply);
+	}
+    free(reply_msg);
 	return result_to_return;
 }
 
@@ -1091,11 +1227,11 @@ int main(int argc, char *argv[], char **env)
     if (!read_cmdline_options(argc, argv))
         return 1;
 
-    // Check if incoming_port and port_for_viewer are set correctly
-    if(incoming_port <= 0 || port_for_viewer <= 0){
-        printf("[EncoderApp]: Incoming port: %d or Port for viewer %d is invalid\n", incoming_port, port_for_viewer);
+    // Check if incoming_port and port_for_viewer and port_for_decoder are set correctly
+    if (incoming_port <= 0 || port_for_viewer <= 0 || port_for_decoder <= 0){
+        printf("[EncoderApp]: Incoming port: %d or/and Port for viewer %d or/and port_for_decoder: %d is invalid\n", incoming_port, port_for_viewer, port_for_decoder);
     }
-    // printf("[EncoderApp]: Incoming port: %d; Port for viewer %d\n", incoming_port, port_for_viewer);
+    // printf("[EncoderApp]: Incoming port: %d; Port for viewer %d; Port for decoder: %d\n", incoming_port, port_for_viewer, port_for_decoder);
 
     vector<int> opts = { SO_REUSEPORT, SO_REUSEADDR };
     if( tcp_server.setup(incoming_port,opts) != 0) {
@@ -1141,6 +1277,23 @@ int main(int argc, char *argv[], char **env)
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
+
+    // Start server for decoder to connect
+    if( tcp_server_for_decoder.setup(port_for_decoder, opts) != 0) {
+        cerr << "[EncoderApp]: Errore apertura socket" << endl;
+        close_app(0);
+    }
+    printf("[EncoderApp]: Listening decoder's request at port: %d\n", port_for_decoder);
+
+    int decoder_id_for_recv = tcp_server_for_decoder.accepted();
+    printf("[EncoderApp]: Accepted decoder with id: %d\n", decoder_id_for_recv);
+
+    pthread_t thread_4_decoder_recv;
+
+    if(pthread_create(&thread_4_decoder_recv, NULL, received_4_decoder, (void *)0) != 0){
+        printf("[EncoderApp]: pthread for receiving from decoder created failed...quiting...\n");
+        close_app(0);
+    }
 
     // Receive and verify IAS certificate
     pthread_t msg;
@@ -1244,7 +1397,7 @@ int main(int argc, char *argv[], char **env)
         frame_size = g_w * g_h * 3/2;
     }
     int total_frames = md->total_frames;
-    potential_out_md_json_len = md_json_len + 48 - 17;  // - 17 because of loss of frame_id; TO-DO: make this flexible (Get size dynamically)
+    potential_out_md_json_len = md_json_len + 48 - 17;  // - 17 because of loss of frame_id; TO-DO: make this flexible (Get size dynamically)   // Update: no longer used as we get size dynamically
     // printf("[EncoderApp]: potential_out_md_json_len: %d\n", potential_out_md_json_len);
 
     // Try continue receiving next frame
@@ -1315,7 +1468,7 @@ int main(int argc, char *argv[], char **env)
         printf("[EncoderApp]: ERROR: encoding frame failed\n");
         free(frame_sig);
         delete frame;
-        return 1;
+        close_app(0);
     }
     
     stop = high_resolution_clock::now();
@@ -1419,6 +1572,7 @@ int main(int argc, char *argv[], char **env)
         }
 
         // printf("[EncoderApp]: A frame has been successfully encoded...\n");
+        printf("[EncoderApp]: Encoded frame: %d\n", i);
         
         stop = high_resolution_clock::now();
         duration = duration_cast<microseconds>(stop - start);
@@ -1437,6 +1591,42 @@ int main(int argc, char *argv[], char **env)
     delete frame;
 
     tcp_server.closed();
+
+    // After all frames are encoded, let's finish receiving audio_data and verify decoder's cert
+    // Update: original metadata is also received here
+    void *result_of_rec_from_decoder;
+    pthread_join(thread_4_decoder_recv, &result_of_rec_from_decoder);
+    if(*((int*)result_of_rec_from_decoder) != 0){
+        printf("[EncoderApp]: No correct audio data is received...\n");
+        close_app(0);
+    }
+    free(result_of_rec_from_decoder);
+    tcp_server_for_decoder.closed();
+
+    // Verify decoder
+    // printf("[EncoderApp]: Going to call t_verify_decoder_cert...\n");
+    status = t_verify_decoder_cert(global_eid, &res, 
+                                decoder_cert, size_of_decoder_cert);
+    if (res || status != SGX_SUCCESS)
+    {
+        printf("[EncoderApp]: Decoder verification failed\n");
+        close_app(0);
+    }
+
+    // Mux the video and audio
+    // printf("[EncoderApp]: Going to call t_mux_video_with_audio...\n");
+    status = t_mux_video_with_audio(global_eid, &res, 
+                                audio_meta, size_of_audio_meta,
+                                audio_data, size_of_audio_data,
+                                (unsigned char*)audio_sig, size_of_audio_sig,
+                                &size_of_mp4_video_out);
+    if (res || status != SGX_SUCCESS)
+    {
+        printf("[EncoderApp]: ERROR: Muxing video and audio failed\n");
+        close_app(0);
+    }
+    // printf("[EncoderApp]: Finished both calls with size_of_mp4_video_out: %d...\n", size_of_mp4_video_out);
+    mp4_video_out = (char*) malloc(size_of_mp4_video_out * sizeof(char));
 
     // printf("Encoding completed...going to try sending frames\n");
 
@@ -1485,15 +1675,21 @@ int main(int argc, char *argv[], char **env)
     start = high_resolution_clock::now();
 
     // Send encoded video
-    size_t total_coded_data_size = 0;
-    status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
-    if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
-        printf("t_get_encoded_video_size failed\n");
-        return 1;
-    }
-    unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
-    status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
-    if (status != SGX_SUCCESS) {
+    // size_t total_coded_data_size = 0;
+    // status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
+    // if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
+    //     printf("t_get_encoded_video_size failed\n");
+    //     return 1;
+    // }
+    // unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
+    // status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
+    // if (status != SGX_SUCCESS) {
+    //     printf("t_get_encoded_video failed\n");
+    //     return 1;
+    // }
+
+    status = t_get_muxed_video(global_eid, &res, mp4_video_out, size_of_mp4_video_out);
+    if (res || status != SGX_SUCCESS) {
         printf("t_get_encoded_video failed\n");
         return 1;
     }
@@ -1507,23 +1703,26 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
-    send_buffer_to_viewer(total_coded_data, total_coded_data_size);
+    // send_buffer_to_viewer(total_coded_data, total_coded_data_size);
+    send_buffer_to_viewer(mp4_video_out, size_of_mp4_video_out);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
 
-    delete total_coded_data;
+    // delete total_coded_data;
+    free(mp4_video_out);
 
     start = high_resolution_clock::now();
 
     // Send signature
     size_t sig_size = 0;
-    status = t_get_sig_size(global_eid, &sig_size);
+    status = t_get_sig_size(global_eid, &sig_size, original_metadata, size_of_original_metadata);
     if (sig_size == 0 || status != SGX_SUCCESS) {
         printf("t_get_sig_size failed\n");
         return 1;
     }
+    free(original_metadata);
     unsigned char *sig = new unsigned char [sig_size];
     status = t_get_sig(global_eid, sig, sig_size);
     if (status != SGX_SUCCESS) {
@@ -1555,6 +1754,13 @@ int main(int argc, char *argv[], char **env)
     start = high_resolution_clock::now();
 
     // Send metadata
+    status = t_get_metadata_size(global_eid, &potential_out_md_json_len);
+    // printf("[EncoderApp]: t_get_metadata just finished...\n");
+    if (status != SGX_SUCCESS) {
+        printf("[EncoderApp]: t_get_metadata failed\n");
+        return 1;
+    }
+
     char* out_md_json = (char*)malloc(potential_out_md_json_len);
     status = t_get_metadata(global_eid, out_md_json, potential_out_md_json_len);
     // printf("[EncoderApp]: t_get_metadata just finished...\n");

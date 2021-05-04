@@ -35,6 +35,7 @@
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 UNTRUSTED_DIR=app
+COMMON_DIR=common
 USE_OPENSSL = 1
 ENABLE_DCAP ?= 0
 
@@ -84,13 +85,13 @@ endif
 ######## App Settings ########
 
 
-App_Cpp_Files := $(UNTRUSTED_DIR)/TestApp.cpp $(UNTRUSTED_DIR)/tcp_module/TCPServer.cpp $(UNTRUSTED_DIR)/tcp_module/TCPClient.cpp
+App_Cpp_Files := $(UNTRUSTED_DIR)/TestApp.cpp $(COMMON_DIR)/tcp_module/TCPServer.cpp $(COMMON_DIR)/tcp_module/TCPClient.cpp
 App_Cpp_Objects := $(App_Cpp_Files:.cpp=.o)
 
 App_C_Files := $(UNTRUSTED_DIR)/sgxsdk-ra-attester_u.c $(UNTRUSTED_DIR)/ias-ra.c $(UNTRUSTED_DIR)/ra-challenger_u.c
 App_C_Objects := $(App_C_Files:.c=.o)
 
-App_Include_Paths := -I$(UNTRUSTED_DIR) -I$(SGX_SDK_INC) -Icommon
+App_Include_Paths := -I$(UNTRUSTED_DIR) -I$(SGX_SDK_INC) -I$(COMMON_DIR)
 
 App_C_Flags := $(SGX_COMMON_CFLAGS) -fpic -fpie -fstack-protector -Wformat -Wformat-security -Wno-attributes $(App_Include_Paths) -lcurl
 App_Cpp_Flags := $(App_C_Flags) -std=c++11 -lcrypto -I/usr/include/openssl -lssl -L/usr/lib/x86_64-linux-gnu/
@@ -144,10 +145,10 @@ test: all
 ######## App Objects ########
 
 ifeq ($(ENABLE_DCAP), 0)
-$(UNTRUSTED_DIR)/TestEnclave_u.c: $(SGX_EDGER8R) enclave/TestEnclave.edl $(TCP_Server_Library_Compiled_Name)
+$(UNTRUSTED_DIR)/TestEnclave_u.c: $(SGX_EDGER8R) enclave/TestEnclave.edl
 	@cd $(UNTRUSTED_DIR) && $(SGX_EDGER8R) --untrusted ../enclave/TestEnclave.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
 else
-$(UNTRUSTED_DIR)/TestEnclave_dcap_u.c: $(SGX_EDGER8R) enclave/TestEnclave_dcap.edl $(TCP_Server_Library_Compiled_Name)
+$(UNTRUSTED_DIR)/TestEnclave_dcap_u.c: $(SGX_EDGER8R) enclave/TestEnclave_dcap.edl
 	@cd $(UNTRUSTED_DIR) && $(SGX_EDGER8R) --untrusted ../enclave/TestEnclave_dcap.edl --search-path $(PACKAGE_INC) --search-path $(SGX_SDK_INC)
 endif
 	@echo "GEN  =>  $@"

@@ -25,7 +25,7 @@ char* TCPServer::receive_exact(int size)
   	string reply;
 	if( recv(newsockfd[last_client_num]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Scheduler]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive_exact: receive failed!" << endl;
 		return nullptr;
   	}
 
@@ -40,7 +40,7 @@ char* TCPServer::receive_exact_with_id(int size, int id)
   	string reply;
 	if( recv(newsockfd[id]->socket , buffer , size, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Scheduler]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive_exact_with_id: receive failed!" << endl;
 		return nullptr;
   	}
 
@@ -54,11 +54,11 @@ string TCPServer::receive_name()
 
 	// printf("Trying to receive from last_client_num: %d\n", last_client_num);
 
-  	string reply;
+  	string reply = "";
 	if( recv(newsockfd[last_client_num]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Scheduler]: receive failed!" << endl;
-		return nullptr;
+	    	cout << "[Scheduler]: receive_name: receive failed!" << endl;
+		return reply;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
   	reply = buffer;
@@ -72,11 +72,11 @@ string TCPServer::receive_name_with_id(int id)
 
 	// printf("[Scheduler]: Trying to receive from id: %d, where last_client_num is: %d\n", id, last_client_num);
 
-  	string reply;
+  	string reply = "";
 	if( recv(newsockfd[id]->socket , buffer , SIZEOFPACKAGEFORNAME, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Scheduler]: receive failed!" << endl;
-		return nullptr;
+	    cout << "[Scheduler]: receive_name_with_id: receive failed!" << endl;
+		return reply;
   	}
 	buffer[SIZEOFPACKAGEFORNAME]='\0';
   	reply = buffer;
@@ -91,7 +91,7 @@ long TCPServer::receive_size_of_data()
 
 	if( recv(newsockfd[last_client_num]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Scheduler]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive_size_of_data: receive failed!" << endl;
 		return -1;
   	}
 	
@@ -108,7 +108,7 @@ long TCPServer::receive_size_of_data_with_id(int id)
 
 	if( recv(newsockfd[id]->socket , buffer , 8, MSG_WAITALL) < 0)
   	{
-	    	cout << "[Scheduler]: receive failed!" << endl;
+	    	cout << "[Scheduler]: receive_size_of_data_with_id: receive failed!" << endl;
 		return -1;
   	}
 	
@@ -128,8 +128,15 @@ int TCPServer::setup(int port, vector<int> opts)
 	for(unsigned int i = 0; i < opts.size(); i++) {
 		if( (setsockopt(sockfd, SOL_SOCKET, opts.size(), (char *)&opt, sizeof(opt))) < 0 ) {
 			cerr << "[Scheduler]: Errore setsockopt" << endl; 
-      			return -1;
-	      	}
+			return -1;
+		}
+		// struct timeval tv;
+		// tv.tv_sec = 30;
+		// tv.tv_usec = 0;
+		// if( setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0 ) {
+		// 	cerr << "[Scheduler]: Errore setsockopt" << endl; 
+		// 	return -1;
+		// }
 	}
 
 	serverAddress.sin_family      = AF_INET;

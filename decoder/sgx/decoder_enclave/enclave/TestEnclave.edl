@@ -64,7 +64,15 @@ from "sgx_tsgxssl.edl" import *;
                                             [in, size=md_json_len] void* md_json, long md_json_len,
                                             [in, size=vendor_pub_len] void* vendor_pub, long vendor_pub_len,
                                             [in, size=camera_cert_len] void* camera_cert, long camera_cert_len,
-                                            [in, size=vid_sig_len] void* vid_sig, size_t vid_sig_len);
+                                            [in, size=vid_sig_len] void* vid_sig, size_t vid_sig_len, 
+                                            int is_safetynet_presented);
+        public int t_sgxver_get_audio_related_data_sizes([out, size=size_of_arguments] void* size_of_audio_meta_out, 
+                                                         [out, size=size_of_arguments] void* size_of_audio_data_out, 
+                                                         [out, size=size_of_arguments] void* size_of_audio_sig_out, 
+                                                         size_t size_of_arguments);
+        public int t_sgxver_get_audio_related_data([out, size=size_of_audio_meta_out] void* audio_meta_out, size_t size_of_audio_meta_out, 
+                                                   [out, size=size_of_audio_strm_out] void* audio_strm_out, size_t size_of_audio_strm_out, 
+                                                   [out, size=size_of_audio_sig_out] void* audio_sig_out, size_t size_of_audio_sig_out);
         public int t_sgxver_decode_single_frame([out, size=size_of_decoded_frame] void* decoded_frame, long size_of_decoded_frame, 
                                                 [out, size=size_of_output_json] void* output_md_json, long size_of_output_json,
                                                 [out, size=size_of_output_sig] void* output_sig, long size_of_output_sig);

@@ -64,6 +64,63 @@ int send_file(const char* file_name){
 	}
 
 	fclose(input_file);
+	free(buffer);
+
+    return 0;
+}
+
+int send_large_data(const char* file_data, size_t size_of_file_data){
+    // Return 0 on success, return 1 on failure
+
+    // Get size of file and send it
+//    printf("[client: send_large_data]: Sending file size: %d\n", size_of_file_data);
+    tcp.Send(&size_of_file_data, sizeof(long));
+    string rec = tcp.receive_exact(SIZEOFPACKAGEFORNAME);
+    if( rec != "" )
+    {
+        // cout << rec << endl;
+    }
+    // sleep(1);
+    // usleep(500);
+
+//    printf("[client: send_large_data]: Received reply from server: %s\n", rec.c_str());
+
+    const char* temp_file_data = file_data;
+
+    unsigned char* buffer = (unsigned char*)malloc(SIZEOFPACKAGE);
+    size_t remaining_size_to_send = size_of_file_data;
+    size_t real_packet_size = 0;
+
+    while(1)
+    {
+        memset(buffer, 0, SIZEOFPACKAGE);
+
+        if (remaining_size_to_send <= 0) {
+            break;
+        } else if (remaining_size_to_send >= SIZEOFPACKAGE) {
+            memcpy(buffer, temp_file_data, SIZEOFPACKAGE);
+            temp_file_data += SIZEOFPACKAGE;
+            remaining_size_to_send -= SIZEOFPACKAGE;
+            real_packet_size = SIZEOFPACKAGE;
+        } else {
+            memcpy(buffer, temp_file_data, remaining_size_to_send);
+            real_packet_size = remaining_size_to_send;
+            remaining_size_to_send = 0;
+        }
+
+//        printf("Going to send buffter with size: %d, where remaining_size_to_send is: %d\n", real_packet_size, remaining_size_to_send);
+
+        tcp.Send(buffer, real_packet_size);
+        string rec = tcp.receive_exact(REPLYMSGSIZE);
+        if( rec != "" )
+        {
+            // cout << rec << endl;
+        }
+        // sleep(1);
+        // usleep(2000);
+    }
+
+    free(buffer);
 
     return 0;
 }
@@ -103,11 +160,50 @@ Java_com_example_filtertestwithnativec_MainActivity_establish_1connection(
 
     printf("Java_com_example_filtertestwithnativec_MainActivity_establish_connection: going to connect to ip: %s and port: %d\n", ip_address, port);
 
+    tcp = TCPClient();
+
     int result = tcp.setup(ip_address, port);
 
 //    printf("Java_com_example_filtertestwithnativec_MainActivity_establish_connection: connected...\n");
 
 	return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_example_filtertestwithnativec_MainActivity_close_1connection(
+        JNIEnv* env,
+        jobject /* this */) {
+
+    tcp.exit();
+
+    return 0;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_example_filtertestwithnativec_MainActivity_send_1file(
+        JNIEnv* env,
+        jobject /* this */,
+        jstring file_name_jstr, jbyteArray file_data_jbarr) {
+
+    const int length_of_file_name = env->GetStringUTFLength(file_name_jstr);
+    const char* file_name = env->GetStringUTFChars(file_name_jstr, (jboolean *)0);
+
+    const int length_of_file_data = env->GetArrayLength(file_data_jbarr);
+    const char* file_data = (char*) env->GetByteArrayElements(file_data_jbarr, (jboolean *)0);
+
+    printf("[client: send_file]: For file_name(%d): %s, the file_data size is: (%d)\n", length_of_file_name, file_name, length_of_file_data);
+    int result = 0;
+
+    char* msg_to_send = (char*)malloc(SIZEOFPACKAGEFORNAME);
+
+    memset(msg_to_send, 0, SIZEOFPACKAGEFORNAME);
+    memcpy(msg_to_send, file_name, length_of_file_name);
+    send_message(msg_to_send, SIZEOFPACKAGEFORNAME);
+    send_large_data(file_data, length_of_file_data);
+
+    free(msg_to_send);
+
+    return result;
 }
 
 //int main(int argc, char *argv[])

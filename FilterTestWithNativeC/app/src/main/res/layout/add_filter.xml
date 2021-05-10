@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minWidth="300dp">
+
+    <RadioGroup
+        android:id="@+id/add_fitler_radioGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:minWidth="300dp"
+        android:checkedButton="@id/add_filter_blur_radioButton">
+
+        <RadioButton
+            android:id="@+id/add_filter_blur_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Blur"/>
+
+        <RadioButton
+            android:id="@+id/add_filter_brightness_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Brightness"/>
+
+        <RadioButton
+            android:id="@+id/add_filter_denoise_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Denoise"/>
+
+        <RadioButton
+            android:id="@+id/add_filter_gray_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Gray"/>
+
+        <RadioButton
+            android:id="@+id/add_filter_sharpen_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Sharpen"/>
+
+        <RadioButton
+            android:id="@+id/add_filter_white_balance_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="White Balance"/>
+
+    </RadioGroup>
+
+    <EditText
+        android:id="@+id/add_filter_filter_parameter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter parameter here"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/add_fitler_radioGroup"
+        android:layout_marginTop="10dp"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

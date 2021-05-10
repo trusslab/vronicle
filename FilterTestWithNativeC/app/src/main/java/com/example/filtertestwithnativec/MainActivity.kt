@@ -1,16 +1,15 @@
 package com.example.filtertestwithnativec
 
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.os.Environment
 import android.provider.MediaStore
+import android.text.method.ScrollingMovementMethod
 import android.util.Log
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import com.anggrayudi.storage.media.MediaFile
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -21,13 +20,32 @@ import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.client.json.webtoken.JsonWebSignature
 import java.io.File
 import java.io.IOException
-import java.security.SecureRandom
+import java.lang.StringBuilder
+import java.util.*
+import kotlin.collections.ArrayList
 
 const val REQUEST_VIDEO_CAPTURE = 1
+const val PICK_VIDEO_FILE = 2
 const val TAG = "MainActivity"
 const val SAFETYNET_API_KEY = "AIzaSyBAOSS3cY4thIfO-9rY3aptpLJsOMKI1hM"
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var recordedVideo: MediaFile
+    private lateinit var videoByteArray: ByteArray
+    private lateinit var chosenFileTextView: TextView
+    private lateinit var statusTextView: TextView
+    private lateinit var ipAddressEditText: EditText
+    private lateinit var portEditText: EditText
+    private lateinit var chosenFiltersTextView: TextView
+
+    private lateinit var pubkeyB64: String
+    private lateinit var hashOfPubKey: String
+    private lateinit var firstAttestationReport: String
+    private lateinit var secondAttestationReport: String
+    private var chosenFiltersNames:ArrayList<String> = ArrayList<String>()
+    private var chosenFiltersParameterNums:ArrayList<Int> = ArrayList<Int>()
+    private var chosenFiltersParameters:ArrayList<Double> = ArrayList<Double>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,9 +56,17 @@ class MainActivity : AppCompatActivity() {
         val testGrayFilterButton: Button = findViewById(R.id.test_gray_filter_button)
         val testDenoiseFilterButton: Button = findViewById(R.id.test_denoise_filter_button)
 
-        val ipAddressEditText: EditText = findViewById(R.id.activity_main_ip_address_edittext)
-        val portEditText: EditText = findViewById(R.id.activity_main_port_edittext)
-        val recordAndUploadButton: Button = findViewById(R.id.activity_main_record_video_and_upload_button)
+        ipAddressEditText = findViewById(R.id.activity_main_ip_address_edittext)
+        portEditText = findViewById(R.id.activity_main_port_edittext)
+        val recordButton: Button = findViewById(R.id.activity_main_record_video_button)
+        chosenFileTextView = findViewById(R.id.activity_main_chosen_file_textview)
+        chosenFiltersTextView = findViewById(R.id.activity_main_chosen_filters_textview)
+        val addFilterButton: Button = findViewById(R.id.activity_main_add_filter_button)
+        val uploadButton: Button = findViewById(R.id.activity_main_upload_button)
+        statusTextView = findViewById(R.id.activity_main_status_textview)
+
+        chosenFiltersTextView.movementMethod = ScrollingMovementMethod()
+        statusTextView.movementMethod = ScrollingMovementMethod()
 
         val num_of_rounds_to_run = 60
 
@@ -65,10 +91,36 @@ class MainActivity : AppCompatActivity() {
             resultTextView.text = (endTime - startTime).toString()
         }
 
-        read_keys("/sdcard/camera_pri", "/sdcard/camera_pub")
+//        val resultOfReadingKeys = read_keys("/sdcard/vronicle/camera_pri", "/sdcard/vronicle/camera_pub")
+//        if (resultOfReadingKeys != 0) {
+//            Toast.makeText(baseContext, "Keys cannot be read from sdcard/vronicle folder...", Toast.LENGTH_SHORT).show()
+//        }
 
-        recordAndUploadButton.setOnClickListener {
-//            dispatchTakeVideoIntent()
+        if (generate_keypair() != 0) {
+            updateStatusTextViewWithInfo("[Error] Key pair cannot be generated", true)
+        } else {
+            updateStatusTextViewWithInfo("[Success] Key pair generated", true)
+            hashOfPubKey = get_hash_of_pubkey()
+            Log.d(TAG, "onCreate: hashOfPubKey: $hashOfPubKey")
+            if (hashOfPubKey.isEmpty()) {
+                updateStatusTextViewWithInfo("[Error] Hash of pubkey cannot be generated", true);
+            } else if (hashOfPubKey == get_hash_of_pubkey()) {
+                updateStatusTextViewWithInfo("[Success] Hash of pubkey integrity is checked", true);
+            } else {
+                updateStatusTextViewWithInfo("[Error] Hash of pubkey integrity check is failed", true);
+            }
+
+            pubkeyB64 = get_pubkey()
+//            Log.d(TAG, "The pubkey we get is: {$pubkeyB64}")
+
+//            print_hash_of_pubkey(pubkeyB64)
+
+            doFirstSafetyNetAttestation(hashOfPubKey)
+
+        }
+
+        recordButton.setOnClickListener {
+            dispatchTakeVideoIntent()
 //            Thread(Runnable {
 //                Log.d(TAG, "onCreate: going to try connect to ip: " + ipAddressEditText.text.toString() + " with port: " + portEditText.text.toString().toInt())
 //                val resultOfConnection = establish_connection(ipAddressEditText.text.toString(), portEditText.text.toString().toInt())
@@ -79,18 +131,189 @@ class MainActivity : AppCompatActivity() {
 //            Log.d(TAG, "onCreate: the metadata we get is: {$metadataString}")
 //            val resultOfConnection = establish_connection(ipAddressEditText.text.toString(), portEditText.text.toString().toInt())
 //            Log.d(TAG, "onCreate: the connection result is: $resultOfConnection")
-            initializeSafetyNetVerification()
-//            Log.d(TAG, "len of direct copy: ${"eyJhbGciOiJSUzI1NiIsIng1YyI6WyJNSUlGbERDQ0JIeWdBd0lCQWdJUkFQUWdpNWZxN3EvQkFnQUFBQUNFUGRZd0RRWUpLb1pJaHZjTkFRRUxCUUF3UWpFTE1Ba0dBMVVFQmhNQ1ZWTXhIakFjQmdOVkJBb1RGVWR2YjJkc1pTQlVjblZ6ZENCVFpYSjJhV05sY3pFVE1CRUdBMVVFQXhNS1IxUlRJRU5CSURGUE1UQWVGdzB5TURFeU1UVXhNREUxTlRGYUZ3MHlNVEEyTVRNeE1ERTFOVEJhTUd3eEN6QUpCZ05WQkFZVEFsVlRNUk13RVFZRFZRUUlFd3BEWVd4cFptOXlibWxoTVJZd0ZBWURWUVFIRXcxTmIzVnVkR0ZwYmlCV2FXVjNNUk13RVFZRFZRUUtFd3BIYjI5bmJHVWdURXhETVJzd0dRWURWUVFERXhKaGRIUmxjM1F1WVc1a2NtOXBaQzVqYjIwd2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUUNwYmx2WFhpejJrRGkrNFBKL1o1ZGRpdG9FckhyTkZwWWJteGdEM3BxQXA1U2xQeEVwUXNPdzRnWTZtWkJpelUxWWJrdXZxZFkwMUd3QVBOUk5MeEgrVHJPbk1TOGQ1U2FGbXcrMWd1V3Q5a0twajVveUN4dmtkSXBWQmp5bmg3amxQcTZCYndFblpOazBvb01hTW5yRW5Ebmpxb2N0Z095T1hFdmFTWlhwaktSaWRKL2k0dFhGWXU2SUtOakQrQkN1VXVNdGNKRjNvRHpFYVpQdlpnNzU4NFpmSnZHaHI3dlYvMy9VVjdlQlNQZXFBSkxNYWtkRFgyMlE1ekxKMnNUaUs2blhxZGhpUlVma1ZycDdRTFFxTVZCVzd4US82ZzZYdXYxZ2VyYTRjbktzS1hxY1dxUllCUWx4Ujltemw4UmVyQ2FGRXJZK2Q0bnV0anJ6TlNYN0FnTUJBQUdqZ2dKWk1JSUNWVEFPQmdOVkhROEJBZjhFQkFNQ0JhQXdFd1lEVlIwbEJBd3dDZ1lJS3dZQkJRVUhBd0V3REFZRFZSMFRBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVV1RGxJUktOSW5hdkZkYzF0ZkllZCt1WTE4M1F3SHdZRFZSMGpCQmd3Rm9BVW1OSDRiaERyejV2c1lKOFlrQnVnNjMwSi9Tc3daQVlJS3dZQkJRVUhBUUVFV0RCV01DY0dDQ3NHQVFVRkJ6QUJoaHRvZEhSd09pOHZiMk56Y0M1d2Eya3VaMjl2Wnk5bmRITXhiekV3S3dZSUt3WUJCUVVITUFLR0gyaDBkSEE2THk5d2Eya3VaMjl2Wnk5bmMzSXlMMGRVVXpGUE1TNWpjblF3SFFZRFZSMFJCQll3RklJU1lYUjBaWE4wTG1GdVpISnZhV1F1WTI5dE1DRUdBMVVkSUFRYU1CZ3dDQVlHWjRFTUFRSUNNQXdHQ2lzR0FRUUIxbmtDQlFNd0x3WURWUjBmQkNnd0pqQWtvQ0tnSUlZZWFIUjBjRG92TDJOeWJDNXdhMmt1WjI5dlp5OUhWRk14VHpFdVkzSnNNSUlCQlFZS0t3WUJCQUhXZVFJRUFnU0I5Z1NCOHdEeEFIY0E3c0NWN28xeVpBK1M0OE81RzhjU28ybHFDWHRMYWhvVU9PWkhzc3Z0eGZrQUFBRjJaaDBhc1FBQUJBTUFTREJHQWlFQW9wL05BemFZV1BWWDFDNld2amF3QkY3Mm5xTjRwNjdLVTdhRzBhd0U4K1FDSVFEVFV6VjJndDYwdmhaZElyb2pLZ1VCb25HY1ZOd1hvdFluREY1V01tRXpBd0IyQVBaY2xDL1JkekFpRkZRWUNEQ1VWbzdqVFJNWk03L2ZEQzhnQzh4TzhXVGpBQUFCZG1ZZEdqNEFBQVFEQUVjd1JRSWdDT1l1ZmVKR0xSMzU5UGpYemI4c0NmWVdtaGlQeHZEZk9zWFlHMzN2d2l3Q0lRQ3lOMHRydHlyTFJHbjNVdUY5SG1KRUNHNEVDTmhLU1c0aUw1VG54NXhBRlRBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQVgwMnFKV1RsTlowekZXa3NBMjJsY3A1bEVEV0lZdEc4cXp4cWhOVmZsNlFxUzRFcjFkaFFFbnc3eSt4cDhOTVpSWXZRZVRFeVRGL1FBTnZCYUtUUmlXaWZJOTZBZkJKcDJVUFZMcVpUK3Jwc216UGM1TXpwaERBVW1NRlV3U0JEODAxUkVoUjgvTW5CdFg2aXEwcjc2WlVheVN3dVZ5WGNUWmQwK3cwRkdTbWZVZG1lTUY2Uno5QW9kVXFFMWNEa3NudmI0QzNwUnZOcm9mbXBsSUF2WGdnL3RmR1VWRXVuS3lTMjBnczN4WDROMklRZDRxNlUzRk1oaWN2ejI2T2xrK3krM01xOVNSTkdiZk82dmhib2hEc09nYnNMdzY3aDN3ZlFON2lzYmhKcDRIR2hsdm5mKysxL1ZvdmdmYythUGFVUklCdWFSR1NVK2hEWkxrbXV3Zz09IiwiTUlJRVNqQ0NBektnQXdJQkFnSU5BZU8wbXFHTmlxbUJKV2xRdURBTkJna3Foa2lHOXcwQkFRc0ZBREJNTVNBd0hnWURWUVFMRXhkSGJHOWlZV3hUYVdkdUlGSnZiM1FnUTBFZ0xTQlNNakVUTUJFR0ExVUVDaE1LUjJ4dlltRnNVMmxuYmpFVE1CRUdBMVVFQXhNS1IyeHZZbUZzVTJsbmJqQWVGdzB4TnpBMk1UVXdNREF3TkRKYUZ3MHlNVEV5TVRVd01EQXdOREphTUVJeEN6QUpCZ05WQkFZVEFsVlRNUjR3SEFZRFZRUUtFeFZIYjI5bmJHVWdWSEoxYzNRZ1UyVnlkbWxqWlhNeEV6QVJCZ05WQkFNVENrZFVVeUJEUVNBeFR6RXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBd2dnRUtBb0lCQVFEUUdNOUYxSXZOMDV6a1FPOSt0TjFwSVJ2Snp6eU9USFc1RHpFWmhEMmVQQ252VUEwUWsyOEZnSUNmS3FDOUVrc0M0VDJmV0JZay9qQ2ZDM1IzVlpNZFMvZE40WktDRVBaUnJBekRzaUtVRHpScm1CQko1d3VkZ3puZElNWWNMZS9SR0dGbDV5T0RJS2dqRXYvU0pIL1VMK2RFYWx0TjExQm1zSytlUW1NRisrQWN4R05ocjU5cU0vOWlsNzFJMmROOEZHZmNkZHd1YWVqNGJYaHAwTGNRQmJqeE1jSTdKUDBhTTNUNEkrRHNheG1LRnNianphVE5DOXV6cEZsZ09JZzdyUjI1eG95blV4djh2Tm1rcTd6ZFBHSFhreFdZN29HOWorSmtSeUJBQms3WHJKZm91Y0JaRXFGSkpTUGs3WEEwTEtXMFkzejVvejJEMGMxdEpLd0hBZ01CQUFHamdnRXpNSUlCTHpBT0JnTlZIUThCQWY4RUJBTUNBWVl3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdFR0NDc0dBUVVGQndNQ01CSUdBMVVkRXdFQi93UUlNQVlCQWY4Q0FRQXdIUVlEVlIwT0JCWUVGSmpSK0c0UTY4K2I3R0NmR0pBYm9PdDlDZjByTUI4R0ExVWRJd1FZTUJhQUZKdmlCMWRuSEI3QWFnYmVXYlNhTGQvY0dZWXVNRFVHQ0NzR0FRVUZCd0VCQkNrd0p6QWxCZ2dyQmdFRkJRY3dBWVlaYUhSMGNEb3ZMMjlqYzNBdWNHdHBMbWR2YjJjdlozTnlNakF5QmdOVkhSOEVLekFwTUNlZ0phQWpoaUZvZEhSd09pOHZZM0pzTG5CcmFTNW5iMjluTDJkemNqSXZaM055TWk1amNtd3dQd1lEVlIwZ0JEZ3dOakEwQmdabmdRd0JBZ0l3S2pBb0JnZ3JCZ0VGQlFjQ0FSWWNhSFIwY0hNNkx5OXdhMmt1WjI5dlp5OXlaW".length}")
-//            Log.d(TAG, "Let's see: ${parseToJWS("eyJhbGciOiJSUzI1NiIsIng1YyI6WyJNSUlGbERDQ0JIeWdBd0lCQWdJUkFQUWdpNWZxN3EvQkFnQUFBQUNFUGRZd0RRWUpLb1pJaHZjTkFRRUxCUUF3UWpFTE1Ba0dBMVVFQmhNQ1ZWTXhIakFjQmdOVkJBb1RGVWR2YjJkc1pTQlVjblZ6ZENCVFpYSjJhV05sY3pFVE1CRUdBMVVFQXhNS1IxUlRJRU5CSURGUE1UQWVGdzB5TURFeU1UVXhNREUxTlRGYUZ3MHlNVEEyTVRNeE1ERTFOVEJhTUd3eEN6QUpCZ05WQkFZVEFsVlRNUk13RVFZRFZRUUlFd3BEWVd4cFptOXlibWxoTVJZd0ZBWURWUVFIRXcxTmIzVnVkR0ZwYmlCV2FXVjNNUk13RVFZRFZRUUtFd3BIYjI5bmJHVWdURXhETVJzd0dRWURWUVFERXhKaGRIUmxjM1F1WVc1a2NtOXBaQzVqYjIwd2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUUNwYmx2WFhpejJrRGkrNFBKL1o1ZGRpdG9FckhyTkZwWWJteGdEM3BxQXA1U2xQeEVwUXNPdzRnWTZtWkJpelUxWWJrdXZxZFkwMUd3QVBOUk5MeEgrVHJPbk1TOGQ1U2FGbXcrMWd1V3Q5a0twajVveUN4dmtkSXBWQmp5bmg3amxQcTZCYndFblpOazBvb01hTW5yRW5Ebmpxb2N0Z095T1hFdmFTWlhwaktSaWRKL2k0dFhGWXU2SUtOakQrQkN1VXVNdGNKRjNvRHpFYVpQdlpnNzU4NFpmSnZHaHI3dlYvMy9VVjdlQlNQZXFBSkxNYWtkRFgyMlE1ekxKMnNUaUs2blhxZGhpUlVma1ZycDdRTFFxTVZCVzd4US82ZzZYdXYxZ2VyYTRjbktzS1hxY1dxUllCUWx4Ujltemw4UmVyQ2FGRXJZK2Q0bnV0anJ6TlNYN0FnTUJBQUdqZ2dKWk1JSUNWVEFPQmdOVkhROEJBZjhFQkFNQ0JhQXdFd1lEVlIwbEJBd3dDZ1lJS3dZQkJRVUhBd0V3REFZRFZSMFRBUUgvQkFJd0FEQWRCZ05WSFE0RUZnUVV1RGxJUktOSW5hdkZkYzF0ZkllZCt1WTE4M1F3SHdZRFZSMGpCQmd3Rm9BVW1OSDRiaERyejV2c1lKOFlrQnVnNjMwSi9Tc3daQVlJS3dZQkJRVUhBUUVFV0RCV01DY0dDQ3NHQVFVRkJ6QUJoaHRvZEhSd09pOHZiMk56Y0M1d2Eya3VaMjl2Wnk5bmRITXhiekV3S3dZSUt3WUJCUVVITUFLR0gyaDBkSEE2THk5d2Eya3VaMjl2Wnk5bmMzSXlMMGRVVXpGUE1TNWpjblF3SFFZRFZSMFJCQll3RklJU1lYUjBaWE4wTG1GdVpISnZhV1F1WTI5dE1DRUdBMVVkSUFRYU1CZ3dDQVlHWjRFTUFRSUNNQXdHQ2lzR0FRUUIxbmtDQlFNd0x3WURWUjBmQkNnd0pqQWtvQ0tnSUlZZWFIUjBjRG92TDJOeWJDNXdhMmt1WjI5dlp5OUhWRk14VHpFdVkzSnNNSUlCQlFZS0t3WUJCQUhXZVFJRUFnU0I5Z1NCOHdEeEFIY0E3c0NWN28xeVpBK1M0OE81RzhjU28ybHFDWHRMYWhvVU9PWkhzc3Z0eGZrQUFBRjJaaDBhc1FBQUJBTUFTREJHQWlFQW9wL05BemFZV1BWWDFDNld2amF3QkY3Mm5xTjRwNjdLVTdhRzBhd0U4K1FDSVFEVFV6VjJndDYwdmhaZElyb2pLZ1VCb25HY1ZOd1hvdFluREY1V01tRXpBd0IyQVBaY2xDL1JkekFpRkZRWUNEQ1VWbzdqVFJNWk03L2ZEQzhnQzh4TzhXVGpBQUFCZG1ZZEdqNEFBQVFEQUVjd1JRSWdDT1l1ZmVKR0xSMzU5UGpYemI4c0NmWVdtaGlQeHZEZk9zWFlHMzN2d2l3Q0lRQ3lOMHRydHlyTFJHbjNVdUY5SG1KRUNHNEVDTmhLU1c0aUw1VG54NXhBRlRBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQVgwMnFKV1RsTlowekZXa3NBMjJsY3A1bEVEV0lZdEc4cXp4cWhOVmZsNlFxUzRFcjFkaFFFbnc3eSt4cDhOTVpSWXZRZVRFeVRGL1FBTnZCYUtUUmlXaWZJOTZBZkJKcDJVUFZMcVpUK3Jwc216UGM1TXpwaERBVW1NRlV3U0JEODAxUkVoUjgvTW5CdFg2aXEwcjc2WlVheVN3dVZ5WGNUWmQwK3cwRkdTbWZVZG1lTUY2Uno5QW9kVXFFMWNEa3NudmI0QzNwUnZOcm9mbXBsSUF2WGdnL3RmR1VWRXVuS3lTMjBnczN4WDROMklRZDRxNlUzRk1oaWN2ejI2T2xrK3krM01xOVNSTkdiZk82dmhib2hEc09nYnNMdzY3aDN3ZlFON2lzYmhKcDRIR2hsdm5mKysxL1ZvdmdmYythUGFVUklCdWFSR1NVK2hEWkxrbXV3Zz09IiwiTUlJRVNqQ0NBektnQXdJQkFnSU5BZU8wbXFHTmlxbUJKV2xRdURBTkJna3Foa2lHOXcwQkFRc0ZBREJNTVNBd0hnWURWUVFMRXhkSGJHOWlZV3hUYVdkdUlGSnZiM1FnUTBFZ0xTQlNNakVUTUJFR0ExVUVDaE1LUjJ4dlltRnNVMmxuYmpFVE1CRUdBMVVFQXhNS1IyeHZZbUZzVTJsbmJqQWVGdzB4TnpBMk1UVXdNREF3TkRKYUZ3MHlNVEV5TVRVd01EQXdOREphTUVJeEN6QUpCZ05WQkFZVEFsVlRNUjR3SEFZRFZRUUtFeFZIYjI5bmJHVWdWSEoxYzNRZ1UyVnlkbWxqWlhNeEV6QVJCZ05WQkFNVENrZFVVeUJEUVNBeFR6RXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBd2dnRUtBb0lCQVFEUUdNOUYxSXZOMDV6a1FPOSt0TjFwSVJ2Snp6eU9USFc1RHpFWmhEMmVQQ252VUEwUWsyOEZnSUNmS3FDOUVrc0M0VDJmV0JZay9qQ2ZDM1IzVlpNZFMvZE40WktDRVBaUnJBekRzaUtVRHpScm1CQko1d3VkZ3puZElNWWNMZS9SR0dGbDV5T0RJS2dqRXYvU0pIL1VMK2RFYWx0TjExQm1zSytlUW1NRisrQWN4R05ocjU5cU0vOWlsNzFJMmROOEZHZmNkZHd1YWVqNGJYaHAwTGNRQmJqeE1jSTdKUDBhTTNUNEkrRHNheG1LRnNianphVE5DOXV6cEZsZ09JZzdyUjI1eG95blV4djh2Tm1rcTd6ZFBHSFhreFdZN29HOWorSmtSeUJBQms3WHJKZm91Y0JaRXFGSkpTUGs3WEEwTEtXMFkzejVvejJEMGMxdEpLd0hBZ01CQUFHamdnRXpNSUlCTHpBT0JnTlZIUThCQWY4RUJBTUNBWVl3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdFR0NDc0dBUVVGQndNQ01CSUdBMVVkRXdFQi93UUlNQVlCQWY4Q0FRQXdIUVlEVlIwT0JCWUVGSmpSK0c0UTY4K2I3R0NmR0pBYm9PdDlDZjByTUI4R0ExVWRJd1FZTUJhQUZKdmlCMWRuSEI3QWFnYmVXYlNhTGQvY0dZWXVNRFVHQ0NzR0FRVUZCd0VCQkNrd0p6QWxCZ2dyQmdFRkJRY3dBWVlaYUhSMGNEb3ZMMjlqYzNBdWNHdHBMbWR2YjJjdlozTnlNakF5QmdOVkhSOEVLekFwTUNlZ0phQWpoaUZvZEhSd09pOHZZM0pzTG5CcmFTNW5iMjluTDJkemNqSXZaM055TWk1amNtd3dQd1lEVlIwZ0JEZ3dOakEwQmdabmdRd0JBZ0l3S2pBb0JnZ3JCZ0VGQlFjQ0FSWWNhSFIwY0hNNkx5OXdhMmt1WjI5dlp5OXlaWEJ2YzJsMGIzSjVMekFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBR29BK05ubjc4eTZwUmpkOVhsUVdOYTdIVGdpWi9yM1JOR2ttVW1ZSFBRcTZTY3RpOVBFYWp2d1JUMmlXVEhRcjAyZmVzcU9xQlkyRVRVd2daUStsbHRvTkZ2aHNPOXR2QkNPSWF6cHN3V0M5YUo5eGp1NHRXRFFIOE5WVTZZWlovWHRlRFNHVTlZekpxUGpZOHEzTUR4cnptcWVwQkNmNW84bXcvd0o0YTJHNnh6VXI2RmI2VDhNY0RPMjJQTFJMNnUzTTRUenMzQTJNMWo2YnlrSllpOHdXSVJkQXZLTFdadS9heEJWYnpZbXFtd2ttNXpMU0RXNW5JQUpiRUxDUUNad01INTZ0MkR2cW9meHM2QkJjQ0ZJWlVTcHh1Nng2dGQwVjdTdkpDQ29zaXJTbUlhdGovOWRTU1ZEUWliZXQ4cS83VUs0djRaVU44MGF0blp6MXlnPT0iXX0.eyJub25jZSI6ImFyTjMxOWlsd0pzM2MyaW1TNHNQWGc9PSIsInRpbWVzdGFtcE1zIjoxNjE3NjU3MjEyNjY5LCJhcGtQYWNrYWdlTmFtZSI6ImNvbS5leGFtcGxlLmZpbHRlcnRlc3R3aXRobmF0aXZlYyIsImFwa0RpZ2VzdFNoYTI1NiI6IllMQ3c3UEl4MlpLT3h4NTlwVzZEdUhwZkVsYy9RWmdBVGpUK0s1SUI5cVE9IiwiY3RzUHJvZmlsZU1hdGNoIjp0cnVlLCJhcGtDZXJ0aWZpY2F0ZURpZ2VzdFNoYTI1NiI6WyJseG9rSHkvSUJnUlliNklGTTlnWFR5SklzSzdKdHNPb0ZvWGk0YnNKMzZzPSJdLCJiYXNpY0ludGVncml0eSI6dHJ1ZSwiZXZhbHVhdGlvblR5cGUiOiJCQVNJQyJ9.FxtiP-G0HrTo-6pQfp6hxx73BKxs33VrMDBOBuNloIJsH5V1sOF-2de8Dv9IxOQ0QL4yfLElNeGGPV1qWQ5vaC5nLmG5W78b3SjB2jwstHrop-PuU8V3PiiCmoPjAkIF2p8k2KgSaIsTVvKB6JVu1NSEx6keey2mGuiFmxoRiq0ttfPP5rIhkokGTk01bWlr0xAmVFho5yvQ78y03C8eOz3ny1pjOHHkEJX7IvccgsQPx_gj-_TmOH3HjgP2G66FZ2u4R_LOEYSIIhFcv8LbnmOvnlixUN5-vt1L5ezd7m61InHo_xj4UtDEkxWK8_2bt_KWbPn2kmfqIKU0m5peoA")}")
+//            initializeSafetyNetVerification()
+        }
+
+        chosenFileTextView.setOnClickListener {
+            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            startActivityForResult(intent, PICK_VIDEO_FILE)
         }
 
 
+        uploadButton.setOnClickListener {
+
+            if (hashOfPubKey.isEmpty() || firstAttestationReport.isEmpty()) {
+                Toast.makeText(baseContext, "First SafetyNet Attestation is still not completed", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            doSecondSafetyNetAttestationAndAttemptUpload(hashOfPubKey);
+            
+        }
+
+        addFilterButton.setOnClickListener {
+            val builder: AlertDialog.Builder = AlertDialog.Builder(this)
+            builder.setTitle("Add a new filter")
+            val dialogLayout = layoutInflater.inflate(R.layout.add_filter, null)
+            val filtersRadioGroup = dialogLayout.findViewById<RadioGroup>(R.id.add_fitler_radioGroup)
+            val filterParameterEditText = dialogLayout.findViewById<EditText>(R.id.add_filter_filter_parameter)
+            builder.setView(dialogLayout)
+            builder.setPositiveButton(android.R.string.yes) { _, _ ->
+                var isValidFilterDetected = true
+                when (filtersRadioGroup.checkedRadioButtonId) {
+                    R.id.add_filter_blur_radioButton -> {
+                        chosenFiltersNames.add("blur")
+                        chosenFiltersParameterNums.add(1)
+                        chosenFiltersParameters.add(filterParameterEditText.text.toString().toDouble())
+                    }
+                    R.id.add_filter_brightness_radioButton -> {
+                        chosenFiltersNames.add("brightness")
+                        chosenFiltersParameterNums.add(1)
+                        chosenFiltersParameters.add(filterParameterEditText.text.toString().toDouble())
+                    }
+                    R.id.add_filter_denoise_radioButton -> {
+                        chosenFiltersNames.add("denoise_easy")
+                        chosenFiltersParameterNums.add(0)
+                    }
+                    R.id.add_filter_gray_radioButton -> {
+                        chosenFiltersNames.add("gray")
+                        chosenFiltersParameterNums.add(0)
+                    }
+                    R.id.add_filter_sharpen_radioButton -> {
+                        chosenFiltersNames.add("sharpen")
+                        chosenFiltersParameterNums.add(1)
+                        chosenFiltersParameters.add(filterParameterEditText.text.toString().toDouble())
+                    }
+                    R.id.add_filter_white_balance_radioButton -> {
+                        chosenFiltersNames.add("white_balance")
+                        chosenFiltersParameterNums.add(0)
+                    }
+                    else -> {
+                        isValidFilterDetected = false
+                        Toast.makeText(this, "Illegal filter is chosen", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                if (isValidFilterDetected) {
+//                    Log.d(TAG, "Trying to print chosenFiltersNames(size: ${chosenFiltersNames.size}): $chosenFiltersNames")
+                    updateFiltersInfoTextViewWithInfo(chosenFiltersNames[chosenFiltersNames.size - 1])
+                }
+            }
+            builder.show()
+        }
+
     }
 
+    private fun attemptUploadVideo(): Int {
+        // Return 0 on success, otherwise fail
+        val videoFileMetadataRetriever = MediaMetadataRetriever()
+
+        // Check if video still exists (note that sometime GC could clean the video in RAM)
+        if (recordedVideo.exists) {
+            videoFileMetadataRetriever.setDataSource(recordedVideo.absolutePath)
+            Log.d(TAG, "onCreate: Metadata: possible framerate: ${videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)}, possible num_of_frames: ${videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)}, " +
+                    "possible width: ${videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)}, possible height: ${videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)}")
+        } else {
+            runOnUiThread {
+                Toast.makeText(baseContext, "Please record or select a file first", Toast.LENGTH_SHORT).show()
+            }
+            return 1;
+        }
+
+        // If no filter is chosen, abort
+        if (chosenFiltersNames.isEmpty()) {
+            runOnUiThread {
+                Toast.makeText(baseContext, "Please add a valid filter first", Toast.LENGTH_SHORT).show()
+            }
+            return 1;
+        }
+
+//            val metadataString: String = generate_metadata(1280, 720, 10, 60)
+        val inputOfchosenFiltersParameterNums = IntArray(chosenFiltersParameterNums.size)
+        val inputOfchosenFiltersParameters = DoubleArray(chosenFiltersParameters.size)
+        for (filterParameterNumsIndex in chosenFiltersParameterNums.indices) {
+            inputOfchosenFiltersParameterNums[filterParameterNumsIndex] = chosenFiltersParameterNums[filterParameterNumsIndex]
+        }
+        for (filterParameterIndex in chosenFiltersParameters.indices) {
+            inputOfchosenFiltersParameters[filterParameterIndex] = chosenFiltersParameters[filterParameterIndex]
+        }
+        Log.d(TAG, "onCreate: chosenFiltersNames.toTypedArray(): ${chosenFiltersNames.toTypedArray()}")
+        val metadataString: String = generate_metadata(
+                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt(),
+                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt(),
+                30,
+                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT).toInt() - 1,  // -1 to delete the last incomplete frame
+                firstAttestationReport, secondAttestationReport,
+                chosenFiltersNames.toTypedArray(), inputOfchosenFiltersParameterNums, inputOfchosenFiltersParameters
+        )
+        Log.d(TAG, "onCreate: the metadata we get has length: ${metadataString.length}")
+        runOnUiThread {
+            updateStatusTextViewWithInfo("[Success] Metadata is generated successfully with size: ${metadataString.length}", true);
+        }
+        val signatureB64String: String = sign_video_and_metadata(videoByteArray, metadataString)
+//            Log.d(TAG, "onCreate: the signature we get is: {$signatureB64String}")
+        runOnUiThread {
+            updateStatusTextViewWithInfo("[Success] Signature is generated successfully with size: ${signatureB64String.length}", true);
+        }
+//        val certBtteArray = File("/sdcard/vronicle/camera_cert").readBytes()
+////            Log.d(TAG, "onCreate: successfully read certificate from storage: {${String(certBtteArray)}}")
+//
+        val resultOfConnection = establish_connection(ipAddressEditText.text.toString(), portEditText.text.toString().toInt())
+        Log.d(TAG, "onCreate: the connection result is: $resultOfConnection")
+
+        if (resultOfConnection == 1) {
+            send_file("meta", metadataString.encodeToByteArray())
+            send_file("cert", pubkeyB64.encodeToByteArray())
+            send_file("vid", videoByteArray)
+            send_file("sig", signatureB64String.encodeToByteArray())
+
+            runOnUiThread {
+                updateStatusTextViewWithInfo("[Success] Uploaded successfully!", true);
+            }
+            close_connection()
+        } else {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private fun updateFiltersInfoTextViewWithInfo(newFilterName: String) {
+        chosenFiltersTextView.text = StringBuilder().append(chosenFiltersTextView.text).append("\n").append(newFilterName).toString()
+    }
+
+    private fun updateStatusTextViewWithInfo(newInfo: String, enable_newline: Boolean) {
+        if (enable_newline) {
+            statusTextView.text = StringBuilder().append(statusTextView.text).append("\n").append(newInfo).toString()
+        } else {
+            statusTextView.text = StringBuilder().append(statusTextView.text).append(newInfo).toString()
+        }
+    }
+
+    private fun updateChosenFileTextViewWithLatestInfo() {
+        chosenFileTextView.text = recordedVideo.absolutePath
+    }
+
+    // native-lib
     external fun testFilter(testNum: Int, num_of_rounds: Int): Int
-    external fun establish_connection(ipAddress: String, port: Int): Int
-    external fun generate_metadata(gWidth: Int, gHeight: Int, fps: Int, numOfFrames: Int): String
+    external fun generate_metadata(
+        gWidth: Int, gHeight: Int, fps: Int, numOfFrames: Int,
+        firstAttestationReport: String, secondAttestationReport: String,
+        filterNames: Array<String>, filterParameterNums: IntArray, filterParameters: DoubleArray
+    ): String
     external fun read_keys(camPriKeyStr: String, camPubKeyStr: String): Int
+    external fun generate_keypair(): Int
+    external fun sign_video_and_metadata(video: ByteArray, metadata: String): String
+    external fun get_pubkey(): String    // Not working properly
+    external fun print_hash_of_pubkey(pubkey: String): Int    // Not working properly
+    external fun get_hash_of_pubkey(): String
+
+    // client
+    external fun establish_connection(ipAddress: String, port: Int): Int
+    external fun close_connection(): Int
+    external fun send_file(file_name: String, file_data: ByteArray): Int
 
     private fun dispatchTakeVideoIntent() {
         Intent(MediaStore.ACTION_VIDEO_CAPTURE).also { takeVideoIntent ->
@@ -100,21 +323,43 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun initializeSafetyNetVerification() {
+    private fun doFirstSafetyNetAttestation(nonce: String) {
         if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(baseContext)
                 != ConnectionResult.SUCCESS) {
             Toast.makeText(baseContext, getString(R.string.google_play_services_not_available), Toast.LENGTH_LONG).show();
             return;
         }
 
-        val secureRandom = SecureRandom()
-        val n = ByteArray(16)
-        secureRandom.nextBytes(n)
+//        val secureRandom = SecureRandom()
+//        val n = ByteArray(16)
+//        secureRandom.nextBytes(n)
         Thread {
-            requestAttestation(n)
+//            Log.d(TAG, "doFirstSafetyNetAttestation: nonce after encoding(1): ${String(nonce.toByteArray())}")
+//            Log.d(TAG, "doFirstSafetyNetAttestation: nonce after encoding(2): ${String(nonce.toByteArray(), StandardCharsets.US_ASCII)}")
+//            Log.d(TAG, "doFirstSafetyNetAttestation: nonce after encoding(2): ${String(nonce.toByteArray(), StandardCharsets.UTF_8)}")
+            requestAttestation(nonce.toByteArray(), 0)
+//            requestAttestation("aaaaaaaaaaaaaaaa".toByteArray(), 0)
         }.start()
 
-        Toast.makeText(baseContext, getString(R.string.safetynet_quote_requested), Toast.LENGTH_LONG).show();
+//        Toast.makeText(baseContext, getString(R.string.safetynet_quote_requested), Toast.LENGTH_LONG).show();
+        updateStatusTextViewWithInfo("[Info] First SafetyNet Attestation request is sent", true);
+    }
+
+    private fun doSecondSafetyNetAttestationAndAttemptUpload(nonce: String) {
+        if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(baseContext)
+                != ConnectionResult.SUCCESS) {
+            Toast.makeText(baseContext, getString(R.string.google_play_services_not_available), Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Thread {
+            secondAttestationReport = ""
+            requestAttestation(nonce.toByteArray(), 1)
+            while (secondAttestationReport.isEmpty()) {Thread.sleep(1000)}
+            attemptUploadVideo()
+        }.start()
+
+        updateStatusTextViewWithInfo("[Info] Second SafetyNet Attestation request is sent", true);
     }
 
     private fun parseToJWS(jwsResult:String): JsonWebSignature {
@@ -129,16 +374,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun requestAttestation(nonce: ByteArray) {
+    private fun requestAttestation(nonce: ByteArray, outputPosition: Int) {
+        // outputPosition: 0 for first, 1 for second
+
         SafetyNet.getClient(this).attest(nonce, SAFETYNET_API_KEY)
                 .addOnSuccessListener( OnSuccessListener {
-                    val token = it.jwsResult
+                    val token:String = it.jwsResult
                     Log.d(TAG, "len of new token: ${token.length}")
-                    Log.d(TAG, "Got token back: ${token.subSequence(0, 2000)}")
-                    Log.d(TAG, "Got token back(2): ${token.subSequence(2000, 4000)}")
-                    Log.d(TAG, "Got token back(3): ${token.subSequence(4000, token.length)}")
+
+//                    Log.d(TAG, "Got token back: ${token.subSequence(0, 2000)}")
+//                    Log.d(TAG, "Got token back(2): ${token.subSequence(2000, 4000)}")
+//                    Log.d(TAG, "Got token back(3): ${token.subSequence(4000, token.length)}")
                     val data = parseToJWS(token)
                     Log.d(TAG, "After parsing to jws: $data")
+                    runOnUiThread {
+                        if (outputPosition == 0) {
+                            firstAttestationReport = token
+                            updateStatusTextViewWithInfo("[Success] First SafetyNet Attestation is done($outputPosition)", true);
+                        } else if (outputPosition == 1) {
+                            secondAttestationReport = token
+                            updateStatusTextViewWithInfo("[Success] Second SafetyNet Attestation is done($outputPosition)", true);
+                        } else {
+                            updateStatusTextViewWithInfo("[Error] Unknown outputPosition: $outputPosition", true);
+                        }
+                    }
                 })
                 .addOnFailureListener(this) { e ->
                     if (e is ApiException) {
@@ -147,18 +406,22 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         Log.d(TAG, "unknown error with Safetynet Quote Request: ${e.message}")
                     }
+                    runOnUiThread {
+                        updateStatusTextViewWithInfo("[Error] Failure to do SafetyNet Attestation on outputPosition: $outputPosition", true);
+                    }
                 }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, intent: Intent?) {
         super.onActivityResult(requestCode, resultCode, intent)
 
-        if (requestCode == REQUEST_VIDEO_CAPTURE && resultCode == RESULT_OK) {
+        if ( (requestCode == REQUEST_VIDEO_CAPTURE || requestCode == PICK_VIDEO_FILE) && resultCode == RESULT_OK) {
             val videoUri: Uri = intent?.data!!
-            val recordedVideo = MediaFile(applicationContext, videoUri)
-            Log.d(TAG, "onActivityResult: the videoUri we get is: ${recordedVideo.absolutePath}, existOrNot: ${recordedVideo.exists}, potentialSize: ${recordedVideo.length}")
-            val videoByteArray = File(recordedVideo.absolutePath).readBytes()
+            recordedVideo = MediaFile(applicationContext, videoUri)
+            Log.d(TAG, "onActivityResult: the videoUri we get is: ${videoUri}, the absolutePath we get is: ${recordedVideo.absolutePath}, existOrNot: ${recordedVideo.exists}, potentialSize: ${recordedVideo.length}")
+            videoByteArray = File(recordedVideo.absolutePath).readBytes()
             Log.d(TAG, "onActivityResult: ${videoByteArray.size} have been read into RAM...")
+            updateChosenFileTextViewWithLatestInfo()
         }
 
     }

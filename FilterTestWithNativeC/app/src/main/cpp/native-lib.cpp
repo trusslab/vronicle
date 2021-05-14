@@ -652,7 +652,7 @@ Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata(
     jdouble *filter_parameters_temp = env->GetDoubleArrayElements(filter_parameters, 0);
     for (int i = 0; i < md->total_filters; ++i) {
         const char *filter_name = env->GetStringUTFChars((jstring)(env->GetObjectArrayElement(filter_names, i)), 0);
-        printf("Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata: filter_name(%d): {%s}\n", strlen(filter_name), filter_name);
+//        printf("Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata: filter_name(%d): {%s}\n", strlen(filter_name), filter_name);
         md->filters[i] = (char*)malloc(sizeof(char) * (strlen(filter_name) + 1));
         memcpy(md->filters[i], filter_name, strlen(filter_name));
         *(md->filters[i] + strlen(filter_name)) = '\0';
@@ -668,10 +668,24 @@ Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata(
 
     size_t len_of_attestation_report_b64;
     const char *first_attestation_report = (*env).GetStringUTFChars(first_attestation_report_jstr, nullptr);
-    Base64Encode((const unsigned char*)first_attestation_report, strlen(first_attestation_report), &(md->safetynet_jws[0]), &len_of_attestation_report_b64);
+//    printf("Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata: first_attestation_report(%d): {%s}", strlen(first_attestation_report), first_attestation_report);
+    size_t size_of_first_attestation_report = strlen(first_attestation_report) * sizeof(char);
+    md->safetynet_jws[0] = (char*) malloc(size_of_first_attestation_report + sizeof(char));
+    memset(md->safetynet_jws[0], 0, size_of_first_attestation_report);
+    memcpy(md->safetynet_jws[0], first_attestation_report, size_of_first_attestation_report);
+    md->safetynet_jws[0][size_of_first_attestation_report] = '\0';
+    printf("first_attestation_report size: %d\n", size_of_first_attestation_report);
+//    Base64Encode((const unsigned char*)first_attestation_report, strlen(first_attestation_report), &(md->safetynet_jws[0]), &len_of_attestation_report_b64);
+//    printf("Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata: first_attestation_report_b64(%d): {%s}", len_of_attestation_report_b64, md->safetynet_jws[0]);
 //    printf("first_attestation_report size: %d, after encoded, the new size: %d\n", strlen(first_attestation_report), len_of_attestation_report_b64);
     const char *second_attestation_report = (*env).GetStringUTFChars(second_attestation_report_jstr, nullptr);
-    Base64Encode((const unsigned char*)second_attestation_report, strlen(second_attestation_report), &(md->safetynet_jws[1]), &len_of_attestation_report_b64);
+    size_t size_of_second_attestation_report = strlen(second_attestation_report) * sizeof(char);
+    md->safetynet_jws[1] = (char*) malloc(size_of_second_attestation_report + sizeof(char));
+    memset(md->safetynet_jws[1], 0, size_of_second_attestation_report);
+    memcpy(md->safetynet_jws[1], second_attestation_report, size_of_second_attestation_report);
+    md->safetynet_jws[1][size_of_first_attestation_report] = '\0';
+    printf("second_attestation_report size: %d\n", size_of_second_attestation_report);
+//    Base64Encode((const unsigned char*)second_attestation_report, strlen(second_attestation_report), &(md->safetynet_jws[1]), &len_of_attestation_report_b64);
 //    printf("second_attestation_report size: %d, after encoded, the new size: %d\n", strlen(second_attestation_report), len_of_attestation_report_b64);
 
     char* json = NULL;

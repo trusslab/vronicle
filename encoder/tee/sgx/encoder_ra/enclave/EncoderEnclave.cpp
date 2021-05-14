@@ -1013,22 +1013,28 @@ void t_get_sig_size (size_t* sig_size, char* original_md_json,  size_t original_
 	memset(out_md->digests[tmp_total_digests], 0, mrenclave_len);
 	memcpy(out_md->digests[tmp_total_digests], mrenclave, mrenclave_len);
 
+    // printf("[EncoderEnclave]: original_md_json: {%s}\n", original_md_json);
+
     // For case of SafetyNet
     metadata *original_md = json_2_metadata(original_md_json, original_md_json_size);
     if (original_md->is_safetynet_presented) {
+        // printf("[EncoderEnclave]: safetynet_jws_report_1_size in original_md: %d, safetynet_jws_report_2_size in original_md: %d.\n", strlen(original_md->safetynet_jws[0]), strlen(original_md->safetynet_jws[1]));
         out_md->is_safetynet_presented = original_md->is_safetynet_presented;
         out_md->num_of_safetynet_jws = original_md->num_of_safetynet_jws;
         out_md->safetynet_jws = (char**)malloc(sizeof(char*) * out_md->num_of_safetynet_jws);
         for (int i = 0; i < out_md->num_of_safetynet_jws; ++i) {
             size_t size_of_current_jws = strlen(original_md->safetynet_jws[i]);
-            out_md->safetynet_jws[i] = (char*)malloc(sizeof(char) * size_of_current_jws);
-            memcpy(out_md->safetynet_jws[i], original_md->safetynet_jws[i], size_of_current_jws);
+            out_md->safetynet_jws[i] = (char*)malloc(sizeof(char) * size_of_current_jws + sizeof(char));
+            memcpy(out_md->safetynet_jws[i], original_md->safetynet_jws[i], sizeof(char) * size_of_current_jws);
+            out_md->safetynet_jws[i][size_of_current_jws] = '\0';
         }
     }
 
 	char* output_json = metadata_2_json_without_frame_id(out_md);
 
     if (original_md->is_safetynet_presented) {
+        // printf("[EncoderEnclave]: safetynet_jws_report_1_size in out_md: %d, safetynet_jws_report_2_size in out_md: %d.\n", strlen(out_md->safetynet_jws[0]), strlen(out_md->safetynet_jws[1]));
+        // printf("[EncoderEnclave]: output_json: {%s}\n", output_json);
         printf("[EncoderEnclave]: After safetynet related data is presented in metadata, the final size of output_json will be: %d\n", strlen(output_json));
     }
 

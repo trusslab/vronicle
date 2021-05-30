@@ -16,7 +16,7 @@
 #include "TCPClient.h"
 #include <time.h> /* for time() and ctime() */
 
-# define TARGET_NUM_FILES_RECEIVED 4
+# define TARGET_NUM_FILES_RECEIVED 2
 
 TCPClient tcp_client;
 int num_of_times_received = 0;
@@ -164,29 +164,44 @@ int main(int argc, char *argv[], char **env)
     printf("All files received, going to try save to local...\n");
 
     // Save cert
-    char* cert_file_name = argv[3];
-    FILE* cert_file = fopen(cert_file_name, "wb");
-    fwrite(ias_cert, size_of_ias_cert, 1, cert_file);
-    fclose(cert_file);
+    if (ias_cert) {
+        char* cert_file_name = argv[3];
+        FILE* cert_file = fopen(cert_file_name, "wb");
+        fwrite(ias_cert, size_of_ias_cert, 1, cert_file);
+        fclose(cert_file);
+    } else {
+        printf("ias_cert is skipped...\n");
+    }
 
     // Save vid
-    char* vid_file_name = argv[4];
-    FILE* vid_file = fopen(vid_file_name, "wb");
-    fwrite(vid_buf, vid_buf_len, 1, vid_file);
-    fclose(vid_file);
+    if (vid_buf) {
+        char* vid_file_name = argv[4];
+        FILE* vid_file = fopen(vid_file_name, "wb");
+        fwrite(vid_buf, vid_buf_len, 1, vid_file);
+        fclose(vid_file);
+    } else {
+        printf("vid_buf is skipped...\n");
+    }
 
     // Save metadata
-    char* md_file_name = argv[5];
-    FILE* md_file = fopen(md_file_name, "wb");
-    fwrite(md_json, md_json_len, 1, md_file);
-    fclose(md_file);
+    if (md_json) {
+        char* md_file_name = argv[5];
+        FILE* md_file = fopen(md_file_name, "wb");
+        fwrite(md_json, md_json_len, 1, md_file);
+        fclose(md_file);
+    } else {
+        printf("md_json is skipped...\n");
+    }
 
     // Save signature
-    char* sig_file_name = argv[6];
-    FILE* sig_file = fopen(sig_file_name, "wb");
-    fwrite(raw_signature, raw_signature_length, 1, sig_file);
-    fclose(sig_file);
-
+    if (raw_signature) {
+        char* sig_file_name = argv[6];
+        FILE* sig_file = fopen(sig_file_name, "wb");
+        fwrite(raw_signature, raw_signature_length, 1, sig_file);
+        fclose(sig_file);
+    } else {
+        printf("raw_signature is skipped...\n");
+    }
 
     printf("All files saved successfully...\n");
 

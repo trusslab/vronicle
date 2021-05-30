@@ -908,7 +908,7 @@ int main(int argc, char *argv[], char **env)
             start = high_resolution_clock::now();
 
             if(pthread_create(&msg, NULL, received, (void *)(new_p_workflow)) != 0){
-                printf("pthread for receiving created failed...quiting...\n");
+                printf("[scheduler]: pthread for receiving created failed...quiting...\n");
                 return 1;
             }
             pthread_join(msg, NULL);
@@ -920,7 +920,7 @@ int main(int argc, char *argv[], char **env)
 
             // Start Remaining receiving mission
             if(pthread_create(&msg, NULL, do_remaining_receving_jobs, (void *)(new_p_workflow)) != 0){
-                printf("pthread for remaining receiving created failed...quiting...\n");
+                printf("[scheduler]: pthread for remaining receiving created failed...quiting...\n");
                 return 1;
             }
             
@@ -1006,7 +1006,7 @@ int main(int argc, char *argv[], char **env)
 
             if(first_filter_name != "all_in_one"){
                 if(pthread_create(pt_encoder, NULL, start_encoder_server, e_args) != 0){
-                    printf("pthread for start_encoder_server created failed...quiting...\n");
+                    printf("[scheduler]: pthread for start_encoder_server created failed...quiting...\n");
                     return 1;
                 }
             }

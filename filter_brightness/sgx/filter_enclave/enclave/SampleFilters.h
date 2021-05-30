@@ -91,7 +91,7 @@ pixel* sharpen(pixel* image_buffer, pixel* output_buffer, int row_length, int to
     return output_buffer;
 }
 
-void change_brightness(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, int target_percentage){
+void change_brightness(pixel* image_buffer, pixel* output_buffer, int row_length, int total_num_of_pixels, double target_percentage){
     int column_length = total_num_of_pixels / row_length;   // or height
     for(int y = 0; y < column_length; ++y){
         for(int x = 0; x < row_length; ++x){

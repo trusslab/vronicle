@@ -881,9 +881,21 @@ int check_and_change_to_main_scheduler(){
 
         // Reconnect to the actual main scheduler
         tcp_client_rec.exit();
-        bool connection_result = tcp_client_rec.setup(ip_addr.c_str(), atoi(port.c_str()));
+        int time_to_try = 10;
+        int is_successfully_connected = 0;
 
-        if(!connection_result){
+        while (time_to_try && !is_successfully_connected) {
+            bool result_of_connection_setup = tcp_client_rec.setup(ip_addr.c_str(), atoi(port.c_str()));
+            if(!result_of_connection_setup){
+                tcp_client_rec = TCPClient();
+                --time_to_try;
+                usleep(50000);
+            } else {
+                is_successfully_connected = 1;
+            }
+        }
+
+        if(!is_successfully_connected){
             printf("[decoder:TestApp]: Connection cannot be established with main scheduler...\n");
             return 1;
         }
@@ -968,10 +980,24 @@ int setup_connection_with_encoder_using_scheduler() {
     int encoder_port = (long)tcp_client_rec.receive_size_of_data();
     tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
 
-    printf("[decoder:TestApp]: Going to connect to encoder at ip: %s with port: %d\n", encoder_ip_addr.c_str(), encoder_port);
+    // printf("[decoder:TestApp]: Going to connect to encoder at ip: %s with port: %d\n", encoder_ip_addr.c_str(), encoder_port);
 
-    bool result_of_connection_setup = tcp_client_with_encoder.setup(encoder_ip_addr.c_str(), encoder_port);
-    if(!result_of_connection_setup){
+    int time_to_try = 10;
+    int is_successfully_connected = 0;
+
+    while (time_to_try && !is_successfully_connected) {
+        bool result_of_connection_setup = tcp_client_with_encoder.setup(encoder_ip_addr.c_str(), encoder_port);
+        if(!result_of_connection_setup){
+            tcp_client_with_encoder = TCPClient();
+            --time_to_try;
+            usleep(50000);
+        } else {
+            is_successfully_connected = 1;
+        }
+    }
+
+    if (!is_successfully_connected) {
+        printf("[decoder:TestApp]: Connection to encoder is unsuccessful at ip: %s with port: %d\n", encoder_ip_addr.c_str(), encoder_port);
         free(reply_to_scheduler);
         return 1;
     }
@@ -1086,9 +1112,21 @@ void do_decoding(
 
     // Prepare tcp client
     // printf("[decoder:TestApp]: Setting up tcp client...\n");
-    bool connection_result = tcp_client_rec.setup("127.0.0.1", atoi(argv[1]));
+    int time_to_try = 10;
+    int is_successfully_connected = 0;
 
-    if(!connection_result){
+    while (time_to_try && !is_successfully_connected) {
+        bool result_of_connection_setup = tcp_client_rec.setup("127.0.0.1", atoi(argv[1]));
+        if(!result_of_connection_setup){
+            tcp_client_rec = TCPClient();
+            --time_to_try;
+            usleep(50000);
+        } else {
+            is_successfully_connected = 1;
+        }
+    }
+
+    if(!is_successfully_connected){
         printf("[decoder:TestApp]: Connection cannot be established...\n");
         close_app(0);
     }
@@ -1372,7 +1410,7 @@ void do_decoding(
             close_app(0);
         }
 
-        printf("[decoder:TestApp]: Decoded frame: %d\n", i);
+        // printf("[decoder:TestApp]: Decoded frame: %d\n", i);
 
         string frame_num = to_string(i);
         

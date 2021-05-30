@@ -126,6 +126,18 @@ char* vid_sig_buf = NULL;
 long md_json_len = 0;
 char* md_json = NULL;
 
+// For SafetyNet data
+char *original_md_json;
+long original_md_json_len;
+
+// For audio data
+size_t size_of_audio_meta = 0;
+char* audio_meta = NULL;
+size_t size_of_audio_data = 0;
+char* audio_data = NULL;
+size_t size_of_audio_sig = 0;
+char* audio_sig = NULL;
+
 // For outgoing data
 unsigned char *der_cert;
 size_t size_of_cert;
@@ -134,6 +146,8 @@ char* msg_buf;
 
 // For Outgoing Data
 size_t potential_out_md_json_len = -1;
+char *mp4_video_out = NULL;
+size_t size_of_mp4_video_out = 0;
 
 using namespace std;
 
@@ -579,6 +593,38 @@ int num_digits(int x)
         (x < 100000000 ? 8 :  
         (x < 1000000000 ? 9 :  
         10)))))))));  
+}
+
+void * read_audio_related_data_from_enclave(void* m) {
+    // Will get audio related data from enclave
+    // Return 0 on success, otherwise return 1
+    
+    int *result_to_return = (int*)malloc(sizeof(int));
+    *result_to_return = 0;
+
+    int ret = 1;
+    sgx_status_t status = t_sgxver_get_audio_related_data_sizes(global_eid, &ret, &size_of_audio_meta, &size_of_audio_data, &size_of_audio_sig, sizeof(size_t));
+
+    if (ret != 0) {
+        printf("[decoder:TestApp]: Failed to get audio related data size with error code: [%d]\n", ret);
+        *result_to_return = 1;
+        return result_to_return;
+    }
+
+    // Pre allocate all audio data
+    audio_meta = (char*) malloc(size_of_audio_meta);
+    audio_data = (char*) malloc(size_of_audio_data);
+    audio_sig = (char*) malloc(size_of_audio_sig);
+
+    status = t_sgxver_get_audio_related_data(global_eid, &ret, audio_meta, size_of_audio_meta, audio_data, size_of_audio_data, audio_sig, size_of_audio_sig);
+
+    if (ret != 0) {
+        printf("[decoder:TestApp]: Failed to get audio related data with error code: [%d]\n", ret);
+        *result_to_return = 1;
+        return result_to_return;
+    }
+    
+    return result_to_return;
 }
 
 int send_buffer_to_viewer(void* buffer, long buffer_lenth){
@@ -1509,6 +1555,22 @@ void do_decoding(
         return;
     }
 
+    // Extra parsing for Safetynet
+    metadata *original_md = md;
+    original_md_json = md_json;
+    original_md_json_len = md_json_len;
+    if (original_md->is_safetynet_presented) {
+        md = json_2_metadata((char*)md_json, md_json_len);
+        for (int i = 0; i < md->num_of_safetynet_jws; ++i) {
+            free(md->safetynet_jws[i]);
+        }
+        free(md->safetynet_jws);
+        md->num_of_safetynet_jws = 0;
+        md->is_safetynet_presented = 0;
+        md_json = metadata_2_json_without_frame_id(md);
+        md_json_len = strlen((char*)md_json);
+    }
+
     // Decode signature
     size_t vid_sig_length = 0;
     unsigned char* vid_sig = decode_signature(vid_sig_buf, vid_sig_buf_length, &vid_sig_length);
@@ -1553,12 +1615,18 @@ void do_decoding(
     start = high_resolution_clock::now();
 
     int ret = 0;
+    // sgx_status_t status = t_sgxver_prepare_decoder(global_eid, &ret,
+    //                                               contentBuffer, contentSize, 
+    //                                               md_json, md_json_len,
+    //                                               vendor_pub, vendor_pub_len,
+    //                                               camera_cert, camera_cert_len,
+    //                                               vid_sig, vid_sig_length);
     sgx_status_t status = t_sgxver_prepare_decoder(global_eid, &ret,
                                                   contentBuffer, contentSize, 
-                                                  md_json, md_json_len,
+                                                  original_md_json, original_md_json_len,
                                                   vendor_pub, vendor_pub_len,
                                                   camera_cert, camera_cert_len,
-                                                  vid_sig, vid_sig_length);
+                                                  vid_sig, vid_sig_length, md->is_safetynet_presented);
     // printf("[all_in_one: TestApp]: t_sgxver_prepare_decoder: [%d]\n", ret);
 
     // status = t_sgxver_decode_content(global_eid, &ret,
@@ -1578,6 +1646,14 @@ void do_decoding(
 
     pthread_mutex_init(&current_encoding_frame_num_lock, NULL);
     pthread_mutex_init(&current_num_of_threads_proc_lock, NULL);
+
+    pthread_t thread_4_audio_reader;
+
+    // printf("[decoder:TestApp]: Going to create thread for get_and_send_audio_related_data_and_metadata_to_encoder...\n");
+    if(pthread_create(&thread_4_audio_reader, NULL, read_audio_related_data_from_enclave, (void *)0) != 0){
+        printf("[decoder:TestApp]: pthread for read_audio_related_data_from_enclave created failed...quiting...\n");
+        close_app(0);
+    }
 
     if (ret != 1) {
         printf("[decoder:TestApp]: Failed to prepare decoding video with error code: [%d]\n", ret);
@@ -1748,6 +1824,31 @@ void do_decoding(
     pthread_mutex_destroy(&current_encoding_frame_num_lock);
     pthread_mutex_destroy(&current_num_of_threads_proc_lock);
 
+    // Make sure audio data is correctly read
+    void *result_of_reading_audio;
+    pthread_join(thread_4_audio_reader, &result_of_reading_audio);
+    if(*((int*)result_of_reading_audio) != 0){
+        printf("[decoder:TestApp]: No correct audio data is read...\n");
+        close_app(0);
+    }
+    free(result_of_reading_audio);
+
+    // Mux audio with encoded video
+    int res = -1;
+    // printf("[EncoderApp]: Going to call t_mux_video_with_audio...\n");
+    status = t_mux_video_with_audio(global_eid, &res, 
+                                audio_meta, size_of_audio_meta,
+                                audio_data, size_of_audio_data,
+                                (unsigned char*)audio_sig, size_of_audio_sig,
+                                &size_of_mp4_video_out);
+    if (res || status != SGX_SUCCESS)
+    {
+        printf("[EncoderApp]: ERROR: Muxing video and audio failed\n");
+        close_app(0);
+    }
+    // printf("[EncoderApp]: Finished both calls with size_of_mp4_video_out: %d...\n", size_of_mp4_video_out);
+    mp4_video_out = (char*) malloc(size_of_mp4_video_out * sizeof(char));
+
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start_s);
     alt_eval_file << duration.count();
@@ -1794,16 +1895,22 @@ void do_decoding(
     start = high_resolution_clock::now();
 
     // Send encoded video
-    size_t total_coded_data_size = 0;
-    status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
-    if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
-        printf("[all_in_one:TestApp]: t_get_encoded_video_size failed\n");
-        close_app(0);
-    }
-    unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
-    status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
-    if (status != SGX_SUCCESS) {
-        printf("[all_in_one:TestApp]: t_get_encoded_video failed\n");
+    // size_t total_coded_data_size = 0;
+    // status = t_get_encoded_video_size(global_eid, &total_coded_data_size);
+    // if (total_coded_data_size == 0 || status != SGX_SUCCESS) {
+    //     printf("[all_in_one:TestApp]: t_get_encoded_video_size failed\n");
+    //     close_app(0);
+    // }
+    // unsigned char *total_coded_data = new unsigned char [total_coded_data_size];
+    // status = t_get_encoded_video(global_eid, total_coded_data, total_coded_data_size);
+    // if (status != SGX_SUCCESS) {
+    //     printf("[all_in_one:TestApp]: t_get_encoded_video failed\n");
+    //     close_app(0);
+    // }
+
+    status = t_get_muxed_video(global_eid, &res, mp4_video_out, size_of_mp4_video_out);
+    if (res || status != SGX_SUCCESS) {
+        printf("t_get_encoded_video failed\n");
         close_app(0);
     }
 
@@ -1816,19 +1923,23 @@ void do_decoding(
         close_app(0);
     }
 
-    send_buffer_to_viewer(total_coded_data, total_coded_data_size);
+    // send_buffer_to_viewer(total_coded_data, total_coded_data_size);
+    send_buffer_to_viewer(mp4_video_out, size_of_mp4_video_out);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", ";
 
-    delete total_coded_data;
+    // delete total_coded_data;
+    free(mp4_video_out);
 
     start = high_resolution_clock::now();
 
+    // printf("[all_in_one:TestApp]: vid is sent, now going to send signature...\n");
+
     // Send signature
     size_t sig_size_of_final_output = 0;
-    status = t_get_sig_size(global_eid, &sig_size_of_final_output);
+    status = t_get_sig_size(global_eid, &sig_size_of_final_output, original_md_json, original_md_json_len);
     if (sig_size_of_final_output == 0 || status != SGX_SUCCESS) {
         printf("t_get_sig_size failed\n");
         close_app(0);
@@ -1863,10 +1974,17 @@ void do_decoding(
     
     start = high_resolution_clock::now();
 
-    // Init for encoded video info
-    potential_out_md_json_len = out_md_json_len_p + 48 - 17;  // - 17 because of loss of frame_id; TO-DO: make this flexible (Get size dynamically)
+    // // Init for encoded video info
+    // potential_out_md_json_len = out_md_json_len_p + 48 - 17;  // - 17 because of loss of frame_id; TO-DO: make this flexible (Get size dynamically)
 
     // Send metadata
+    status = t_get_metadata_size(global_eid, &potential_out_md_json_len);
+    // printf("[EncoderApp]: t_get_metadata just finished...\n");
+    if (status != SGX_SUCCESS) {
+        printf("[EncoderApp]: t_get_metadata failed\n");
+        close_app(0);
+    }
+
     char* out_md_json = (char*)malloc(potential_out_md_json_len);
     status = t_get_metadata(global_eid, out_md_json, potential_out_md_json_len);
     // printf("[all_in_one:TestApp]: t_get_metadata just finished...\n");
@@ -1913,6 +2031,10 @@ void do_decoding(
     //     free(frame_height);
     // if(num_of_frames)
     //     free(num_of_frames);
+    if(original_md->is_safetynet_presented){
+        free_metadata(original_md);
+        free(original_md_json);
+    }
     if(contentBuffer)
         free(contentBuffer);
     if(output_rgb_buffer)

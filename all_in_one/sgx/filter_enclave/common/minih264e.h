@@ -442,7 +442,8 @@ static inline unsigned int __ssub16(unsigned int val1, unsigned int val2)
     return result;
 }
 
-static inline unsigned int __clz_t(unsigned int val1)
+// static inline unsigned int __clz(unsigned int val1)
+static inline unsigned int __clz_mh264(unsigned int val1)
 {
     unsigned int result;
     __asm__ volatile ("clz %0, %1\n\t"
@@ -7309,7 +7310,8 @@ static unsigned h264e_bs_byte_align(bs_t *bs)
 static void h264e_bs_put_golomb(bs_t *bs, unsigned val)
 {
 #ifdef __arm__
-    int size = 32 - __clz_t(val + 1);
+    // int size = 32 - __clz(val + 1);
+    int size = 32 - __clz_mh264(val + 1);
 #else
     int size = 0;
     unsigned t = val + 1;
@@ -8179,7 +8181,9 @@ static void init_vft(int enableNEON)
 /**
 *   Count of leading zeroes
 */
-static unsigned __clz_t(unsigned v)
+// Edit to avoid ambiguous
+// static unsigned __clz(unsigned v)
+static unsigned __clz_mh264(unsigned v)
 {
 #if defined(_MSC_VER)
     unsigned long nbit;
@@ -8204,7 +8208,10 @@ static unsigned __clz_t(unsigned v)
 */
 static int bitsize_ue(int v)
 {
-    return 2*(32 - __clz_t(v + 1)) - 1;
+    // Edit to avoid ambiguous error
+    return 2*(32 - __clz_mh264(v + 1)) - 1;
+    // unsigned int temp = __clz(static_cast<unsigned int>(v + 1));
+    // return 2*(32 - temp) - 1;
 }
 
 /**
@@ -8232,7 +8239,8 @@ static uint32_t mul32x32shr16(uint32_t x, uint32_t y)
 */
 static uint32_t div_q16(uint32_t numer, uint32_t denum)
 {
-    unsigned f = 1 << __clz_t(denum);
+    // unsigned f = 1 << __clz(denum);
+    unsigned f = 1 << __clz_mh264(denum);
     do
     {
         denum = denum * f >> 16;

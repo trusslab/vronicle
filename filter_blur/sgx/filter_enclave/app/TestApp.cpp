@@ -909,7 +909,7 @@ int verification_reply(
         return 1;
     }
     
-    printf("[filter_blur:TestApp]: Processed frame: %d\n", md->frame_id);
+    // printf("[filter_blur:TestApp]: Processed frame: %d\n", md->frame_id);
 
     
     start = high_resolution_clock::now();

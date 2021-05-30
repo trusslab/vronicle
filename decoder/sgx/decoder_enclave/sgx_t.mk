@@ -111,8 +111,8 @@ else
 endif
 
 ifeq ($(ENABLE_DCAP), 1)
-        SGX_COMMON_CFLAGS += -DENABLE_DCAP
-		Trts_Library_Name += -lsgx_dcap_tvl
+	SGX_COMMON_CFLAGS += -DENABLE_DCAP
+	Trts_Library_Name += -lsgx_dcap_tvl
 endif
 
 ifeq ($(SGX_MODE), HW)

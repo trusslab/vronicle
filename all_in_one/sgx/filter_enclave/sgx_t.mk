@@ -78,6 +78,10 @@ DECODER_SRC_PATH := $(DECODER_DIR)/src
 DECODER_LIB_NAME := h264bsd
 DECODER_LIB_PATH := $(DECODER_DIR)/lib
 
+# Added to link with FFMPEG H264 decoder libraries
+F_DECODER_SRCS := $(shell find $(ENCLAVE_DIR)/ffmpeg_decoder -name "*.c" -not -name "*_template.c")
+F_DECODER_INCLUDE_PATH := $(ENCLAVE_DIR)/ffmpeg_decoder/ffmpeg-src
+
 # Added to build with SgxSSL libraries
 TSETJMP_LIB := -lsgx_tsetjmp
 OPENSSL_LIBRARY_PATH := $(PACKAGE_LIB)/
@@ -128,8 +132,8 @@ TestEnclave_C_Objects := $(TestEnclave_C_Files:.c=.o)
 TestEnclave_Include_Paths := -I. -I$(ENCLAVE_DIR) -I$(SGX_SDK_INC) -I$(SGX_SDK_INC)/tlibc -I$(LIBCXX_INC) -I$(PACKAGE_INC) -I$(DECODER_INCLUDE_PATH) -I$(DECODER_SRC_PATH) -Icommon
 
 Common_C_Cpp_Flags := -DOS_ID=$(OS_ID) $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpic -fpie -fstack-protector -fno-builtin-printf -Wformat -Wformat-security $(TestEnclave_Include_Paths) -include "tsgxsslio.h" -DH264E_SVC_API=1
-TestEnclave_C_Flags := $(Common_C_Cpp_Flags) -Wno-implicit-function-declaration -std=c11
-TestEnclave_Cpp_Flags :=  $(Common_C_Cpp_Flags) -std=c++11 -nostdinc++
+TestEnclave_C_Flags := $(Common_C_Cpp_Flags) -Wno-implicit-function-declaration -std=c11 -lm -I$(F_DECODER_INCLUDE_PATH)
+TestEnclave_Cpp_Flags :=  $(Common_C_Cpp_Flags) -std=c++11 -nostdinc++ -I$(F_DECODER_INCLUDE_PATH)
 
 SgxSSL_Link_Libraries := -L$(OPENSSL_LIBRARY_PATH) -Wl,--whole-archive -l$(SGXSSL_Library_Name) -Wl,--no-whole-archive \
 						 -l$(OpenSSL_Crypto_Library_Name)
@@ -162,6 +166,9 @@ test: all
 libh264bsd.a: 
 	@cd $(DECODER_DIR) && mkdir -p include obj lib && cp src/*.h include/ && cd obj && gcc -c ../src/*.c && cd .. && ar rcs lib/libh264bsd.a obj/*
 	@echo "GEN => H264 Decoder Shared Library Ready..."
+
+# Added for ffmpeg H264 Decoder
+F_DECODER_OBJS := $(F_DECODER_SRCS:%.c=%.o)
 
 ifeq ($(ENABLE_DCAP), 0)
 $(ENCLAVE_DIR)/TestEnclave_t.c: libh264bsd.a $(SGX_EDGER8R) $(ENCLAVE_DIR)/TestEnclave.edl
@@ -210,9 +217,9 @@ $(ENCLAVE_DIR)/tests/%.o: $(ENCLAVE_DIR)/tests/%.c
 	@echo "CC  <=  $<"
 
 ifeq ($(ENABLE_DCAP), 0)
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(ENCLAVE_DIR)/ra_tls_options.o
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects) $(ENCLAVE_DIR)/ra_tls_options.o  $(F_DECODER_OBJS)
 else
-TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_dcap_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)
+TestEnclave.so: $(ENCLAVE_DIR)/TestEnclave_dcap_t.o $(TestEnclave_Cpp_Objects) $(TestEnclave_C_Objects)  $(F_DECODER_OBJS)
 endif
 	$(VCXX) $^ -o $@ $(TestEnclave_Link_Flags)
 	@echo "LINK =>  $@"

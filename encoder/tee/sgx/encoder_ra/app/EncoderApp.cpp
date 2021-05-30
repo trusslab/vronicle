@@ -667,7 +667,7 @@ static int read_cmdline_options(int argc, char *argv[])
     if (!incoming_port && !cl->gen)
     {
         printf("Usage:\n"
-               "    EncoderApp [options] <incoming_port> <port_for_viewer> <decoder_addr> <decoder_port>\n"
+               "    EncoderApp [options] <incoming_port> <port_for_viewer> <port_for_decoder>\n"
                "Frame size can be: WxH sqcif qvga svga 4vga sxga xga vga qcif 4cif\n"
                "    4sif cif sif pal ntsc d1 16cif 16sif 720p 4SVGA 4XGA 16VGA 16VGA\n"
                "Options:\n"
@@ -1572,7 +1572,7 @@ int main(int argc, char *argv[], char **env)
         }
 
         // printf("[EncoderApp]: A frame has been successfully encoded...\n");
-        printf("[EncoderApp]: Encoded frame: %d\n", i);
+        // printf("[EncoderApp]: Encoded frame: %d\n", i);
         
         stop = high_resolution_clock::now();
         duration = duration_cast<microseconds>(stop - start);

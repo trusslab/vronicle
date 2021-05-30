@@ -165,6 +165,7 @@ void Verifier::verify() {
 		free(sig);
 		EVP_MD_CTX_free(mdctx);
 		EVP_PKEY_free(evp_pubkey);
+		printf("^^SGX Verified^^\n");
 	}
     return;
 }

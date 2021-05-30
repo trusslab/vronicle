@@ -72,6 +72,8 @@ typedef struct encoder_args {
     int incoming_port;
     int outgoing_port;
     int is_filter_bundle_detected = 0;
+    int port_for_decoder;
+    char* encoder_ip_addr;  // Should be remote ip address instead of local
 } encoder_args;
 
 typedef struct helper_scheduler_info {
@@ -127,6 +129,7 @@ workflow** workflows = NULL;
 int main_scheduler_report_port = 10111; // This port is used for helper scheduler to report to main scheduler in order to be controlled by main scheduler
 int self_server_port_marker = 10113;
 int encoder_outgoing_port_marker = 41231;   // Reason we have this seperately is Azure currently only have 10111(used by scheduler) and 41234 opened...
+int encoder_port_for_decoder_to_connect_marker = 41236; // For decoder to connect to encoder to send audio info...
 
 // For filter-bundle test only
 // int is_filter_bundle_detected = 0;   // Replaced by pre_workflow
@@ -142,7 +145,7 @@ vector<helper_scheduler_info*> helper_scheduler_pool;
 int is_remote_scheduler_prefered = 1;
 
 // For settings of maintaining pool
-#define NUM_OF_DECODER_IN_POOL 0
+#define NUM_OF_DECODER_IN_POOL 1
 
 // For maintaining pool of resources
 int num_of_free_decoder = 0;

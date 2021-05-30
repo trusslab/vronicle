@@ -11,7 +11,7 @@ extern "C" {
 #include "stdio.h"
 #include "time.h"
 
-#define JSON_MAX_ELEM_LEN 100
+#define JSON_MAX_ELEM_LEN 50000
 
 typedef struct metadata {
     // Video Info
@@ -35,6 +35,10 @@ typedef struct metadata {
     char** digests;
     // Frame Tag
     int frame_id;
+    // SafetyNet Tag
+    int is_safetynet_presented = 0;
+    int num_of_safetynet_jws = 0;
+    char** safetynet_jws;   // Expect two for our sandwich design, also, don't forget to do b64 encode/decode
 } metadata;
 
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
@@ -148,7 +152,20 @@ char* metadata_2_json(metadata *md)
         else
             extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
     }
-    extend_json_w_fmt(&json, "], \"frame_id\": %3i}\0",  &md->frame_id, 1);
+    extend_json_w_fmt(&json, "], \"frame_id\": %3i\0",  &md->frame_id, 1);
+   if (md->is_safetynet_presented) {
+       extend_json_w_fmt(&json, ", \"is_safetynet_presented\": %i", &md->is_safetynet_presented, 1);
+       extend_json_w_fmt(&json, ", \"num_of_safetynet_jws\": %i", &md->num_of_safetynet_jws, 1);
+       extend_json_wo_fmt(&json, ", \"safetynet_jws\": [");
+       for (int i = 0; i < md->num_of_safetynet_jws; i++) {
+           if (i == 0)
+               extend_json_w_fmt(&json, "\"%s\"", md->safetynet_jws[i], 0);
+           else
+               extend_json_w_fmt(&json, ", \"%s\"", md->safetynet_jws[i], 0);
+       }
+       extend_json_wo_fmt(&json, "]");
+   }
+    extend_json_wo_fmt(&json, "}\0");
     return json;
 }
 
@@ -198,16 +215,32 @@ char* metadata_2_json_without_frame_id(metadata *md)
         else
             extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
     }
-    extend_json_wo_fmt(&json, "]}\0");
+    extend_json_wo_fmt(&json, "]");
+    if (md->is_safetynet_presented) {
+        extend_json_w_fmt(&json, ", \"is_safetynet_presented\": %i", &md->is_safetynet_presented, 1);
+        extend_json_w_fmt(&json, ", \"num_of_safetynet_jws\": %i", &md->num_of_safetynet_jws, 1);
+        extend_json_wo_fmt(&json, ", \"safetynet_jws\": [");
+        for (int i = 0; i < md->num_of_safetynet_jws; i++) {
+//            printf("metadata_2_json_without_frame_id: i: %d, size_of_current_jws: %d\n", i, strlen(md->safetynet_jws[i]));
+            if (i == 0)
+                extend_json_w_fmt(&json, "\"%s\"", md->safetynet_jws[i], 0);
+            else
+                extend_json_w_fmt(&json, ", \"%s\"", md->safetynet_jws[i], 0);
+        }
+        extend_json_wo_fmt(&json, "]");
+    }
+    extend_json_wo_fmt(&json, "}\0");
     return json;
 }
 
 metadata* json_2_metadata(char* json, size_t json_len)
 {
     metadata* md = (metadata*)malloc(sizeof(metadata));
+    memset(md, 0, sizeof(metadata));
     jsmn_parser p;
     jsmntok_t t[128];
     jsmn_init(&p);
+    // printf("Got json input(%d): %s\n", json_len, json);
     int res = jsmn_parse(&p, json, json_len, t, 128);
     if (res < 0) {
         printf("Error when parsing JSON: %s\n", json);
@@ -342,6 +375,30 @@ metadata* json_2_metadata(char* json, size_t json_len)
             free(temp_frame_id_char_array);
             i++;
         }
+        else if (jsoneq(json, &t[i], "is_safetynet_presented") == 0)
+        {
+            char* temp_is_safetynet_presented_char_array = get_token_data(t[i+1], json);
+            md->is_safetynet_presented = atoi(temp_is_safetynet_presented_char_array);
+            free(temp_is_safetynet_presented_char_array);
+            i++;
+        }
+        else if (jsoneq(json, &t[i], "num_of_safetynet_jws") == 0)
+        {
+            char* temp_num_of_safetynet_jwschar_array = get_token_data(t[i+1], json);
+            md->num_of_safetynet_jws = atoi(temp_num_of_safetynet_jwschar_array);
+            free(temp_num_of_safetynet_jwschar_array);
+            i++;
+        }
+        else if (jsoneq(json, &t[i], "safetynet_jws") == 0)
+        {
+            md->safetynet_jws = (char**)malloc(sizeof(char*) * md->num_of_safetynet_jws);
+            if (t[i+1].type != JSMN_ARRAY)
+                continue;
+            for (int j = 0; j < t[i+1].size; j++) {
+                md->safetynet_jws[j] = get_token_data(t[i+j+2], json);
+            }
+            i += t[i+1].size + 1;
+        }
         else
         {
             printf("Unexpected key: %.*s\n", t[i].end - t[i].start, json + t[i].start);
@@ -407,6 +464,12 @@ void free_metadata(metadata* md){
             free(md->digests[i]);
         }
         free(md->digests);
+    }
+    if(md->is_safetynet_presented){
+        for(int i = 0; i < md->num_of_safetynet_jws; ++i){
+            free(md->safetynet_jws[i]);
+        }
+        free(md->safetynet_jws);
     }
     free(md);
 }

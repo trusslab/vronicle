@@ -359,7 +359,7 @@ int verification_reply(
     // Return 0 for finish successfully for a single frame; 1 for failure
 	// fflush(stdout);
     int ret = 1;
-    const char* filter_name = "white_balance";
+    const char* filter_name = "sharpen";
     char* raw_file_sig_path  = argv[2];
     char* raw_file_path      = argv[3];
     char* raw_md_path        = argv[4];
@@ -372,21 +372,26 @@ int verification_reply(
     // Parse metadata
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
     if (md_json[md_json_len - 1] == '\0') md_json_len--;
-    // printf("[filter_white_balance]: md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
+    // printf("[filter_sharpen]: md_json(%ld) going to be used is: [%s]\n", md_json_len, md_json);
     metadata* md = json_2_metadata(md_json, md_json_len);
     if (!md) {
-        printf("[filter_white_balance]: Failed to parse metadata\n");
+        printf("[filter_sharpen]: Failed to parse metadata\n");
         return 1;
     }
+	int filter_idx = get_filter_idx(md, filter_name);
+	int current_filter_parameter_start_pos = 0;
+	for(int i = 0; i < filter_idx; ++i){
+		current_filter_parameter_start_pos += (int)(md->filters_parameters_registry[i]);
+	}
 
     // Set up some basic parameters
     frame_size_p = md->width * md->height * 3 * sizeof(unsigned char);
 
     // Parse Raw Image
-    // printf("[filter_white_balance]: Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size_p * sizeof(char), raw_frame_buf_len);
+    // printf("[filter_sharpen]: Image pixels: %d, %d, %ld should all be the same...\n", sizeof(pixel) * md->width * md->height, frame_size_p * sizeof(char), raw_frame_buf_len);
     pixel* image_pixels = (pixel*)malloc(frame_size_p * sizeof(char));
     if (!image_pixels) {
-        printf("[filter_white_balance]: No memory left(image_pixels)\n");
+        printf("[filter_sharpen]: No memory left(image_pixels)\n");
         return 1;
     }
 
@@ -394,14 +399,14 @@ int verification_reply(
     // unsigned char* vid_frame = decode_signature(raw_frame_buf, raw_frame_buf_len, &vid_frame_length);
 
     memcpy(image_pixels, raw_frame_buf, raw_frame_buf_len);
-    // printf("[filter_white_balance]: Very first set of image pixel: %d, %d, %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
+    // printf("[filter_sharpen]: Very first set of image pixel: %d, %d, %d\n", image_pixels[0].r, image_pixels[0].g, image_pixels[0].b);
     // int last_pixel_position = md->height * md->width - 1;
-    // printf("[filter_white_balance]: Very last set of image pixel: %d, %d, %d\n", image_pixels[last_pixel_position].r, image_pixels[last_pixel_position].g, image_pixels[last_pixel_position].b);
+    // printf("[filter_sharpen]: Very last set of image pixel: %d, %d, %d\n", image_pixels[last_pixel_position].r, image_pixels[last_pixel_position].g, image_pixels[last_pixel_position].b);
 
     // Prepare processed Image
     processed_pixels_p = (pixel*)malloc(sizeof(pixel) * md->height * md->width);
     if (!processed_pixels_p) {
-        printf("[filter_white_balance]: No memory left(processed_pixels_p)\n");
+        printf("[filter_sharpen]: No memory left(processed_pixels_p)\n");
         return 1;
     }
 
@@ -410,14 +415,13 @@ int verification_reply(
     out_md_json_p = (char*)malloc(out_md_json_len_p);
     memset(out_md_json_p, 0, out_md_json_len_p);
     if (!out_md_json_p) {
-        printf("[filter_white_balance]: No memory left(out_md_json_p)\n");
+        printf("[filter_sharpen]: No memory left(out_md_json_p)\n");
         return 1;
     }
 	// Generate metadata
     const char* dummy_mrenclave = "11111111111111111111111111111111111111111111";
 	int tmp_total_digests = md->total_digests;
 	md->total_digests = tmp_total_digests + 1;
-	int filter_idx = get_filter_idx(md, filter_name);
 	md->digests = (char**)realloc(md->digests, sizeof(char*) * (/*decoder*/1 + /*filter*/filter_idx + 1));
 	md->digests[filter_idx + 1] = (char*)malloc(45);
 	memset(md->digests[filter_idx + 1], 0, 45);
@@ -432,7 +436,9 @@ int verification_reply(
     start = high_resolution_clock::now();
 
 	// Process image
-	auto_white_balance((pixel*)image_pixels, processed_pixels_p, md->width, md->width * md->height);
+    // printf("[filter_sharpen]: For filter sharpen, we are using argument: %d\n", (int)md->filters_parameters[current_filter_parameter_start_pos++]);
+    sharpen((pixel*)image_pixels, processed_pixels_p, md->width, md->width * md->height,  (int)md->filters_parameters[current_filter_parameter_start_pos++]);
+	// auto_white_balance((pixel*)image_pixels, processed_pixels_p, md->width, md->width * md->height);
 
     end = high_resolution_clock::now();
     duration = duration_cast<microseconds>(end - start);
@@ -470,12 +476,12 @@ int verification_reply(
 
     // Placeholder for sending frame info
     if(pthread_create(&sender_msg, NULL, send_frame_info_to_next_enclave, (void *)0) != 0){
-        printf("[filter_white_balance]: pthread for sending created failed...quiting...\n");
+        printf("[filter_sharpen]: pthread for sending created failed...quiting...\n");
         return 1;
     }
 
     // Free Everything (for video_provenance project)
-    // printf("[filter_white_balance]: Going to free everything in verification_reply...\n");
+    // printf("[filter_sharpen]: Going to free everything in verification_reply...\n");
     start = high_resolution_clock::now();
 
     if(raw_frame_buf){
@@ -583,7 +589,7 @@ void request_process_loop(char** argv)
         eval_file << duration.count() << ", ";
         
         ++num_of_times_received;
-        // printf("[filter_white_balance]: Now on frame: %d\n", num_of_times_received);
+        // printf("[filter_sharpen]: Now on frame: %d\n", num_of_times_received);
         
         start = high_resolution_clock::now();
 
@@ -607,19 +613,19 @@ void request_process_loop(char** argv)
         eval_file << duration.count() << ", ";
 
         if(pthread_create(&msg, NULL, received, (void *)0) != 0){
-            printf("[filter_white_balance]: pthread for receiving created failed...quiting...\n");
+            printf("[filter_sharpen]: pthread for receiving created failed...quiting...\n");
             return;
         }
-        // printf("[filter_white_balance]: Going to process frame %d\n", num_of_times_received);
+        // printf("[filter_sharpen]: Going to process frame %d\n", num_of_times_received);
         // Note that all info about processed frame is sent in verification_reply
-        // printf("[filter_white_balance]: Going to process and send frame: %d\n", num_of_times_received - 1);
+        // printf("[filter_sharpen]: Going to process and send frame: %d\n", num_of_times_received - 1);
         int process_status = verification_reply(&src_addr , src_addrlen, buf, recv_time, argv);
         if(process_status != 0){
-            printf("[filter_white_balance]: frame process error...exiting...\n");
+            printf("[filter_sharpen]: frame process error...exiting...\n");
             break;
         }
         // md_json = NULL;
-        // printf("[filter_white_balance]: frame %d processed successfully\n", num_of_times_received);
+        // printf("[filter_sharpen]: frame %d processed successfully\n", num_of_times_received);
     }
 
     stop = high_resolution_clock::now();
@@ -640,7 +646,7 @@ int main(int argc, char *argv[], char **env)
 {
 
     if(argc < 4){
-        printf("[filter_white_balance]: Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
+        printf("[filter_sharpen]: Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port]\n");
         return 1;
     }
 
@@ -648,13 +654,13 @@ int main(int argc, char *argv[], char **env)
     mkdir("../evaluation/eval_result", 0777);
     eval_file.open("../evaluation/eval_result/eval_filter_white_balance.csv");
     if (!eval_file.is_open()) {
-        printf("[filter_white_balance]: Could not open eval file.\n");
+        printf("[filter_sharpen]: Could not open eval file.\n");
         return 1;
     }
 
     alt_eval_file.open("../evaluation/eval_result/eval_filter_white_balance_one_time.csv");
     if (!alt_eval_file.is_open()) {
-        printf("[filter_white_balance]: Could not open alt_eval_file file.\n");
+        printf("[filter_sharpen]: Could not open alt_eval_file file.\n");
         return 1;
     }
 
@@ -663,7 +669,7 @@ int main(int argc, char *argv[], char **env)
 	signal(SIGCHLD,wait_wrapper);
 	request_process_loop(argv);
 
-    printf("[filter_white_balance] finish filter\n");
+    printf("[filter_sharpen] finish filter\n");
 
     // Close eval file
     eval_file.close();

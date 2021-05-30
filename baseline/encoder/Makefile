@@ -5,7 +5,7 @@ Cpp_Objects := $(Cpp_Files:.cpp=.o)
 
 Include_Paths := -I. -I$(TCP_MODULE_DIR) -I../common
 
-Cpp_Flags := $(Include_Paths) -DH264E_SVC_API=1
+Cpp_Flags := $(Include_Paths) -DH264E_SVC_API=1 -O2
 
 Cpp_Link_Flags := -lpthread
 

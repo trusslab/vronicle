@@ -100,7 +100,7 @@
 TCPServer tcp_server;   // For direct use (Deprecated)
 TCPServer tcp_server_for_decoder;
 TCPClient tcp_client_rec;    // For scheduler use
-TCPClient **tcp_clients;
+TCPClient *tcp_clients;
 pthread_t msg1[MAX_CLIENT];
 int num_message = 0;
 int time_send   = 1;
@@ -111,9 +111,13 @@ char* msg_buf_for_rec;
 // For TCP connection with encoder
 TCPClient tcp_client_with_encoder;
 
-// For multi bundle-filter enclaves
+// For multi bundle-filter enclaves / also for multi-threading
 int num_of_pair_of_output = -1;
 int current_sending_target_id = 0;
+queue<int> first_available_sending_target_ids;   // Only for the very first round of all filters
+int available_sending_target_ids_log = 0;   // If we get all connections to next enclaves up, we no longer use the above queue
+queue<int> available_sending_target_ids;
+pthread_mutex_t available_sending_target_ids_lock;
 vector<pair<string, int>*> output_filters_info;
 
 // For data
@@ -655,7 +659,7 @@ void close_app(int signum) {
 	tcp_server.closed();
     tcp_client_rec.exit();
     for(int i = 0; i < num_of_pair_of_output; ++i){
-	    tcp_clients[i]->exit();
+	    tcp_clients[i].exit();
     }
     tcp_client_with_encoder.exit();
 	exit(0);
@@ -826,14 +830,14 @@ int send_buffer(void* buffer, long buffer_length, TCPClient* target_tcp_client) 
 
 int send_buffer_to_next_enclave(void* buffer, long buffer_lenth, int sending_target_id){
 
-	return send_buffer(buffer, buffer_lenth, tcp_clients[sending_target_id]);
+	return send_buffer(buffer, buffer_lenth, &(tcp_clients[sending_target_id]));
 }
 
 void send_message(char* message, int msg_size, TCPClient *target_tcp_client) {
     target_tcp_client->Send(message, msg_size);
-    // printf("(send_message)Going to wait for receive...\n");
+    // printf("[decoder:TestApp]: (send_message)Going to wait for receive...\n");
 	string rec = target_tcp_client->receive_exact(REPLYMSGSIZE);
-    // printf("(send_message)Going to wait for receive(finished)...\n");
+    // printf("[decoder:TestApp]: (send_message)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
 		// cout << "send_message received: " << rec << endl;
@@ -841,7 +845,8 @@ void send_message(char* message, int msg_size, TCPClient *target_tcp_client) {
 }
 
 void send_message_to_next_enclave(char* message, int msg_size, int sending_target_id){
-	send_message(message, msg_size, tcp_clients[sending_target_id]);
+    // printf("[decoder:TestApp]: (send_message_to_next_enclave)Going to send message(%d): {%s} to target: %d\n", msg_size, message, sending_target_id);
+	send_message(message, msg_size, &(tcp_clients[sending_target_id]));
 }
 
 int check_and_change_to_main_scheduler(){
@@ -926,45 +931,187 @@ int set_num_of_pair_of_output(){
     return 0;
 }
 
-int setup_tcp_clients_auto(){
-    // Return 0 on success, otherwise return 1
-    tcp_clients = (TCPClient**) malloc(sizeof(TCPClient*) * num_of_pair_of_output);
-    char* reply_to_scheduler = (char*)malloc(REPLYMSGSIZE);
-    string ip_addr, port;
+typedef struct connection_to_next_enclave_args {
+    char* ip_addr;
+    int port;
+    int client_id;
+} connection_to_next_enclave_args;
 
+void add_to_first_avaliable_target_ids(int target_id_to_be_added) {
+    pthread_mutex_lock(&available_sending_target_ids_lock);
+    first_available_sending_target_ids.push(target_id_to_be_added);
+    pthread_mutex_unlock(&available_sending_target_ids_lock);
+}
+
+int get_and_pop_first_avaliable_target_ids() {
+    // Return -1 if it's empty
+    int result_to_return = -1;
+    pthread_mutex_lock(&available_sending_target_ids_lock);
+    if (first_available_sending_target_ids.size() != 0) {
+        result_to_return = first_available_sending_target_ids.front();
+        first_available_sending_target_ids.pop();
+        // printf("[decoder:TestApp]: get_and_pop_first_avaliable_target_ids: got available target_id: %d\n", result_to_return);
+    }
+    pthread_mutex_unlock(&available_sending_target_ids_lock);
+    return result_to_return;
+}
+
+void add_to_avaliable_target_ids(int target_id_to_be_added) {
+    pthread_mutex_lock(&available_sending_target_ids_lock);
+    available_sending_target_ids.push(target_id_to_be_added);
+    pthread_mutex_unlock(&available_sending_target_ids_lock);
+}
+
+int get_and_pop_avaliable_target_ids() {
+    // Return -1 if it's empty
+    int result_to_return = -1;
+    pthread_mutex_lock(&available_sending_target_ids_lock);
+    if (available_sending_target_ids.size() != 0) {
+        result_to_return = available_sending_target_ids.front();
+        available_sending_target_ids.pop();
+        // printf("[decoder:TestApp]: get_and_pop_avaliable_target_ids: got available target_id: %d\n", result_to_return);
+    }
+    pthread_mutex_unlock(&available_sending_target_ids_lock);
+    return result_to_return;
+}
+
+void* connect_to_next_enclave(void* args){
+    // Return 1 on success, 0 on fail
+
+    // pthread_detach(pthread_self());
+
+    connection_to_next_enclave_args* c_args = (connection_to_next_enclave_args*) args;
+    
+    int *result_to_return = (int*)malloc(sizeof(int));
+    *result_to_return = 0;
+
+    int time_to_try = 100;
+    int is_successfully_connected = 0;
+
+    while (time_to_try && !is_successfully_connected) {
+        // printf("[decoder:TestApp]: connect_to_next_enclave: check 5, ip: {%s}, port: %d\n", c_args->ip_addr, c_args->port);
+        bool result_of_connection_setup = tcp_clients[c_args->client_id].setup(c_args->ip_addr, c_args->port);
+        // printf("[decoder:TestApp]: connect_to_next_enclave: check 6: %d\n", result_of_connection_setup);
+        if(!result_of_connection_setup){
+            tcp_clients[c_args->client_id] = TCPClient();
+            --time_to_try;
+            usleep(50000);
+        } else {
+            is_successfully_connected = 1;
+        }
+    }
+    // printf("[decoder:TestApp]: connect_to_next_enclave: check 7\n");
+    
+    if(!is_successfully_connected){
+        return result_to_return;
+    }
     // Prepare sending cert to all bundle-filter enclaves
     char* msg_buf = (char*) malloc(SIZEOFPACKAGEFORNAME);
     memset(msg_buf, 0, SIZEOFPACKAGEFORNAME);
     memcpy(msg_buf, "cert", 4);
+    // Send certificate
+    send_message_to_next_enclave(msg_buf, SIZEOFPACKAGEFORNAME, c_args->client_id);
+    // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
+    send_buffer_to_next_enclave(der_cert, size_of_cert, c_args->client_id);
+    // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
+    *result_to_return = 1;
+
+    // printf("[decoder:TestApp]: Going to add_to_avaliable_target_ids: %d\n", c_args->client_id);
+    add_to_first_avaliable_target_ids(c_args->client_id);
+    // printf("[decoder:TestApp]: Going to add_to_avaliable_target_ids: %d(finished)\n", c_args->client_id);
+
+    free(msg_buf);
+    free(c_args->ip_addr);
+    free(c_args);
+
+    return result_to_return;
+}
+
+pthread_t* setup_tcp_clients_auto(){
+    // Return all threads for connection on success, otherwise return NULL
+    // tcp_clients = (TCPClient*) malloc(sizeof(TCPClient) * num_of_pair_of_output);
+    tcp_clients = new TCPClient[num_of_pair_of_output];
+    char* reply_to_scheduler = (char*)malloc(REPLYMSGSIZE);
+
+    pthread_t* pthreads_4_connection_to_next_enclaves = (pthread_t*) malloc(sizeof(pthread_t) * num_of_pair_of_output);
 
     for(int i = 0; i < num_of_pair_of_output; ++i){
-        tcp_clients[i] = new TCPClient();
         // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
 
-        ip_addr = tcp_client_rec.receive_name();
+        connection_to_next_enclave_args* c_args = (connection_to_next_enclave_args*) malloc(sizeof(connection_to_next_enclave_args));   // Will be freed in connect_to_next_enclave()
+
+        string ip_addr = tcp_client_rec.receive_name();
+        c_args->ip_addr = (char*) malloc(strlen(ip_addr.c_str()) + 1);
+        memset(c_args->ip_addr, 0, strlen(ip_addr.c_str()) + 1);
+        memcpy(c_args->ip_addr, ip_addr.c_str(), strlen(ip_addr.c_str()));
         memset(reply_to_scheduler, 0, REPLYMSGSIZE);
         memcpy(reply_to_scheduler, "ready", 5);
         tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
-        port = tcp_client_rec.receive_name();
+
+        c_args->port = atoi(tcp_client_rec.receive_name().c_str());
         memset(reply_to_scheduler, 0, REPLYMSGSIZE);
         memcpy(reply_to_scheduler, "ready", 5);
         tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+
+        c_args->client_id = i;
 
         // printf("[decoder:TestApp]: In setup_tcp_clients_auto, going to connect to next filter_enclave with ip: {%s} and port: {%s}\n", ip_addr.c_str(), port.c_str());
-
-        bool result_of_connection_setup = tcp_clients[i]->setup(ip_addr.c_str(), atoi(port.c_str()));
-        if(!result_of_connection_setup){
-            free(reply_to_scheduler);
-            return 1;
+        if(pthread_create(&(pthreads_4_connection_to_next_enclaves[i]), NULL, connect_to_next_enclave, c_args) != 0){
+            printf("[decoder:TestApp]: pthread for start_filter_server created failed...quiting...\n");
+            return NULL;
         }
-        // Send certificate
-        send_message_to_next_enclave(msg_buf, SIZEOFPACKAGEFORNAME, i);
-        // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
-        send_buffer_to_next_enclave(der_cert, size_of_cert, i);
-        // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
+        // printf("[decoder:TestApp]: Trying to join pthread of i: %d\n", i);
+        // pthread_join(pthreads_4_connection_to_next_enclaves[i], NULL);
     }
     free(reply_to_scheduler);
-    return 0;
+
+    // // Prepare sending cert to all bundle-filter enclaves
+    // char* msg_buf = (char*) malloc(SIZEOFPACKAGEFORNAME);
+    // memset(msg_buf, 0, SIZEOFPACKAGEFORNAME);
+    // memcpy(msg_buf, "cert", 4);
+
+    // for(int i = 0; i < num_of_pair_of_output; ++i){
+    //     tcp_clients[i] = new TCPClient();
+    //     // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
+
+    //     ip_addr = tcp_client_rec.receive_name();
+    //     memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+    //     memcpy(reply_to_scheduler, "ready", 5);
+    //     tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+    //     port = tcp_client_rec.receive_name();
+    //     memset(reply_to_scheduler, 0, REPLYMSGSIZE);
+    //     memcpy(reply_to_scheduler, "ready", 5);
+    //     tcp_client_rec.Send(reply_to_scheduler, REPLYMSGSIZE);
+
+    //     // printf("[decoder:TestApp]: In setup_tcp_clients_auto, going to connect to next filter_enclave with ip: {%s} and port: {%s}\n", ip_addr.c_str(), port.c_str());
+
+    //     int time_to_try = 100;
+    //     int is_successfully_connected = 0;
+
+    //     while (time_to_try && !is_successfully_connected) {
+    //         bool result_of_connection_setup = tcp_clients[i]->setup(ip_addr.c_str(), atoi(port.c_str()));
+    //         if(!result_of_connection_setup){
+    //             delete tcp_clients[i];
+    //             tcp_clients[i] = new TCPClient();
+    //             --time_to_try;
+    //             usleep(100000);
+    //         } else {
+    //             is_successfully_connected = 1;
+    //         }
+    //     }
+        
+    //     if(!is_successfully_connected){
+    //         free(reply_to_scheduler);
+    //         return NULL;
+    //     }
+    //     // Send certificate
+    //     send_message_to_next_enclave(msg_buf, SIZEOFPACKAGEFORNAME, i);
+    //     // printf("[decoder:TestApp]: Going to send_buffer for cert...\n");
+    //     send_buffer_to_next_enclave(der_cert, size_of_cert, i);
+    //     // printf("[decoder:TestApp]: Both send_message and send_buffer completed...\n");
+    // }
+    // free(reply_to_scheduler);
+    return pthreads_4_connection_to_next_enclaves;
 }
 
 int setup_connection_with_encoder_using_scheduler() {
@@ -982,7 +1129,7 @@ int setup_connection_with_encoder_using_scheduler() {
 
     // printf("[decoder:TestApp]: Going to connect to encoder at ip: %s with port: %d\n", encoder_ip_addr.c_str(), encoder_port);
 
-    int time_to_try = 10;
+    int time_to_try = 100;
     int is_successfully_connected = 0;
 
     while (time_to_try && !is_successfully_connected) {
@@ -995,6 +1142,8 @@ int setup_connection_with_encoder_using_scheduler() {
             is_successfully_connected = 1;
         }
     }
+
+    // printf("[decoder:TestApp]: Connection with encoder is now established...\n");
 
     if (!is_successfully_connected) {
         printf("[decoder:TestApp]: Connection to encoder is unsuccessful at ip: %s with port: %d\n", encoder_ip_addr.c_str(), encoder_port);
@@ -1104,6 +1253,9 @@ void do_decoding(
     char* vendor_pub;
 
     // declaring argument of time() 
+
+    // Init locks
+    pthread_mutex_init(&available_sending_target_ids_lock, NULL);
 
     // ctime() used to give the present time 
 
@@ -1356,12 +1508,14 @@ void do_decoding(
     }
     // fprintf(stderr, "[Evaluation]: Decoder is going to connect to next filter(s) at: %ld\n", high_resolution_clock::now());
     // printf("[decoder:TestApp]: After receiving, we have num_of_pair_of_output: [%d]\n", num_of_pair_of_output);
-    if(setup_tcp_clients_auto() != 0){
+    pthread_t* threads_4_connections_to_next_enclaves = setup_tcp_clients_auto();
+    if(threads_4_connections_to_next_enclaves == NULL){
         printf("[decoder:TestApp]: Failed to do setup_tcp_clients_auto\n");
         close_app(0);
     }
 
     // Set up connection with encoder
+    // printf("[decoder:TestApp]: Going to setup_connection_with_encoder_using_scheduler...\n");
     if (setup_connection_with_encoder_using_scheduler() != 0) {
         printf("[decoder:TestApp]: Failed to do setup_connection_with_encoder_using_scheduler\n");
         close_app(0);
@@ -1421,6 +1575,39 @@ void do_decoding(
         memset(msg_buf, 0, size_of_msg_buf);
         memcpy(msg_buf, "frame", 5);
         // printf("Going to send frame %d's name...\n", i);
+
+        // Make sure we have next enclave avaliable to use
+        if (threads_4_connections_to_next_enclaves != NULL) {
+            void* result_of_rec;
+            // printf("[decoder:TestApp]: Trying to wait for next enclave with id: %d\n", current_sending_target_id);
+            pthread_join(threads_4_connections_to_next_enclaves[current_sending_target_id], &result_of_rec);
+            // printf("[decoder:TestApp]: Finished waiting for next enclave with id: %d\n", current_sending_target_id);
+            if (*((int*)result_of_rec) != 1) {
+                printf("[decoder:TestApp]: Failed to connect to next enclave on target_id: [%d]\n", current_sending_target_id);
+                close_app(0);
+            }
+            free(result_of_rec);
+            if (current_sending_target_id + 1 == num_of_pair_of_output) {
+                free(threads_4_connections_to_next_enclaves);
+                threads_4_connections_to_next_enclaves = NULL;
+            }
+        }
+        // printf("[decoder:TestApp]: Going to get_and_pop_last_target_ids\n");
+        // if (available_sending_target_ids_log < num_of_pair_of_output) {
+        //     current_sending_target_id = get_and_pop_first_avaliable_target_ids();
+        //     while (current_sending_target_id == -1) {
+        //         usleep(50000);
+        //         current_sending_target_id = get_and_pop_first_avaliable_target_ids();
+        //     }
+        //     ++available_sending_target_ids_log;
+        // } else {
+        //     current_sending_target_id = get_and_pop_avaliable_target_ids();
+        //     while (current_sending_target_id == -1) {
+        //         usleep(50000);
+        //         current_sending_target_id = get_and_pop_avaliable_target_ids();
+        //     }
+        // }
+        // printf("[decoder:TestApp]: Newest sending target id is: %d\n", current_sending_target_id);
 
         start = high_resolution_clock::now();
 
@@ -1483,6 +1670,11 @@ void do_decoding(
         end = high_resolution_clock::now();
         duration = duration_cast<microseconds>(end - start);
         eval_file << duration.count() << "\n";
+
+        // Release current target_id
+        // printf("[decoder:TestApp]: Going to release with add_to_avaliable_target_ids: %d\n", current_sending_target_id);
+        // add_to_avaliable_target_ids(current_sending_target_id);
+        // printf("[decoder:TestApp]: Going to release with add_to_avaliable_target_ids: %d(finished)\n", current_sending_target_id);
 
         //free(md_for_print);
         // temp_output_md_buffer += md_size;
@@ -1547,11 +1739,14 @@ void do_decoding(
     if(md)
         free_metadata(md);
     
+    // free locks
+    pthread_mutex_destroy(&available_sending_target_ids_lock);
+    
     for(int i = 0; i < num_of_pair_of_output; ++i){
-        tcp_clients[i]->exit();
-        delete tcp_clients[i];
+        tcp_clients[i].exit();
     }
-    free(tcp_clients);
+    // free(tcp_clients);
+    delete [] tcp_clients;
 
     // if(!ret){
     //     system("cd ../../../filter_blur/sgx/filter_enclave/run_enclave/; ./client 127.0.0.1 60");

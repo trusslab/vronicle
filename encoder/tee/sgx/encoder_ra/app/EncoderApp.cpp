@@ -86,6 +86,8 @@
 #endif
 
 #include <time.h> /* for time() and ctime() */
+#include <vector>
+using namespace std;
 
 // For TCP module
 #include <ctime>
@@ -100,8 +102,7 @@ int total_num_of_incoming_sources = 1;
 int current_communicating_incoming_source = 0;
 int current_encoding_frame_client_id = -1;
 int current_receiving_frame_num = -1;    // Start with -1, where -1 means ias cert
-
-using namespace std;
+vector<int> finished_incoming_sources;
 
 #include <chrono> 
 using namespace std::chrono;
@@ -918,6 +919,8 @@ void * received(void * m)
     // Prepare temp_buf for receiving data
     char* temp_buf;
 
+    // printf("[EncoderApp]: total_num_of_incoming_sources: %d\n", total_num_of_incoming_sources);
+
     // Check if incoming frame is correct
     if(total_num_of_incoming_sources > 1){
         int is_correct_frame_detected = 0;
@@ -925,11 +928,28 @@ void * received(void * m)
             // printf("[EncoderApp]: Trying to see if we are receiving correct frame with incoming source: (%d)...\n", current_communicating_incoming_source);
             string rec_frame_id = tcp_server.receive_name_with_id(current_communicating_incoming_source);
             // printf("[EncoderApp]: Got rec_frame_id: (%s), where the correct one should be (%d)...\n", rec_frame_id.c_str(), current_receiving_frame_num);
-            if(current_receiving_frame_num != atoi(rec_frame_id.c_str())){
+            int reported_frame_num = atoi(rec_frame_id.c_str());
+            if (reported_frame_num == -2) {
+                // Means no more frame will be sent from this source, can skip future check
+                finished_incoming_sources.push_back(current_communicating_incoming_source);
+                memset(reply_msg, 0, size_of_reply);
+                memcpy(reply_msg, "ready", 5);
+                tcp_server.Send(reply_msg, size_of_reply, current_communicating_incoming_source);
+                // printf("[EncoderApp]: %d is done with sending, let's see count(): %d\n", current_communicating_incoming_source, count(finished_incoming_sources.begin(), finished_incoming_sources.end(), current_communicating_incoming_source));
+                do {
+                    current_communicating_incoming_source = (current_communicating_incoming_source + 1) % total_num_of_incoming_sources;
+                } while (count(finished_incoming_sources.begin(), finished_incoming_sources.end(), current_communicating_incoming_source));
+                // printf("[EncoderApp]: (1)the new incoming source we have decided is: %d, with count()\n", current_communicating_incoming_source, count(finished_incoming_sources.begin(), finished_incoming_sources.end(), current_communicating_incoming_source));
+                continue;
+            } else if(current_receiving_frame_num != reported_frame_num){
+                // printf("[EncoderApp]: Replying with wrong frame...\n");
                 memset(reply_msg, 0, size_of_reply);
                 memcpy(reply_msg, "wrong", 5);
                 tcp_server.Send(reply_msg, size_of_reply, current_communicating_incoming_source);
-                current_communicating_incoming_source = (current_communicating_incoming_source + 1) % total_num_of_incoming_sources;
+                do {
+                    current_communicating_incoming_source = (current_communicating_incoming_source + 1) % total_num_of_incoming_sources;
+                } while (count(finished_incoming_sources.begin(), finished_incoming_sources.end(), current_communicating_incoming_source));
+                // printf("[EncoderApp]: (2)the new incoming source we have decided is: %d, with count()\n", current_communicating_incoming_source, count(finished_incoming_sources.begin(), finished_incoming_sources.end(), current_communicating_incoming_source));
                 continue;
             }
             memset(reply_msg, 0, size_of_reply);
@@ -944,7 +964,7 @@ void * received(void * m)
         }
     }
 
-    // printf("[EncoderApp]: Successfully pass frame_id verification, going to start receiving real data...\n");
+    // printf("[EncoderApp]: Successfully pass frame_id verification, going to start receiving real data for frame: %d...\n", current_receiving_frame_num);
 
 	while(num_of_files_received < TARGET_NUM_FILES_RECEIVED)
 	{
@@ -1028,7 +1048,10 @@ void * received(void * m)
 	}
     free(reply_msg);
     ++current_receiving_frame_num;
-    current_communicating_incoming_source = (current_communicating_incoming_source + 1) % total_num_of_incoming_sources;
+    do {
+        current_communicating_incoming_source = (current_communicating_incoming_source + 1) % total_num_of_incoming_sources;
+    } while (count(finished_incoming_sources.begin(), finished_incoming_sources.end(), current_communicating_incoming_source));
+    // printf("[EncoderApp]: (3)the new incoming source we have decided is: %d, with count()\n", current_communicating_incoming_source, count(finished_incoming_sources.begin(), finished_incoming_sources.end(), current_communicating_incoming_source));
 	return result_to_return;
 }
 
@@ -1141,6 +1164,7 @@ void * received_4_decoder(void * m)
         tcp_server_for_decoder.send_to_last_connected_client(reply_msg, size_of_reply);
 	}
     free(reply_msg);
+    // printf("[EncoderApp]: received_4_decoder is completed...\n");
 	return result_to_return;
 }
 
@@ -1252,6 +1276,23 @@ int main(int argc, char *argv[], char **env)
         return 1;
     }
 
+    // Start server for decoder to connect
+    if( tcp_server_for_decoder.setup(port_for_decoder, opts) != 0) {
+        cerr << "[EncoderApp]: Errore apertura socket" << endl;
+        close_app(0);
+    }
+    // printf("[EncoderApp]: Listening decoder's request at port: %d\n", port_for_decoder);
+
+    int decoder_id_for_recv = tcp_server_for_decoder.accepted();
+    // printf("[EncoderApp]: Accepted decoder with id: %d\n", decoder_id_for_recv);
+
+    pthread_t thread_4_decoder_recv;
+
+    if(pthread_create(&thread_4_decoder_recv, NULL, received_4_decoder, (void *)0) != 0){
+        printf("[EncoderApp]: pthread for receiving from decoder created failed...quiting...\n");
+        close_app(0);
+    }
+
 	// Initialize and start the enclave
 
     auto start = high_resolution_clock::now();
@@ -1277,23 +1318,6 @@ int main(int argc, char *argv[], char **env)
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
-
-    // Start server for decoder to connect
-    if( tcp_server_for_decoder.setup(port_for_decoder, opts) != 0) {
-        cerr << "[EncoderApp]: Errore apertura socket" << endl;
-        close_app(0);
-    }
-    printf("[EncoderApp]: Listening decoder's request at port: %d\n", port_for_decoder);
-
-    int decoder_id_for_recv = tcp_server_for_decoder.accepted();
-    printf("[EncoderApp]: Accepted decoder with id: %d\n", decoder_id_for_recv);
-
-    pthread_t thread_4_decoder_recv;
-
-    if(pthread_create(&thread_4_decoder_recv, NULL, received_4_decoder, (void *)0) != 0){
-        printf("[EncoderApp]: pthread for receiving from decoder created failed...quiting...\n");
-        close_app(0);
-    }
 
     // Receive and verify IAS certificate
     pthread_t msg;
@@ -1329,7 +1353,7 @@ int main(int argc, char *argv[], char **env)
         }
         free(cert);
     }
-    // printf("ias certificate verified successfully, going to start receving and processing frames...\n");
+    // printf("[EncoderApp]: ias certificate verified successfully, going to start receving and processing frames...\n");
     
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);

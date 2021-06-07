@@ -745,14 +745,18 @@ void send_message(char* message, int msg_size){
 }
 
 void send_frame_id(int frame_id){
-    string frame_id_str = std::to_string(frame_id);
+    // string frame_id_str = std::to_string(frame_id);
+    char* frame_id_ctr_arr = (char*) malloc(SIZEOFPACKAGEFORNAME);
+    memset(frame_id_ctr_arr, 0, SIZEOFPACKAGEFORNAME);
+    snprintf(frame_id_ctr_arr, SIZEOFPACKAGEFORNAME, "%d", frame_id);
     string rec = "wrong";
     while(rec == "wrong"){
-        tcp_client.Send(frame_id_str);
+        tcp_client.Send(frame_id_ctr_arr, SIZEOFPACKAGEFORNAME);
         // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)Going to wait for receive...\n");
         rec = tcp_client.receive_exact(REPLYMSGSIZE);
         // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)received: (%s)...\n", rec.c_str());
     }
+    free(frame_id_ctr_arr);
     // printf("(send_frame_id)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
@@ -1037,13 +1041,13 @@ void request_process_loop(char** argv)
 
     start = high_resolution_clock::now();
 
-    fprintf(stderr, "[Evaluation]: Filter blur enclave started certificate verification at: %ld\n", high_resolution_clock::now());
+    // fprintf(stderr, "[Evaluation]: Filter blur enclave started certificate verification at: %ld\n", high_resolution_clock::now());
 
     // Verify certificate in enclave
     int ret;
     sgx_status_t status_of_verification = t_verify_cert(global_eid, &ret, ias_cert, (size_t)size_of_ias_cert);
     
-    fprintf(stderr, "[Evaluation]: Filter blur enclave ended certificate verification at: %ld\n", high_resolution_clock::now());
+    // fprintf(stderr, "[Evaluation]: Filter blur enclave ended certificate verification at: %ld\n", high_resolution_clock::now());
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1067,23 +1071,40 @@ void request_process_loop(char** argv)
 
     // Prepare tcp client
     // printf("Setting up tcp client...\n");
-    tcp_client.setup(argv[2], atoi(argv[3]));
+    int time_to_try = 100;
+    int is_successfully_connected = 0;
+
+    while (time_to_try && !is_successfully_connected) {
+        bool result_of_connection_setup = tcp_client.setup(argv[2], atoi(argv[3]));
+        if(!result_of_connection_setup){
+            tcp_client = TCPClient();
+            --time_to_try;
+            usleep(50000);
+        } else {
+            is_successfully_connected = 1;
+        }
+    }
+    
+    if (!is_successfully_connected) {
+        printf("[filter_blur:TestApp]: Connection to encoder is unsuccessful at ip: %s with port: %d\n", argv[2], atoi(argv[3]));
+        close_app(0);
+    }
 
     // printf("Going to first send der_cert through tcp client...\n");
 
     // Send certificate
     if(is_multi_bundles_enabled){
-        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: multi_bundles_enabled detected, before sending cert, going to first send current_frame_id, which is: (%d)\n", current_frame_id);
+        // printf("[filter_blur:TestApp]: multi_bundles_enabled detected, before sending cert, going to first send current_frame_id, which is: (%d)\n", current_frame_id);
         send_frame_id(current_frame_id);
-        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Pass frame_id verification for sending cert...\n");
+        // printf("[filter_blur:TestApp]: Pass frame_id verification for sending cert...\n");
     }
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
-    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert file name...\n");
+    // printf("[filter_blur:TestApp]: Going to send cert file name...\n");
     send_message(msg_buf, size_of_msg_buf);
-    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert data...\n");
+    // printf("[filter_blur:TestApp]: Going to send cert data...\n");
     send_buffer(der_cert, size_of_cert);
-    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: cert is sent for filter(%s)...\n", argv[1]);
+    // printf("[filter_blur:TestApp]: cert is sent for filter(%s)...\n", argv[1]);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1110,7 +1131,7 @@ void request_process_loop(char** argv)
         start = high_resolution_clock::now();
         
         pthread_join(msg, NULL);
-        // printf("Now on frame: %d, with is_finished_receiving: %d\n", num_of_times_received, is_finished_receiving);
+        // printf("[filter_blur:TestApp]: Now on frame: %d, with is_finished_receiving: %d\n", num_of_times_received, is_finished_receiving);
         if(is_finished_receiving || raw_frame_buf_i == NULL || md_json_i == NULL || raw_signature_i == NULL){
             // printf("No more frame to be processed...\n");
             // If we have already processed some frames, we need to join the sender thread to make sure the last frame info is sent correctly
@@ -1171,6 +1192,11 @@ void request_process_loop(char** argv)
         // printf("frame %d processed successfully\n", num_of_times_received);
     }
 
+    if (is_multi_bundles_enabled) {
+        // Report to encoder for not expecting this enclave to send any frame further
+        send_frame_id(-2);
+    }
+
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start_of_processing);
     alt_eval_file << duration.count();
@@ -1198,7 +1224,7 @@ void wait_wrapper(int s)
 int main(int argc, char *argv[], char **env)
 {
 
-    fprintf(stderr, "[Evaluation]: Filter blur enclave started initialization at: %ld\n", high_resolution_clock::now());
+    // fprintf(stderr, "[Evaluation]: Filter blur enclave started initialization at: %ld\n", high_resolution_clock::now());
 
     if(argc < 5){
         printf("Usage: ./TestApp [incoming_port] [outgoing_ip_addr] [outgoing_port] [is_multi_bundles_enabled]\n");
@@ -1248,7 +1274,7 @@ int main(int argc, char *argv[], char **env)
     duration = duration_cast<microseconds>(end - start);
     alt_eval_file << duration.count() << ", ";
 
-    fprintf(stderr, "[Evaluation]: Filter blur enclave finished initialization at: %ld\n", high_resolution_clock::now());
+    // fprintf(stderr, "[Evaluation]: Filter blur enclave finished initialization at: %ld\n", high_resolution_clock::now());
     
     // Accept client
     tcp_server.accepted();

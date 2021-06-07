@@ -56,8 +56,11 @@ typedef struct incoming_data {
 typedef struct decoder_args {
     // char* path_of_cam_vender_pubkey;
     int incoming_port;  // Actually scheduler_port_to_report
-    char* outgoing_ip_addr; // Deprecated 
-    int outgoing_port;  // Deprecated
+    // char* outgoing_ip_addr;
+    // int outgoing_port; 
+    int num_of_outgoing_enclaves;
+    char** outgoing_ip_addrs;
+    int* outgoing_ports; 
     int is_filter_bundle_detected = 0;
 } decoder_args;
 
@@ -73,6 +76,7 @@ typedef struct filter_args {
     char* outgoing_ip_addr;
     int outgoing_port;
     int is_filter_bundle_detected = 0;
+    int is_next_enclave_encoder = 0;
 } filter_args;
 
 typedef struct encoder_args {
@@ -101,7 +105,8 @@ typedef struct pre_workflow {
 typedef struct workflow {
     pthread_t* decoder, *encoder;
     pthread_t** filters;
-    int num_of_filters;
+    int num_of_filters; // For the number of filters used of processing one frame
+    int total_num_of_filter_enclaves;   // For exactly the number of filter enclaves
 } workflow;
 
 // For TCP module
@@ -151,7 +156,10 @@ int encoder_port_for_decoder_to_connect_marker = 41236; // For decoder to connec
 // For filter-bundle test only
 // int is_filter_bundle_detected = 0;   // Replaced by pre_workflow
 int self_server_port_marker_extra = 20112;  // For bundle test/eval
-int num_of_filter_in_bundle = 2;
+int num_of_filter_in_bundle = 4;
+
+// For multi-threading optimization
+#define NUM_OF_THREADS_EACH_FILTER 1
 
 // For mode that current scheduler is running at
 int current_scheduler_mode = 0; // 0 is main, 1 is scheduler_helper

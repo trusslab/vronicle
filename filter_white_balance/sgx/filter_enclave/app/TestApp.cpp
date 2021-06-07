@@ -745,14 +745,18 @@ void send_message(char* message, int msg_size){
 }
 
 void send_frame_id(int frame_id){
-    string frame_id_str = std::to_string(frame_id);
+    // string frame_id_str = std::to_string(frame_id);
+    char* frame_id_ctr_arr = (char*) malloc(SIZEOFPACKAGEFORNAME);
+    memset(frame_id_ctr_arr, 0, SIZEOFPACKAGEFORNAME);
+    snprintf(frame_id_ctr_arr, SIZEOFPACKAGEFORNAME, "%d", frame_id);
     string rec = "wrong";
     while(rec == "wrong"){
-        tcp_client.Send(frame_id_str);
-        // printf("[filter_white_balance:TestApp]: (send_frame_id)Going to wait for receive...\n");
+        tcp_client.Send(frame_id_ctr_arr, SIZEOFPACKAGEFORNAME);
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)Going to wait for receive...\n");
         rec = tcp_client.receive_exact(REPLYMSGSIZE);
-        // printf("[filter_white_balance:TestApp]: (send_frame_id)received: (%s)...\n", rec.c_str());
+        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)received: (%s)...\n", rec.c_str());
     }
+    free(frame_id_ctr_arr);
     // printf("(send_frame_id)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
@@ -1060,7 +1064,24 @@ void request_process_loop(char** argv)
 
     // Prepare tcp client
     // printf("Setting up tcp client...\n");
-    tcp_client.setup(argv[2], atoi(argv[3]));
+    int time_to_try = 100;
+    int is_successfully_connected = 0;
+
+    while (time_to_try && !is_successfully_connected) {
+        bool result_of_connection_setup = tcp_client.setup(argv[2], atoi(argv[3]));
+        if(!result_of_connection_setup){
+            tcp_client = TCPClient();
+            --time_to_try;
+            usleep(50000);
+        } else {
+            is_successfully_connected = 1;
+        }
+    }
+    
+    if (!is_successfully_connected) {
+        printf("[filter_blur:TestApp]: Connection to encoder is unsuccessful at ip: %s with port: %d\n", argv[2], atoi(argv[3]));
+        close_app(0);
+    }
 
     // printf("Going to first send der_cert through tcp client...\n");
 
@@ -1162,6 +1183,11 @@ void request_process_loop(char** argv)
         }
         // md_json = NULL;
         // printf("frame %d processed successfully\n", num_of_times_received);
+    }
+
+    if (is_multi_bundles_enabled) {
+        // Report to encoder for not expecting this enclave to send any frame further
+        send_frame_id(-2);
     }
 
     stop = high_resolution_clock::now();

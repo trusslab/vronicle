@@ -745,14 +745,18 @@ void send_message(char* message, int msg_size){
 }
 
 void send_frame_id(int frame_id){
-    string frame_id_str = std::to_string(frame_id);
+    // string frame_id_str = std::to_string(frame_id);
+    char* frame_id_ctr_arr = (char*) malloc(SIZEOFPACKAGEFORNAME);
+    memset(frame_id_ctr_arr, 0, SIZEOFPACKAGEFORNAME);
+    snprintf(frame_id_ctr_arr, SIZEOFPACKAGEFORNAME, "%d", frame_id);
     string rec = "wrong";
     while(rec == "wrong"){
-        tcp_client.Send(frame_id_str);
+        tcp_client.Send(frame_id_ctr_arr, SIZEOFPACKAGEFORNAME);
         // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)Going to wait for receive...\n");
         rec = tcp_client.receive_exact(REPLYMSGSIZE);
         // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: (send_frame_id)received: (%s)...\n", rec.c_str());
     }
+    free(frame_id_ctr_arr);
     // printf("(send_frame_id)Going to wait for receive(finished)...\n");
 	if( rec != "" )
 	{
@@ -828,6 +832,8 @@ int verification_reply(
         printf("Failed to parse metadata\n");
         return 1;
     }
+
+    // printf("[filter_gray:TestApp]: Processing frame: %d\n", md->frame_id);
 
     // Set up some basic parameters
     frame_size_p = md->width * md->height * 3 * sizeof(unsigned char);
@@ -1030,7 +1036,7 @@ void request_process_loop(char** argv)
     duration = duration_cast<microseconds>(stop - start);
     alt_eval_file << duration.count() << ", ";
 
-    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: ias cert received successfully...\n");
+    // printf("[filter_gray:TestApp]: ias cert received successfully...\n");
 
     start = high_resolution_clock::now();
 
@@ -1060,23 +1066,40 @@ void request_process_loop(char** argv)
 
     // Prepare tcp client
     // printf("Setting up tcp client...\n");
-    tcp_client.setup(argv[2], atoi(argv[3]));
+    int time_to_try = 100;
+    int is_successfully_connected = 0;
+
+    while (time_to_try && !is_successfully_connected) {
+        bool result_of_connection_setup = tcp_client.setup(argv[2], atoi(argv[3]));
+        if(!result_of_connection_setup){
+            tcp_client = TCPClient();
+            --time_to_try;
+            usleep(50000);
+        } else {
+            is_successfully_connected = 1;
+        }
+    }
+    
+    if (!is_successfully_connected) {
+        printf("[filter_gray:TestApp]: Connection to encoder is unsuccessful at ip: %s with port: %d\n", argv[2], atoi(argv[3]));
+        close_app(0);
+    }
 
     // printf("Going to first send der_cert through tcp client...\n");
 
     // Send certificate
     if(is_multi_bundles_enabled){
-        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: multi_bundles_enabled detected, before sending cert, going to first send current_frame_id, which is: (%d)\n", current_frame_id);
+        // printf("[filter_gray:TestApp]: multi_bundles_enabled detected, before sending cert, going to first send current_frame_id, which is: (%d)\n", current_frame_id);
         send_frame_id(current_frame_id);
-        // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Pass frame_id verification for sending cert...\n");
+        // printf("[filter_gray:TestApp]: Pass frame_id verification for sending cert...\n");
     }
     memset(msg_buf, 0, size_of_msg_buf);
     memcpy(msg_buf, "cert", 4);
-    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert file name...\n");
+    // printf("[filter_gray:TestApp]: Going to send cert file name...\n");
     send_message(msg_buf, size_of_msg_buf);
-    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: Going to send cert data...\n");
+    // printf("[filter_gray:TestApp]: Going to send cert data...\n");
     send_buffer(der_cert, size_of_cert);
-    // printf("[filter_test_bundle_sharpen_and_blur:TestApp]: cert is sent for filter(%s)...\n", argv[1]);
+    // printf("[filter_gray:TestApp]: cert is sent for filter(%s)...\n", argv[1]);
 
     stop = high_resolution_clock::now();
     duration = duration_cast<microseconds>(stop - start);
@@ -1162,6 +1185,11 @@ void request_process_loop(char** argv)
         }
         // md_json = NULL;
         // printf("frame %d processed successfully\n", num_of_times_received);
+    }
+
+    if (is_multi_bundles_enabled) {
+        // Report to encoder for not expecting this enclave to send any frame further
+        send_frame_id(-2);
     }
 
     stop = high_resolution_clock::now();

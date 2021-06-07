@@ -14,6 +14,8 @@ TCP_MODULE_DIR := ../tcp_module
 Cpp_Files := $(wildcard *.cpp) $(wildcard $(TCP_MODULE_DIR)/*.cpp)
 Cpp_Objects := $(Cpp_Files:.cpp=.o)
 
+CFLAGS := -I$(F_DECODER_INCLUDE_PATH) -O2 -w -std=c99 -Wno-implicit-function-declaration
+
 # Added for ffmpeg H264 Decoder
 F_DECODER_OBJS := $(F_DECODER_SRCS:%.c=%.o)
 

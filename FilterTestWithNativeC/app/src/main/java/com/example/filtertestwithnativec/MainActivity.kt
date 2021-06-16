@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
         chosenFiltersTextView = findViewById(R.id.activity_main_chosen_filters_textview)
         val addFilterButton: Button = findViewById(R.id.activity_main_add_filter_button)
         val uploadButton: Button = findViewById(R.id.activity_main_upload_button)
+        val evalButton: Button = findViewById(R.id.activity_main_eval_button)
         statusTextView = findViewById(R.id.activity_main_status_textview)
 
         chosenFiltersTextView.movementMethod = ScrollingMovementMethod()
@@ -191,6 +192,14 @@ class MainActivity : AppCompatActivity() {
                         chosenFiltersNames.add("white_balance")
                         chosenFiltersParameterNums.add(0)
                     }
+                    R.id.add_filter_test_bundle_sharpen_and_blur_radioButton -> {
+                        chosenFiltersNames.add("test_bundle_sharpen_and_blur")
+                        chosenFiltersParameterNums.add(0)
+                    }
+                    R.id.add_filter_all_in_one_radioButton -> {
+                        chosenFiltersNames.add("all_in_one")
+                        chosenFiltersParameterNums.add(0)
+                    }
                     else -> {
                         isValidFilterDetected = false
                         Toast.makeText(this, "Illegal filter is chosen", Toast.LENGTH_SHORT).show()
@@ -202,6 +211,62 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             builder.show()
+        }
+
+        evalButton.setOnClickListener {
+//            Toast.makeText(this, "lallalallalalalallala", Toast.LENGTH_SHORT).show()
+
+            // Read file
+//            recordedVideo = MediaFile(this, Uri.fromFile(File("/storage/0000-0000/vronicle_eval/720p.mp4")))
+            recordedVideo = MediaFile(this, Uri.fromFile(File("/storage/emulated/0/vronicle_eval/720p300f.mp4")))
+            videoByteArray = File(recordedVideo.absolutePath).readBytes()
+//            videoByteArray = File("/storage/emulated/0/vronicle_eval/720p.mp4").readBytes()
+            Log.d(TAG, "onActivityResult: ${videoByteArray.size} have been read into RAM...")
+//            updateChosenFileTextViewWithLatestInfo()
+
+            // Clear potential previous parameters
+            chosenFiltersNames.clear()
+            chosenFiltersParameterNums.clear()
+            chosenFiltersParameters.clear()
+
+            // Add filter(s)
+//            chosenFiltersNames.add("all_in_one")
+//            chosenFiltersParameterNums.add(3)
+//            chosenFiltersParameters.add(7.0)
+//            chosenFiltersParameters.add(7.0)
+//            chosenFiltersParameters.add(0.8)
+
+//            chosenFiltersNames.add("test_bundle_sharpen_and_blur")
+//            chosenFiltersParameterNums.add(2)
+//            chosenFiltersParameters.add(7.0)
+//            chosenFiltersParameters.add(7.0)
+
+//            chosenFiltersNames.add("blur")
+//            chosenFiltersParameterNums.add(1)
+//            chosenFiltersParameters.add(7.0)
+//            chosenFiltersNames.add("sharpen")
+//            chosenFiltersParameterNums.add(1)
+//            chosenFiltersParameters.add(7.0)
+//            chosenFiltersNames.add("white_balance")
+//            chosenFiltersParameterNums.add(0)
+//            chosenFiltersNames.add("denoise_easy")
+//            chosenFiltersParameterNums.add(0)
+            chosenFiltersNames.add("brightness")
+            chosenFiltersParameterNums.add(1)
+            chosenFiltersParameters.add(0.8)
+            chosenFiltersNames.add("white_balance")
+            chosenFiltersParameterNums.add(0)
+//            chosenFiltersNames.add("gray")
+//            chosenFiltersParameterNums.add(0)
+//            updateFiltersInfoTextViewWithInfo(chosenFiltersNames[chosenFiltersNames.size - 1])
+
+            // Upload
+            if (hashOfPubKey.isEmpty() || firstAttestationReport.isEmpty()) {
+                Toast.makeText(baseContext, "First SafetyNet Attestation is still not completed", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            doSecondSafetyNetAttestationAndAttemptUpload(hashOfPubKey);
         }
 
     }
@@ -239,14 +304,24 @@ class MainActivity : AppCompatActivity() {
         for (filterParameterIndex in chosenFiltersParameters.indices) {
             inputOfchosenFiltersParameters[filterParameterIndex] = chosenFiltersParameters[filterParameterIndex]
         }
-        Log.d(TAG, "onCreate: chosenFiltersNames.toTypedArray(): ${chosenFiltersNames.toTypedArray()}")
+        Log.d(TAG, "onCreate: chosenFiltersNames: ${chosenFiltersNames}")
+        Log.d(TAG, "onCreate: inputOfchosenFiltersParameterNums: ${inputOfchosenFiltersParameterNums}")
+        Log.d(TAG, "onCreate: inputOfchosenFiltersParameters: ${inputOfchosenFiltersParameters}")
+//        val metadataString: String = generate_metadata(
+//                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt(),
+//                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt(),
+//                30,
+//                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT).toInt() - 1,  // -1 to delete the last incomplete frame
+//                firstAttestationReport, secondAttestationReport,
+//                chosenFiltersNames.toTypedArray(), inputOfchosenFiltersParameterNums, inputOfchosenFiltersParameters
+//        )
         val metadataString: String = generate_metadata(
-                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt(),
-                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt(),
-                30,
-                videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT).toInt() - 1,  // -1 to delete the last incomplete frame
-                firstAttestationReport, secondAttestationReport,
-                chosenFiltersNames.toTypedArray(), inputOfchosenFiltersParameterNums, inputOfchosenFiltersParameters
+            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt(),
+            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt(),
+            30,
+            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT).toInt() - 1,  // -1 to delete the last incomplete frame,
+            firstAttestationReport, secondAttestationReport,
+            chosenFiltersNames.toTypedArray(), inputOfchosenFiltersParameterNums, inputOfchosenFiltersParameters
         )
         Log.d(TAG, "onCreate: the metadata we get has length: ${metadataString.length}")
         runOnUiThread {

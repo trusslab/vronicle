@@ -51,6 +51,18 @@
             android:layout_height="wrap_content"
             android:text="White Balance"/>
 
+        <RadioButton
+            android:id="@+id/add_filter_test_bundle_sharpen_and_blur_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Sharpen &amp; Blur Bundle (4 Eval)"/>
+
+        <RadioButton
+            android:id="@+id/add_filter_all_in_one_radioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="All in One (4 Eval)"/>
+
     </RadioGroup>
 
     <EditText

@@ -11,6 +11,11 @@ extern "C" {
 #include "stdio.h"
 #include "time.h"
 
+const static char* TAG = "metadata";
+
+#include <android/log.h>
+#define printf(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__);
+
 #define JSON_MAX_ELEM_LEN 50000
 
 typedef struct metadata {
@@ -190,6 +195,7 @@ char* metadata_2_json_without_frame_id(metadata *md)
             extend_json_w_fmt(&json, "\"%s\"", md->filters[i], 0);
         else
             extend_json_w_fmt(&json, ", \"%s\"", md->filters[i], 0);
+        printf("metadata_2_json_without_frame_id: After the filter {%s} is added, the json is now: {%s}...\n", md->filters[i], json);
     }
     extend_json_wo_fmt(&json, "], \"filters_parameters_registry\": [");
     for (int i = 0; i < md->total_filters; i++) {

@@ -9,11 +9,8 @@
 #include <openssl/err.h>
 #include <openssl/bio.h>
 
-#include <android/log.h>
 
-const static char* TAG = "native-lib";
-
-#define printf(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__);
+//const static char* TAG = "native-lib";
 
 FILE *fpriv_key, *fpub_key;
 EVP_PKEY *priv_key = nullptr, *pub_key = nullptr;
@@ -652,15 +649,22 @@ Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata(
     jdouble *filter_parameters_temp = env->GetDoubleArrayElements(filter_parameters, 0);
     for (int i = 0; i < md->total_filters; ++i) {
         const char *filter_name = env->GetStringUTFChars((jstring)(env->GetObjectArrayElement(filter_names, i)), 0);
+//        printf("Going to add filter: {%s} to metadata...\n", filter_name);
 //        printf("Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata: filter_name(%d): {%s}\n", strlen(filter_name), filter_name);
         md->filters[i] = (char*)malloc(sizeof(char) * (strlen(filter_name) + 1));
         memcpy(md->filters[i], filter_name, strlen(filter_name));
         *(md->filters[i] + strlen(filter_name)) = '\0';
+//        printf("The newly added filter in metadata is: {%s}, it has %d parameters...\n", md->filters[i], md->filters_parameters_registry[i]);
         for (int a = 0; a < md->filters_parameters_registry[i]; ++a) {
             md->filters_parameters[filter_parameters_counter] = (double) (filter_parameters_temp[filter_parameters_counter]);
             ++filter_parameters_counter;
         }
     }
+
+//    for (int i = 0; i < md->total_filters; ++i) {
+//        printf("Filter %d: {%s}...\n", i, md->filters[i]);
+//    }
+
     md->total_digests = 0;
     md->is_safetynet_presented = 1;
     md->num_of_safetynet_jws = 2;
@@ -691,11 +695,14 @@ Java_com_example_filtertestwithnativec_MainActivity_generate_1metadata(
     char* json = NULL;
     json = metadata_2_json_without_frame_id(md);
     printf("The final generated metadata_json has a size of: %d\n", strlen(json));
+    printf("The final metadata: {%s}\n", json);
 
     jstring str_to_ret = ((*env).NewStringUTF(json));
 
     free(json);
     free_metadata(md);
+
+    printf("Going to return the final generated metadata_json as Jave String");
 
     return str_to_ret;
 }

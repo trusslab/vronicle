@@ -14,6 +14,7 @@ cmd4SgxVerification = "./sig_verify"
 cmd4SafetynetVerification = "./runOnlineVerify"
 
 def update_with_sgx_verification(rootUi, statusLabelToBeUpdated):
+    print("SGX verification start time:", round(time() * 1000000))
     process = subprocess.Popen(
         "cd " + pathToSgxVerification + "&&" + cmd4SgxVerification + 
         " " + pathFromSgxVerification + sys.argv[1] + 
@@ -37,6 +38,7 @@ def update_with_sgx_verification(rootUi, statusLabelToBeUpdated):
         statusLabelToBeUpdated.config(text="Unverified!", fg="red")
 
     rootUi.update()
+    print("SGX verification end time:", round(time() * 1000000))
 
 def seperate_safetynet_verification_result_str(verificationResultStr):
     verificationResultStrLines = verificationResultStr.split("\n")
@@ -102,10 +104,14 @@ def try_get_raw_safetynet_report_str(completeReportsStr, indexToGet):
         tempIndex -= 1
     return resultStr
 
+# def update_with_safetynet_verification(rootUi, status1LabelToBeUpdated, status2LabelToBeUpdated, 
+#     status1TEELabelToBeUpdated, status2TEELabelToBeUpdated,
+#     statusTimeWindowLabelToBeUpdated, statusConfidenceLevelToBeUpdated,
+#     rawReportTextArea1ToBeUpdated, rawReportTextArea2ToBeUpdated):
 def update_with_safetynet_verification(rootUi, status1LabelToBeUpdated, status2LabelToBeUpdated, 
     status1TEELabelToBeUpdated, status2TEELabelToBeUpdated,
-    statusTimeWindowLabelToBeUpdated, statusConfidenceLevelToBeUpdated,
     rawReportTextArea1ToBeUpdated, rawReportTextArea2ToBeUpdated):
+    print("SafetyNet verification start time:", round(time() * 1000000))
     process = subprocess.Popen(
         "cd " + pathToSafetynetVerification + "&&" + cmd4SafetynetVerification + " " + pathFromSafetynetVerification + sys.argv[4] ,
         stdout=subprocess.PIPE, 
@@ -116,8 +122,8 @@ def update_with_safetynet_verification(rootUi, status1LabelToBeUpdated, status2L
         status2LabelToBeUpdated.config(text="Verifying" + "." * dotCounter, fg="yellow")
         status1TEELabelToBeUpdated.config(text="Verifying" + "." * dotCounter, fg="yellow")
         status2TEELabelToBeUpdated.config(text="Verifying" + "." * dotCounter, fg="yellow")
-        statusTimeWindowLabelToBeUpdated.config(text="Updating" + "." * dotCounter, fg="yellow")
-        statusConfidenceLevelToBeUpdated.config(text="Updating" + "." * dotCounter, fg="yellow")
+        # statusTimeWindowLabelToBeUpdated.config(text="Updating" + "." * dotCounter, fg="yellow")
+        # statusConfidenceLevelToBeUpdated.config(text="Updating" + "." * dotCounter, fg="yellow")
         dotCounter = (dotCounter + 1) % 4
         rootUi.update()
         sleep(0.3)
@@ -154,18 +160,18 @@ def update_with_safetynet_verification(rootUi, status1LabelToBeUpdated, status2L
     
     # Update with Timewondow and Confidence
     # print("timeWindowDays:", timeWindowDays, ";timeWindowHours:", timeWindowHours, ";timeWindowMinutes:", timeWindowMinutes, ";timeWindowSeconds:", timeWindowSeconds)
-    statusTimeWindowLabelToBeUpdated.config(\
-        text=str(timeWindowDays) + " days " + str(timeWindowHours) + " hours " + str(timeWindowMinutes) + " minutes " + str(timeWindowSeconds) + " seconds", 
-        fg="black")
-    if confidenceLevel <= 30:
-        statusConfidenceLevelToBeUpdated.config(text=str(confidenceLevel) + "%", fg="red")
-        statusTimeWindowLabelToBeUpdated.config(fg="red")
-    elif confidenceLevel <= 60:
-        statusConfidenceLevelToBeUpdated.config(text=str(confidenceLevel) + "%", fg="orange")
-        statusTimeWindowLabelToBeUpdated.config(fg="orange")
-    else:
-        statusConfidenceLevelToBeUpdated.config(text=str(confidenceLevel) + "%", fg="green")
-        statusTimeWindowLabelToBeUpdated.config(fg="green")
+    # statusTimeWindowLabelToBeUpdated.config(\
+    #     text=str(timeWindowDays) + " days " + str(timeWindowHours) + " hours " + str(timeWindowMinutes) + " minutes " + str(timeWindowSeconds) + " seconds", 
+    #     fg="black")
+    # if confidenceLevel <= 30:
+    #     statusConfidenceLevelToBeUpdated.config(text=str(confidenceLevel) + "%", fg="red")
+    #     statusTimeWindowLabelToBeUpdated.config(fg="red")
+    # elif confidenceLevel <= 60:
+    #     statusConfidenceLevelToBeUpdated.config(text=str(confidenceLevel) + "%", fg="orange")
+    #     statusTimeWindowLabelToBeUpdated.config(fg="orange")
+    # else:
+    #     statusConfidenceLevelToBeUpdated.config(text=str(confidenceLevel) + "%", fg="green")
+    #     statusTimeWindowLabelToBeUpdated.config(fg="green")
 
     rawReportTextArea1ToBeUpdated.configure(state="normal")
     rawReportTextArea2ToBeUpdated.configure(state="normal")
@@ -177,6 +183,7 @@ def update_with_safetynet_verification(rootUi, status1LabelToBeUpdated, status2L
     rawReportTextArea2ToBeUpdated.configure(state="disabled")
 
     rootUi.update()
+    print("SafetyNet verification end time:", round(time() * 1000000))
 
 def play_video():
     process = subprocess.Popen(
@@ -197,7 +204,7 @@ def main():
 
     # Display verification status on the top left
     verificationStatusFrame = Frame(gui, bg="#cfcfcf")
-    verificationStatusFrame.grid(row=0, column=0, padx=40, pady=40)
+    verificationStatusFrame.grid(row=0, column=0, columnspan=2, padx=40, pady=40)
 
     # SGX certificate and signature verification
     sgxVerificationLabel = Label(verificationStatusFrame, text="SGX Certificate & Signature Status: ", bg="#cfcfcf")
@@ -229,17 +236,17 @@ def main():
     readableVerificationStatusFrame = Frame(gui, bg="#cfcfcf")
     readableVerificationStatusFrame.grid(row=0, column=1, sticky=W, padx=(0, 40), pady=(40, 10))
 
-    # Timewindow
-    safetynetTimeWindowLabel = Label(readableVerificationStatusFrame, text="SafetyNet Attestation Time Window: ", bg="#cfcfcf")
-    safetynetTimeWindowLabel.grid(row=0, column=0, padx=(10, 0), pady=(10, 0), sticky=W)
-    safetynetTimeWindowStatusLabel = Label(readableVerificationStatusFrame, text="Awaiting", fg="grey", bg="#cfcfcf")
-    safetynetTimeWindowStatusLabel.grid(row=1, column=0, columnspan=2, padx=(30, 10), pady=(10, 0))
+    # # Timewindow
+    # safetynetTimeWindowLabel = Label(readableVerificationStatusFrame, text="SafetyNet Attestation Time Window: ", bg="#cfcfcf")
+    # safetynetTimeWindowLabel.grid(row=0, column=0, padx=(10, 0), pady=(10, 0), sticky=W)
+    # safetynetTimeWindowStatusLabel = Label(readableVerificationStatusFrame, text="Awaiting", fg="grey", bg="#cfcfcf")
+    # safetynetTimeWindowStatusLabel.grid(row=1, column=0, columnspan=2, padx=(30, 10), pady=(10, 0))
 
-    # Confidence
-    safetynetConfidenceLabel1 = Label(readableVerificationStatusFrame, text="SafetyNet Confidence Level: ", bg="#cfcfcf")
-    safetynetConfidenceLabel1.grid(row=2, column=0, padx=(10, 0), pady=(10, 0), sticky=W)
-    safetynetConfidenceStatusLabel1 = Label(readableVerificationStatusFrame, text="Awaiting", fg="grey", bg="#cfcfcf")
-    safetynetConfidenceStatusLabel1.grid(row=3, column=0, columnspan=2, padx=(30, 10), pady=(10, 10))
+    # # Confidence
+    # safetynetConfidenceLabel1 = Label(readableVerificationStatusFrame, text="SafetyNet Confidence Level: ", bg="#cfcfcf")
+    # safetynetConfidenceLabel1.grid(row=2, column=0, padx=(10, 0), pady=(10, 0), sticky=W)
+    # safetynetConfidenceStatusLabel1 = Label(readableVerificationStatusFrame, text="Awaiting", fg="grey", bg="#cfcfcf")
+    # safetynetConfidenceStatusLabel1.grid(row=3, column=0, columnspan=2, padx=(30, 10), pady=(10, 10))
 
     # Display Safetynet reports in Half-RAW on the bottom left
     safetynetReportsFrame = Frame(gui, bg="#cfcfcf")
@@ -265,10 +272,14 @@ def main():
                                       state="disabled")
     safetynetRawReportTextArea2.grid(row=1, column=1, padx=(100, 10), pady=(10, 10), sticky=W)
 
+    # gui.after(2000, update_with_safetynet_verification, gui, 
+    #     safetynetVerificationStatusLabel1, safetynetVerificationStatusLabel2,
+    #     safetynetVerificationIsTEEBasedStatusLabel1, safetynetVerificationIsTEEBasedStatusLabel2,
+    #     safetynetTimeWindowStatusLabel, safetynetConfidenceStatusLabel1,
+    #     safetynetRawReportTextArea1, safetynetRawReportTextArea2)
     gui.after(2000, update_with_safetynet_verification, gui, 
         safetynetVerificationStatusLabel1, safetynetVerificationStatusLabel2,
         safetynetVerificationIsTEEBasedStatusLabel1, safetynetVerificationIsTEEBasedStatusLabel2,
-        safetynetTimeWindowStatusLabel, safetynetConfidenceStatusLabel1,
         safetynetRawReportTextArea1, safetynetRawReportTextArea2)
     
     # Display metadata in Half-RAW on the right

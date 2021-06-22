@@ -16,7 +16,7 @@
 #include "TCPClient.h"
 #include <time.h> /* for time() and ctime() */
 
-# define TARGET_NUM_FILES_RECEIVED 2
+# define TARGET_NUM_FILES_RECEIVED 4
 
 TCPClient tcp_client;
 int num_of_times_received = 0;

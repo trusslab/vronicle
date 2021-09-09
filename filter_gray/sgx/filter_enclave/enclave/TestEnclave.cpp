@@ -124,6 +124,9 @@ EVP_PKEY *pubkey;
 char* mrenclave;
 size_t mrenclave_len;
 
+char* prev_mrenclave;
+size_t prev_mrenclave_len;
+
 int vprintf_cb(Stream_t stream, const char * fmt, va_list arg)
 {
 	char buf[BUFSIZ] = {'\0'};
@@ -289,6 +292,9 @@ int t_verify_cert(void* cert, size_t size_of_cert)
 			break;
 		}
 
+		// Extract mrenclave from certificate
+		get_mrenclave((uint8_t*)cert, (uint32_t)size_of_cert, &prev_mrenclave, &prev_mrenclave_len);
+
 		// Extract public key from certificate
 		pubkey = EVP_PKEY_new();
  	    const unsigned char* p = (unsigned char*)cert;
@@ -349,6 +355,15 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 		ret = 1;
 		return ret;
 	}
+	int filter_idx = get_filter_idx(tmp, filter_name);
+
+	// Verify previous enclave's mrenclave
+	// printf("[filter_blur:TestEnclave]: comparing previous mrenclave(claimed): %s with (verified): %s.\n", tmp->digests[filter_idx], prev_mrenclave);
+	if (strcmp(tmp->digests[filter_idx], prev_mrenclave) != 0) {
+		ret = 1;
+		printf("Failed to verify previous enclave's MRENCLAVE\n");
+		return ret;
+	}
 
 	// Process image
     pixel* processed_pixels;
@@ -359,7 +374,6 @@ int t_sgxver_call_apis(void* img_pixels, size_t size_of_img_pixels,
 	// Generate metadata
 	int tmp_total_digests = tmp->total_digests;
 	tmp->total_digests = tmp_total_digests + 1;
-	int filter_idx = get_filter_idx(tmp, filter_name);
 	tmp->digests = (char**)realloc(tmp->digests, sizeof(char*) * (/*decoder*/1 + /*filter*/filter_idx + 1));
 	tmp->digests[filter_idx + 1] = (char*)malloc(mrenclave_len);
 	memset(tmp->digests[filter_idx + 1], 0, mrenclave_len);

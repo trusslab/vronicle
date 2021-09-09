@@ -86,6 +86,9 @@ metadata* out_md;
 char* mrenclave;
 size_t mrenclave_len;
 
+char* prev_mrenclave;
+size_t prev_mrenclave_len;
+
 // For muxing
 uint8_t *mp4_strm = NULL;
 size_t sizeof_mp4_strm = 0;
@@ -943,6 +946,10 @@ int t_verify_cert(void* cert, size_t size_of_cert, size_t client_id)
             pubkeys = (EVP_PKEY**)realloc(pubkeys, num_of_pubkey_allocated * sizeof(EVP_PKEY*));
         }
 
+        // TO-DO: Make it support multithreading
+		// Extract mrenclave from certificate
+		get_mrenclave((uint8_t*)cert, (uint32_t)size_of_cert, &prev_mrenclave, &prev_mrenclave_len);
+
 		// Extract public key from certificate
 		pubkeys[client_id] = EVP_PKEY_new();
  	    const unsigned char* p = (unsigned char*)cert;
@@ -1004,6 +1011,15 @@ void t_get_sig_size (size_t* sig_size, char* original_md_json,  size_t original_
     
     // printf("[EncoderEnclave]: In t_get_sig_size, we have output_json_4_in(%d): [%s]\n", strlen(output_json_4_in), output_json_4_in);
     // free(output_json_4_in);
+
+    
+
+	// Verify previous enclave's mrenclave
+	// printf("[filter_blur:TestEnclave]: comparing previous mrenclave(claimed): %s with (verified): %s.\n", tmp->digests[filter_idx], prev_mrenclave);
+	if (strcmp(in_md->digests[in_md->total_digests - 1], prev_mrenclave) != 0) {
+		printf("Failed to verify previous enclave's MRENCLAVE\n");
+        // TO-DO: quit the enclave when detecting unmatched previous enclave's MRENCLAVE
+	}
 
     out_md = in_md;
 	int tmp_total_digests = out_md->total_digests;

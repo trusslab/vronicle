@@ -192,6 +192,10 @@ class MainActivity : AppCompatActivity() {
                         chosenFiltersNames.add("white_balance")
                         chosenFiltersParameterNums.add(0)
                     }
+                    R.id.add_filter_frame_erase_radioButton -> {
+                        chosenFiltersNames.add("frame_deletion")
+                        chosenFiltersParameterNums.add(0)
+                    }
                     R.id.add_filter_test_bundle_sharpen_and_blur_radioButton -> {
                         chosenFiltersNames.add("test_bundle_sharpen_and_blur")
                         chosenFiltersParameterNums.add(0)
@@ -218,16 +222,16 @@ class MainActivity : AppCompatActivity() {
 
             // Read file
 //            recordedVideo = MediaFile(this, Uri.fromFile(File("/storage/0000-0000/vronicle_eval/720p.mp4")))
-            recordedVideo = MediaFile(this, Uri.fromFile(File("/storage/emulated/0/vronicle_eval/720p300f.mp4")))
+//            recordedVideo = MediaFile(this, Uri.fromFile(File("/storage/emulated/0/vronicle_eval/720p.mp4")))
             videoByteArray = File(recordedVideo.absolutePath).readBytes()
 //            videoByteArray = File("/storage/emulated/0/vronicle_eval/720p.mp4").readBytes()
             Log.d(TAG, "onActivityResult: ${videoByteArray.size} have been read into RAM...")
 //            updateChosenFileTextViewWithLatestInfo()
 
             // Clear potential previous parameters
-            chosenFiltersNames.clear()
-            chosenFiltersParameterNums.clear()
-            chosenFiltersParameters.clear()
+//            chosenFiltersNames.clear()
+//            chosenFiltersParameterNums.clear()
+//            chosenFiltersParameters.clear()
 
             // Add filter(s)
 //            chosenFiltersNames.add("all_in_one")
@@ -251,11 +255,11 @@ class MainActivity : AppCompatActivity() {
 //            chosenFiltersParameterNums.add(0)
 //            chosenFiltersNames.add("denoise_easy")
 //            chosenFiltersParameterNums.add(0)
-            chosenFiltersNames.add("brightness")
-            chosenFiltersParameterNums.add(1)
-            chosenFiltersParameters.add(0.8)
-            chosenFiltersNames.add("white_balance")
-            chosenFiltersParameterNums.add(0)
+//            chosenFiltersNames.add("brightness")
+//            chosenFiltersParameterNums.add(1)
+//            chosenFiltersParameters.add(0.8)
+//            chosenFiltersNames.add("white_balance")
+//            chosenFiltersParameterNums.add(0)
 //            chosenFiltersNames.add("gray")
 //            chosenFiltersParameterNums.add(0)
 //            updateFiltersInfoTextViewWithInfo(chosenFiltersNames[chosenFiltersNames.size - 1])

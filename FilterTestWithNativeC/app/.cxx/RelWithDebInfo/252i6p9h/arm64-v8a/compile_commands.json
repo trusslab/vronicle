@@ -1,0 +1,19 @@
+[
+{
+  "directory": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/arm64-v8a",
+  "command": "/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android28 --gcc-toolchain=/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64 --sysroot=/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64/sysroot  -Dtcp_client_EXPORTS -I/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/include  -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG -fPIC   -o CMakeFiles/tcp-client.dir/client.cpp.o -c /home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/client.cpp",
+  "file": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/client.cpp"
+},
+
+{
+  "directory": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/arm64-v8a",
+  "command": "/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android28 --gcc-toolchain=/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64 --sysroot=/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64/sysroot  -Dtcp_client_EXPORTS -I/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/include  -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG -fPIC   -o CMakeFiles/tcp-client.dir/TCPClient.cpp.o -c /home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/TCPClient.cpp",
+  "file": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/TCPClient.cpp"
+},
+
+{
+  "directory": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/arm64-v8a",
+  "command": "/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android28 --gcc-toolchain=/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64 --sysroot=/home/myles/Android/Sdk/ndk/21.4.7075529/toolchains/llvm/prebuilt/linux-x86_64/sysroot  -Dnative_lib_EXPORTS -I/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/include  -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG -fPIC   -o CMakeFiles/native-lib.dir/native-lib.cpp.o -c /home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/native-lib.cpp",
+  "file": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/native-lib.cpp"
+}
+]

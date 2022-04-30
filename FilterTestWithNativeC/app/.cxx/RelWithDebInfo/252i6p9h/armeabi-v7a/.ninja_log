@@ -1,0 +1,6 @@
+# ninja log v5
+0	287	1651213351	CMakeFiles/tcp-client.dir/client.cpp.o	2c8470a862b810c9
+1	302	1651213351	CMakeFiles/tcp-client.dir/TCPClient.cpp.o	5500f8927d1e91be
+302	343	1651213351	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/RelWithDebInfo/252i6p9h/obj/armeabi-v7a/libtcp-client.so	601f3d07ff6e8c8e
+1	351	1651213351	CMakeFiles/native-lib.dir/native-lib.cpp.o	f1bf73a0b2344af1
+352	407	1651213352	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/RelWithDebInfo/252i6p9h/obj/armeabi-v7a/libnative-lib.so	a56c4233c06316c1

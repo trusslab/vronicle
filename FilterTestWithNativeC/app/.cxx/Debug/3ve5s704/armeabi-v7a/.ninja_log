@@ -1,0 +1,11 @@
+# ninja log v5
+0	264	1651213347	CMakeFiles/native-lib.dir/native-lib.cpp.o	43aa6461463eeab9
+0	297	1651213347	CMakeFiles/tcp-client.dir/client.cpp.o	5c6c78dcde23161c
+0	303	1651213347	CMakeFiles/tcp-client.dir/TCPClient.cpp.o	ac9dac6705616ad0
+265	345	1651213347	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/armeabi-v7a/libnative-lib.so	ed942bb904bb2390
+303	357	1651213347	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/armeabi-v7a/libtcp-client.so	caf5ac8db1007336
+1	238	1651278605	CMakeFiles/native-lib.dir/native-lib.cpp.o	43aa6461463eeab9
+1	250	1651278605	CMakeFiles/tcp-client.dir/client.cpp.o	5c6c78dcde23161c
+1	271	1651278605	CMakeFiles/tcp-client.dir/TCPClient.cpp.o	ac9dac6705616ad0
+238	315	1651278605	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/armeabi-v7a/libnative-lib.so	ed942bb904bb2390
+271	328	1651278605	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/armeabi-v7a/libtcp-client.so	caf5ac8db1007336

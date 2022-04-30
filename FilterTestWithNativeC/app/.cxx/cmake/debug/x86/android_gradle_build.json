@@ -1,0 +1,53 @@
+{
+  "stringTable": {},
+  "buildFiles": [
+    "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+      "-C",
+      "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/cmake/debug/x86",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+    "-C",
+    "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/cmake/debug/x86",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "tcp-client-Debug-x86": {
+      "buildCommandComponents": [
+        "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+        "-C",
+        "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/cmake/debug/x86",
+        "tcp-client"
+      ],
+      "buildType": "debug",
+      "abi": "x86",
+      "artifactName": "tcp-client",
+      "output": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cmake/debug/obj/x86/libtcp-client.so",
+      "runtimeFiles": []
+    },
+    "native-lib-Debug-x86": {
+      "buildCommandComponents": [
+        "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+        "-C",
+        "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/cmake/debug/x86",
+        "native-lib"
+      ],
+      "buildType": "debug",
+      "abi": "x86",
+      "artifactName": "native-lib",
+      "output": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cmake/debug/obj/x86/libnative-lib.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {},
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

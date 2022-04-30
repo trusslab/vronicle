@@ -1,0 +1,6 @@
+# ninja log v5
+0	286	1651213352	CMakeFiles/tcp-client.dir/client.cpp.o	e4618cc84278cbeb
+0	341	1651213352	CMakeFiles/tcp-client.dir/TCPClient.cpp.o	ec3f9168328c0a31
+341	375	1651213352	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/RelWithDebInfo/252i6p9h/obj/x86/libtcp-client.so	802f187c0b547c66
+0	379	1651213352	CMakeFiles/native-lib.dir/native-lib.cpp.o	2751eed89d74f3e9
+379	416	1651213352	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/RelWithDebInfo/252i6p9h/obj/x86/libnative-lib.so	7dfbf40a91117306

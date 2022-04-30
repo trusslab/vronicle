@@ -1,0 +1,53 @@
+{
+  "stringTable": {},
+  "buildFiles": [
+    "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+      "-C",
+      "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+    "-C",
+    "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "native-lib-RelWithDebInfo-x86_64": {
+      "buildCommandComponents": [
+        "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+        "-C",
+        "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/x86_64",
+        "native-lib"
+      ],
+      "buildType": "release",
+      "abi": "x86_64",
+      "artifactName": "native-lib",
+      "output": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/RelWithDebInfo/252i6p9h/obj/x86_64/libnative-lib.so",
+      "runtimeFiles": []
+    },
+    "tcp-client-RelWithDebInfo-x86_64": {
+      "buildCommandComponents": [
+        "/home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja",
+        "-C",
+        "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/x86_64",
+        "tcp-client"
+      ],
+      "buildType": "release",
+      "abi": "x86_64",
+      "artifactName": "tcp-client",
+      "output": "/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/RelWithDebInfo/252i6p9h/obj/x86_64/libtcp-client.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {},
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

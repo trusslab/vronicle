@@ -1,0 +1,221 @@
+ninja: Entering directory `/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/Debug/3ve5s704/arm64-v8a'
+[1/5] Building CXX object CMakeFiles/native-lib.dir/native-lib.cpp.o
+In file included from /home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/native-lib.cpp:5:
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:116:17: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    char* tmp = "{";
+                ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:120:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"video_id\": \"%s\", ",   md->video_id, 0);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:121:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"timestamp\": %li, ",     &md->timestamp, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:122:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"width\": %i, ",          &md->width, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:123:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"height\": %i, ",         &md->height, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:124:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"segment_id\": %i, ",     &md->segment_id, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:125:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"total_segments\": %i, ", &md->total_segments, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:126:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"frame_rate\": %i, ",     &md->frame_rate, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:127:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"total_frames\": %i, ",   &md->total_frames, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:128:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"total_filters\": %i, ",  &md->total_filters, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:129:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "\"filters\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:132:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%s\"", md->filters[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:134:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%s\"", md->filters[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:136:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "], \"filters_parameters_registry\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:139:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%i\"", &(md->filters_parameters_registry[i]), 1);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:141:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%i\"", &(md->filters_parameters_registry[i]), 1);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:144:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "], \"total_filters_parameters\": %i, ",  &md->total_filters_parameters, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:145:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "\"filters_parameters\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:148:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%f\"", &(md->filters_parameters[i]), 2);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:150:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%f\"", &(md->filters_parameters[i]), 2);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:152:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "], \"total_digests\": %i, ",  &md->total_digests, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:153:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "\"digests\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:156:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%s\"", md->digests[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:158:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:160:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "], \"frame_id\": %3i\0",  &md->frame_id, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:162:33: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+       extend_json_w_fmt(&json, ", \"is_safetynet_presented\": %i", &md->is_safetynet_presented, 1);
+                                ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:163:33: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+       extend_json_w_fmt(&json, ", \"num_of_safetynet_jws\": %i", &md->num_of_safetynet_jws, 1);
+                                ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:164:34: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+       extend_json_wo_fmt(&json, ", \"safetynet_jws\": [");
+                                 ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:167:41: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+               extend_json_w_fmt(&json, "\"%s\"", md->safetynet_jws[i], 0);
+                                        ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:169:41: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+               extend_json_w_fmt(&json, ", \"%s\"", md->safetynet_jws[i], 0);
+                                        ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:171:34: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+       extend_json_wo_fmt(&json, "]");
+                                 ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:173:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "}\0");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:179:17: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    char* tmp = "{";
+                ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:183:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"video_id\": \"%s\", ",   md->video_id, 0);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:184:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"timestamp\": %li, ",     &md->timestamp, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:185:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"width\": %i, ",          &md->width, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:186:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"height\": %i, ",         &md->height, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:187:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"segment_id\": %i, ",     &md->segment_id, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:188:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"total_segments\": %i, ", &md->total_segments, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:189:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"frame_rate\": %i, ",     &md->frame_rate, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:190:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"total_frames\": %i, ",   &md->total_frames, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:191:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "\"total_filters\": %i, ",  &md->total_filters, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:192:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "\"filters\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:195:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%s\"", md->filters[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:197:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%s\"", md->filters[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:200:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "], \"filters_parameters_registry\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:203:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%i\"", &(md->filters_parameters_registry[i]), 1);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:205:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%i\"", &(md->filters_parameters_registry[i]), 1);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:208:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "], \"total_filters_parameters\": %i, ",  &md->total_filters_parameters, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:209:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "\"filters_parameters\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:212:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%f\"", &(md->filters_parameters[i]), 2);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:214:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%f\"", &(md->filters_parameters[i]), 2);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:216:30: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_w_fmt(&json, "], \"total_digests\": %i, ",  &md->total_digests, 1);
+                             ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:217:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "\"digests\": [");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:220:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, "\"%s\"", md->digests[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:222:38: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+            extend_json_w_fmt(&json, ", \"%s\"", md->digests[i], 0);
+                                     ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:224:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "]");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:226:34: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+        extend_json_w_fmt(&json, ", \"is_safetynet_presented\": %i", &md->is_safetynet_presented, 1);
+                                 ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:227:34: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+        extend_json_w_fmt(&json, ", \"num_of_safetynet_jws\": %i", &md->num_of_safetynet_jws, 1);
+                                 ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:228:35: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+        extend_json_wo_fmt(&json, ", \"safetynet_jws\": [");
+                                  ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:232:42: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+                extend_json_w_fmt(&json, "\"%s\"", md->safetynet_jws[i], 0);
+                                         ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:234:42: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+                extend_json_w_fmt(&json, ", \"%s\"", md->safetynet_jws[i], 0);
+                                         ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:236:35: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+        extend_json_wo_fmt(&json, "]");
+                                  ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:238:31: warning: ISO C++11 does not allow conversion from string literal to 'char *' [-Wwritable-strings]
+    extend_json_wo_fmt(&json, "}\0");
+                              ^
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/native-lib.cpp:681:51: warning: format specifies type 'int' but the argument has type 'size_t' (aka 'unsigned long') [-Wformat]
+    printf("first_attestation_report size: %d\n", size_of_first_attestation_report);
+                                           ~~     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                           %zu
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:17:65: note: expanded from macro 'printf'
+#define printf(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__);
+                                                                ^~~~~~~~~~~
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/native-lib.cpp:691:52: warning: format specifies type 'int' but the argument has type 'size_t' (aka 'unsigned long') [-Wformat]
+    printf("second_attestation_report size: %d\n", size_of_second_attestation_report);
+                                            ~~     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                            %zu
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:17:65: note: expanded from macro 'printf'
+#define printf(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__);
+                                                                ^~~~~~~~~~~
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/native-lib.cpp:697:69: warning: format specifies type 'int' but the argument has type 'size_t' (aka 'unsigned long') [-Wformat]
+    printf("The final generated metadata_json has a size of: %d\n", strlen(json));
+                                                             ~~     ^~~~~~~~~~~~
+                                                             %zu
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/src/main/cpp/metadata.h:17:65: note: expanded from macro 'printf'
+#define printf(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__);
+                                                                ^~~~~~~~~~~
+67 warnings generated.
+[2/5] Building CXX object CMakeFiles/tcp-client.dir/client.cpp.o
+[3/5] Building CXX object CMakeFiles/tcp-client.dir/TCPClient.cpp.o
+[4/5] Linking CXX shared library /home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/arm64-v8a/libtcp-client.so
+[5/5] Linking CXX shared library /home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/arm64-v8a/libnative-lib.so

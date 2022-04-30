@@ -1,0 +1,11 @@
+# ninja log v5
+1	221	1651213347	CMakeFiles/native-lib.dir/native-lib.cpp.o	2b9081aaf5854592
+0	244	1651213347	CMakeFiles/tcp-client.dir/client.cpp.o	4cd211ea9632bde1
+0	249	1651213347	CMakeFiles/tcp-client.dir/TCPClient.cpp.o	27bb352264581318
+221	282	1651213347	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/x86/libnative-lib.so	94d7a9592e1fffd7
+249	296	1651213347	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/x86/libtcp-client.so	8cc743575a4334e6
+1	212	1651278605	CMakeFiles/native-lib.dir/native-lib.cpp.o	2b9081aaf5854592
+1	243	1651278606	CMakeFiles/tcp-client.dir/client.cpp.o	4cd211ea9632bde1
+1	249	1651278606	CMakeFiles/tcp-client.dir/TCPClient.cpp.o	27bb352264581318
+212	271	1651278606	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/x86/libnative-lib.so	94d7a9592e1fffd7
+249	295	1651278606	/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/build/intermediates/cxx/Debug/3ve5s704/obj/x86/libtcp-client.so	8cc743575a4334e6

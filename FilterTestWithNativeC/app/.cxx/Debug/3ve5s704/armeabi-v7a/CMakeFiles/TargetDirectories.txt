@@ -1,0 +1,4 @@
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/Debug/3ve5s704/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/Debug/3ve5s704/armeabi-v7a/CMakeFiles/tcp-client.dir
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/Debug/3ve5s704/armeabi-v7a/CMakeFiles/edit_cache.dir
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/Debug/3ve5s704/armeabi-v7a/CMakeFiles/native-lib.dir

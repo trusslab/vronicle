@@ -1,0 +1,2 @@
+ninja: Entering directory `/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/x86_64'
+ninja: no work to do.

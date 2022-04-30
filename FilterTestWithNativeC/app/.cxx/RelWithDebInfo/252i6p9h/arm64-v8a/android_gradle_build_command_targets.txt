@@ -1,0 +1,8 @@
+Executable : /home/myles/Android/Sdk/cmake/3.10.2.4988404/bin/ninja
+arguments : 
+-C
+/home/myles/research/vronicle/vronicle/FilterTestWithNativeC/app/.cxx/RelWithDebInfo/252i6p9h/arm64-v8a
+native-lib
+tcp-client
+jvmArgs : 
+

@@ -320,10 +320,10 @@ class MainActivity : AppCompatActivity() {
 //                chosenFiltersNames.toTypedArray(), inputOfchosenFiltersParameterNums, inputOfchosenFiltersParameters
 //        )
         val metadataString: String = generate_metadata(
-            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt(),
-            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt(),
+            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)!!.toInt(),
+            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)!!.toInt(),
             30,
-            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT).toInt() - 1,  // -1 to delete the last incomplete frame,
+            videoFileMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)!!.toInt() - 1,  // -1 to delete the last incomplete frame,
             firstAttestationReport, secondAttestationReport,
             chosenFiltersNames.toTypedArray(), inputOfchosenFiltersParameterNums, inputOfchosenFiltersParameters
         )

@@ -939,7 +939,7 @@ int setup_tcp_clients_auto(){
 
     for(int i = 0; i < num_of_pair_of_output; ++i){
         tcp_clients[i] = new TCPClient();
-        // printf("[decoder:TestApp]: Setting up tcp client with args: %s, %s...\n", argv[2 + i * 2], argv[3 + i * 2]);
+        // printf("[decoder:TestApp]: Setting up tcp client with args...\n");
 
         ip_addr = tcp_client_rec.receive_name();
         memset(reply_to_scheduler, 0, REPLYMSGSIZE);
@@ -995,6 +995,8 @@ int setup_connection_with_encoder_using_scheduler() {
             is_successfully_connected = 1;
         }
     }
+
+    // printf("[decoder:TestApp]: is connection to encoder successful?: %d.\n", is_successfully_connected);
 
     if (!is_successfully_connected) {
         printf("[decoder:TestApp]: Connection to encoder is unsuccessful at ip: %s with port: %d\n", encoder_ip_addr.c_str(), encoder_port);
@@ -1182,10 +1184,12 @@ void do_decoding(
         // printf("[decoder:TestApp]: Reply to scheduler is sent...\n");
         if(name_of_current_file == "cert"){
 
-            camera_cert_len = tcp_client_rec.receive_size_of_data();
+            camera_cert_len = tcp_client_rec.receive_size_of_data() + 1;
 
             camera_cert = (char*) malloc(camera_cert_len);
-            current_writting_location_size = camera_cert_len;
+            memset(camera_cert, 0, camera_cert_len);
+            camera_cert[camera_cert_len - 1] = '\0';
+            current_writting_location_size = camera_cert_len - 1;
             current_writting_location = camera_cert;
 
         } else if (name_of_current_file == "vid"){
@@ -1410,7 +1414,7 @@ void do_decoding(
             close_app(0);
         }
 
-        // printf("[decoder:TestApp]: Decoded frame: %d\n", i);
+        printf("[decoder:TestApp]: Decoded frame: %d\n", i);
 
         string frame_num = to_string(i);
         

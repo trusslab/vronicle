@@ -323,7 +323,6 @@ bool verify_hash(void* hash_of_file, int size_of_hash, unsigned char* signature,
 			printf("EVP_VerifyFinal error. \n");
 			break;
 		}
-		// printf("EVP_VerifyFinal result: %d\n", ret);
 	} while(0);
 
 	// Below part is for freeing data
@@ -729,7 +728,7 @@ int t_sgxver_prepare_decoder(
 	memset(buf, 0, size_of_input_content_buffer + md_json_len);
 	memcpy(buf, input_content_buffer, size_of_input_content_buffer);
 	memcpy(buf + size_of_input_content_buffer, md_json, md_json_len);
-	// printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
+	printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
 	res = verify_hash(buf, size_of_input_content_buffer + md_json_len, (unsigned char*)vid_sig, vid_sig_len, pukey);
 	free(buf);
 	if(res != 1){
@@ -1333,7 +1332,7 @@ int t_sgxver_decode_content(
 	memset(buf, 0, size_of_input_content_buffer + md_json_len);
 	memcpy(buf, input_content_buffer, size_of_input_content_buffer);
 	memcpy(buf + size_of_input_content_buffer, md_json, md_json_len);
-	// printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
+	printf("Size of input_content_buffer is: %ld, size of md_json is: %ld, size of vid_sig: %d\n", size_of_input_content_buffer, md_json_len, vid_sig_len);
 	res = verify_hash(buf, size_of_input_content_buffer + md_json_len, (unsigned char*)vid_sig, vid_sig_len, pukey);
 	free(buf);
 	if(res != 1){

@@ -131,7 +131,7 @@ using namespace std::chrono;
 
 // For some fixed parameters
 const static char* local_ip_addr = "127.0.0.1";
-const static char* local_remote_ip_addr = "20.39.52.2";
+const static char* local_remote_ip_addr = "127.0.0.1";
 const static int size_of_typical_ip_addr = 16;   // For some reason, the last period and three digits are never successfully counted...so we use this method...
 
 // For evaluation

@@ -1176,7 +1176,7 @@ int main(int argc, char *argv[], char **env)
             memcpy(msg_to_send, "camera_vendor_pub", 17);  // To-Do: Make this flexible to different camera vendor
             tcp_server_for_decoder.Send(msg_to_send, SIZEOFPACKAGEFORNAME, decoder_id);
             msg_reply_from_decoder = tcp_server_for_decoder.receive_name_with_id(decoder_id);
-            // printf("For vendor pub name, got reply: {%s}\n", msg_reply_from_decoder.c_str());
+            // printf("[scheduler]: For vendor pub name, got reply: {%s}\n", msg_reply_from_decoder.c_str());
             if(msg_reply_from_decoder != "ready"){
                 printf("No ready received from decoder but: %s\n", msg_reply_from_decoder.c_str());
                 return 1;

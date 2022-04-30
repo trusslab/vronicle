@@ -18,14 +18,14 @@ then
     ENABLE_DCAP=$2
 fi
 
-cd $HOME_DIR/decoder/sgx/decoder_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/decoder/; make ENABLE_DCAP=$ENABLE_DCAP
 
-cd $HOME_DIR/filter_blur/sgx/filter_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
-cd $HOME_DIR/filter_gray/sgx/filter_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
-cd $HOME_DIR/filter_white_balance/sgx/filter_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
-cd $HOME_DIR/filter_brightness/sgx/filter_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
-cd $HOME_DIR/filter_sharpen/sgx/filter_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
-cd $HOME_DIR/filter_denoise_easy/sgx/filter_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
-cd $HOME_DIR/filter_test_bundle_sharpen_and_blur/sgx/filter_enclave/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/filter_blur/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/filter_gray/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/filter_white_balance/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/filter_brightness/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/filter_sharpen/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/filter_denoise_easy/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/filter_test_bundle_sharpen_and_blur/; make ENABLE_DCAP=$ENABLE_DCAP
 
-cd $HOME_DIR/encoder/tee/sgx/encoder_ra/; make ENABLE_DCAP=$ENABLE_DCAP
+cd $HOME_DIR/encoder/tee/; make ENABLE_DCAP=$ENABLE_DCAP

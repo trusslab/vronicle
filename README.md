@@ -101,6 +101,8 @@ When each request comes in, different enclave server will be started, which is s
 
 The following steps are tested on a Ubuntu 20.04 desktop (4-core; 16GB RAM) and a Hikey 620 LeMaker 8GB (2GB RAM) board. 
 
+Follow the prerequisities of this page to install needed libraries: https://optee.readthedocs.io/en/latest/building/prerequisites.html#prerequisites.
+
 First, download all files from another repo: https://github.com/trusslab/vronicle_trustzone. We would assume a folder ``<vronicle_trustzone_based_server_directory>`` is used.
 
 We use AOSP with OP-TEE for our TrustZone-based server. To build it, we assume the folder ``$trustzone_server`` is used. The following commands will build the TrustZone-based evaluation server with modified amount of memory. (See https://github.com/OP-TEE/optee_os/issues/2597 for details)

@@ -99,6 +99,16 @@ When each request comes in, different enclave server will be started, which is s
 
 ## Vronicle TrustZone-based Server
 
+The following steps are tested on a Ubuntu 20.04 desktop (4-core; 16GB RAM) and a Hikey 620 LeMaker 8GB (2GB RAM) board. 
+
+For flashing the image to your Hikey board, please follow the tutorial in this link: https://optee.readthedocs.io/en/latest/building/aosp/aosp.html#flashing-the-image.
+
+Now you should be able to run filter evaluations on the Hikey board. After it boots up, the following command can be invoked to do filter evaluations. Further instructions are shown when calling the command.
+
+```
+optee_examples_hello_world
+```
+
 ## Vronicle Linux Viewer
 
 The following steps are tested on a Ubuntu 20.04 desktop (4-core; 16GB RAM). The libraries setup is similar to the one mentioned in SGX-based Server, which is therefore omitted here.

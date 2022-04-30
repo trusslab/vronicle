@@ -101,6 +101,22 @@ When each request comes in, different enclave server will be started, which is s
 
 The following steps are tested on a Ubuntu 20.04 desktop (4-core; 16GB RAM) and a Hikey 620 LeMaker 8GB (2GB RAM) board. 
 
+First, download all files from another repo: https://github.com/trusslab/vronicle_trustzone. We would assume a folder ``<vronicle_trustzone_based_server_directory>`` is used.
+
+We use AOSP with OP-TEE for our TrustZone-based server. To build it, we assume the folder ``$trustzone_server`` is used. The following commands will build the TrustZone-based evaluation server with modified amount of memory. (See https://github.com/OP-TEE/optee_os/issues/2597 for details)
+
+```
+cd $trustzone_server
+git clone https://github.com/linaro-swg/optee_android_manifest [-b <release_tag>]
+cd optee_android_manifest
+./sync-p.sh
+cp -r <vronicle_trustzone_based_server_directory>/optee_examples $trustzone_server/external/
+cp -r <vronicle_trustzone_based_server_directory>/plat-hikey $trustzone_server/optee/optee_os/core/arch/arm/
+./build-p.sh
+```
+
+As compiling AOSP with OP-TEE can be challenging, we also provide pre-built binary files in  ``<vronicle_trustzone_based_server_directory>/hikey``.
+
 For flashing the image to your Hikey board, please follow the tutorial in this link: https://optee.readthedocs.io/en/latest/building/aosp/aosp.html#flashing-the-image.
 
 Now you should be able to run filter evaluations on the Hikey board. After it boots up, the following command can be invoked to do filter evaluations. Further instructions are shown when calling the command.

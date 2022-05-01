@@ -58,7 +58,7 @@ void * received(void * m)
 	{
         if(current_mode == 0){
             string file_name = tcp_server.receive_name_with_id(p_workflow->incoming_source);
-            // printf("[Scheduler]: received: Got new file_name: %s\n", file_name.c_str());
+            // printf("[Scheduler]: received: Got new file_name: %s from source: %d\n", file_name.c_str(), p_workflow->incoming_source);
             pthread_mutex_lock(&(p_workflow->in_data->individual_access_lock));
             if(file_name == "vid"){
                 current_file_indicator = 0;
@@ -80,6 +80,7 @@ void * received(void * m)
             pthread_mutex_unlock(&(p_workflow->in_data->individual_access_lock));
             current_mode = 1;
         } else if (current_mode == 1){
+            // printf("[Scheduler]: received: trying to get file size from source: %d.\n", p_workflow->incoming_source);
             long size_of_data = tcp_server.receive_size_of_data_with_id(p_workflow->incoming_source);
             *current_writing_size = size_of_data;
             remaining_file_size = size_of_data;
@@ -1158,6 +1159,10 @@ int main(int argc, char *argv[], char **env)
             // Join the receiver thread
             pthread_join(msg, NULL);
             fprintf(stderr, "[Evaluation]: Receiving ended at: %ld\n", high_resolution_clock::now());
+
+            // Only for reusing receiver port
+            printf("[scheduler]: let's reuse the receiver port.\n");
+            tcp_server.closed();
             
             end = high_resolution_clock::now();
             duration = duration_cast<microseconds>(end - start);

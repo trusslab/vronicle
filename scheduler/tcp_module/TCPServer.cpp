@@ -120,13 +120,14 @@ long TCPServer::receive_size_of_data_with_id(int id)
 int TCPServer::setup(int port, vector<int> opts)
 {
 	int opt = 1;
+    int opt_off = 0;
 	isonline = false;
 	last_closed = -1;
 	sockfd = socket(AF_INET,SOCK_STREAM,0);
  	memset(&serverAddress,0,sizeof(serverAddress));
 
 	for(unsigned int i = 0; i < opts.size(); i++) {
-		if( (setsockopt(sockfd, SOL_SOCKET, opts.size(), (char *)&opt, sizeof(opt))) < 0 ) {
+		if( (setsockopt(sockfd, SOL_SOCKET, opts[i], (char *)&opt, sizeof(opt))) < 0 ) {
 			cerr << "[Scheduler]: Errore setsockopt" << endl; 
 			return -1;
 		}
@@ -240,6 +241,7 @@ void TCPServer::detach(int id)
 void TCPServer::closed() 
 {
 	// printf("[Scheduler]: TCPServer is going to be closed...\n");
-	close(sockfd);
+	int res = close(sockfd);
+    // printf("[Scheduler]: TCPServer close result: %d.\n", res);
 }
 

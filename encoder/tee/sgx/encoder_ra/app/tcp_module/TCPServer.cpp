@@ -126,7 +126,7 @@ int TCPServer::setup(int port, vector<int> opts)
  	memset(&serverAddress,0,sizeof(serverAddress));
 
 	for(unsigned int i = 0; i < opts.size(); i++) {
-		if( (setsockopt(sockfd, SOL_SOCKET, opts.size(), (char *)&opt, sizeof(opt))) < 0 ) {
+		if( (setsockopt(sockfd, SOL_SOCKET, opts[i], (char *)&opt, sizeof(opt))) < 0 ) {
 			cerr << "[Encoder:TCPServer]: Errore setsockopt" << endl; 
       			return -1;
 	      	}

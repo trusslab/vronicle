@@ -143,3 +143,9 @@ cd $vronicle/viewer
 ./run_viewer.sh
 ```
 
+## Acknowledgments
+
+The work of UCI authors was supported in part by the NSA Award \#H98230-20-1-0345 and UCI ICS Exploration Research Award.
+The work of Gene Tsudik and Yoshimichi Natakatsuka was also supported in part by NSF Awards SATC-1956393 and CICI-1840197.
+The authors thank the paper shepherd, Steven Ko, and the anonymous reviewers for their insightful comments.
+
